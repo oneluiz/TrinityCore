@@ -33,6 +33,7 @@ namespace WorldPackets
         virtual void Read() = 0;
 
         WorldPacket& GetWorldPacket() { return _worldPacket; }
+        size_t GetSize() const { return _worldPacket.size(); }
 
     protected:
         WorldPacket _worldPacket;
@@ -41,13 +42,20 @@ namespace WorldPackets
     class ServerPacket : public Packet
     {
     public:
-        ServerPacket(OpcodeServer opcode, size_t initialSize);
+        ServerPacket(OpcodeServer opcode, size_t initialSize = 200);
 
         void Read() override final { ASSERT(!"Read not implemented for server packets."); }
 
-        size_t GetSize() const { return _worldPacket.size(); }
         void Reset() { _worldPacket.clear(); }
+    };
+
+    class ClientPacket : public Packet
+    {
+    public:
+        ClientPacket(WorldPacket&& packet) : Packet(std::move(packet)) { }
+
+        void Write() override final { ASSERT(!"Write not allowed for client packets."); }
     };
 }
 
-#endif
+#endif // PacketBaseWorld_h__
