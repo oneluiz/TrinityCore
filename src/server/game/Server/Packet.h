@@ -18,6 +18,8 @@
 #ifndef PacketBaseWorld_h__
 #define PacketBaseWorld_h__
 
+#include "WorldPacket.h"
+
 namespace WorldPackets
 {
     class Packet
@@ -29,10 +31,9 @@ namespace WorldPackets
         Packet(Packet const& right) = delete;
         Packet& operator=(Packet const& right) = delete;
 
-        virtual void Write() = 0;
+        virtual WorldPacket const* Write() = 0;
         virtual void Read() = 0;
 
-        WorldPacket& GetWorldPacket() { return _worldPacket; }
         size_t GetSize() const { return _worldPacket.size(); }
 
     protected:
@@ -54,7 +55,12 @@ namespace WorldPackets
     public:
         ClientPacket(WorldPacket&& packet) : Packet(std::move(packet)) { }
 
-        void Write() override final { ASSERT(!"Write not allowed for client packets."); }
+        WorldPacket const* Write() override final
+        {
+            ASSERT(!"Write not allowed for client packets.");
+            // Shut up some compilers
+            return nullptr;
+        }
     };
 }
 

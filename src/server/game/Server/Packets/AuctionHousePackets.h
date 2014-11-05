@@ -18,6 +18,7 @@
 #ifndef AuctionHousePackets_h__
 
 #include "Packet.h"
+#include "ObjectGuid.h"
 
 class ObjectGuid;
 
@@ -41,7 +42,7 @@ namespace WorldPackets
                  */
                 void InitializeAuction(AuctionEntry* auction);
 
-                void Write() override;
+                WorldPacket const* Write() override;
 
                 uint32 AuctionId     = 0; ///< the id of the auction that triggered this notification
                 uint32 Action        = 0; ///< the type of action that triggered this notification. Possible values are @ref AuctionAction

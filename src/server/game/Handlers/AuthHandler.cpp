@@ -20,6 +20,7 @@
 #include "WorldSession.h"
 #include "WorldPacket.h"
 #include "AuthenticationPackets.h"
+#include "SystemPackets.h"
 
 void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
 {
@@ -43,8 +44,7 @@ void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
         response.SuccessInfo.value.AvailableRaces = &sObjectMgr->GetRaceExpansionRequirements();
     }
 
-    response.Write();
-    SendPacket(&response.GetWorldPacket());
+    SendPacket(response.Write());
 }
 
 void WorldSession::SendAuthWaitQue(uint32 position)
@@ -64,9 +64,8 @@ void WorldSession::SendAuthWaitQue(uint32 position)
         response.WaitInfo.value.WaitCount = position;
         response.Result = AUTH_WAIT_QUEUE;
     }
-    
-    response.Write();
-    SendPacket(&response.GetWorldPacket());
+
+    SendPacket(response.Write());
 }
 
 void WorldSession::SendClientCacheVersion(uint32 version)
@@ -74,4 +73,25 @@ void WorldSession::SendClientCacheVersion(uint32 version)
     WorldPacket data(SMSG_CLIENTCACHE_VERSION, 4);
     data << uint32(version);
     SendPacket(&data);
+}
+
+void WorldSession::SendSetTimeZoneInformation()
+{
+    /// @todo: replace dummy values
+    WorldPackets::System::SetTimeZoneInformation packet;
+    packet.ServerTimeTZ = "Europe/Paris";
+    packet.GameTimeTZ = "Europe/Paris";
+
+    SendPacket(packet.Write());
+}
+
+void WorldSession::SendFeatureSystemStatusGlueScreen()
+{
+    WorldPackets::System::FeatureSystemStatusGlueScreen features;
+    features.BpayStoreAvailable = false;
+    features.BpayStoreDisabledByParentalControls = false;
+    features.CharUndeleteEnabled = sWorld->getBoolConfig(CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED);
+    features.BpayStoreEnabled = sWorld->getBoolConfig(CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED);
+
+    SendPacket(features.Write());
 }
