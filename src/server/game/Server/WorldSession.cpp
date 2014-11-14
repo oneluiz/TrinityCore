@@ -106,7 +106,6 @@ WorldSession::WorldSession(uint32 id, uint32 battlenetAccountId, std::shared_ptr
     AntiDOS(this),
     m_GUIDLow(UI64LIT(0)),
     _player(NULL),
-    m_Socket(sock),
     _security(sec),
     _accountId(id),
     _battlenetAccountId(battlenetAccountId),
@@ -114,7 +113,6 @@ WorldSession::WorldSession(uint32 id, uint32 battlenetAccountId, std::shared_ptr
     _warden(NULL),
     _logoutTime(0),
     m_inQueue(false),
-    m_playerLoading(false),
     m_playerLogout(false),
     m_playerRecentlyLogout(false),
     m_playerSave(false),
@@ -140,17 +138,9 @@ WorldSession::WorldSession(uint32 id, uint32 battlenetAccountId, std::shared_ptr
         LoginDatabase.PExecute("UPDATE account SET online = 1 WHERE id = %u;", GetAccountId());     // One-time query
     }
 
-    InitializeQueryCallbackParameters();
+    m_Socket[CONNECTION_TYPE_REALM] = sock;
 
-    _compressionStream = new z_stream();
-    _compressionStream->zalloc = (alloc_func)NULL;
-    _compressionStream->zfree = (free_func)NULL;
-    _compressionStream->opaque = (voidpf)NULL;
-    _compressionStream->avail_in = 0;
-    _compressionStream->next_in = NULL;
-    int32 z_res = deflateInit2(_compressionStream, sWorld->getIntConfig(CONFIG_COMPRESSION), Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY);
-    if (z_res != Z_OK)
-        TC_LOG_ERROR("network", "Can't initialize packet compression (zlib: deflateInit) Error code: %i (%s)", z_res, zError(z_res));
+    InitializeQueryCallbackParameters();
 }
 
 /// WorldSession destructor
@@ -161,10 +151,13 @@ WorldSession::~WorldSession()
         LogoutPlayer (true);
 
     /// - If have unclosed socket, close it
-    if (m_Socket)
+    for (uint8 i = 0; i < 2; ++i)
     {
-        m_Socket->CloseSocket();
-        m_Socket = nullptr;
+        if (m_Socket[i])
+        {
+            m_Socket[i]->CloseSocket();
+            m_Socket[i].reset();
+        }
     }
 
     delete _warden;
@@ -176,12 +169,6 @@ WorldSession::~WorldSession()
         delete packet;
 
     LoginDatabase.PExecute("UPDATE account SET online = 0 WHERE id = %u;", GetAccountId());     // One-time query
-
-    int32 z_res = deflateEnd(_compressionStream);
-    if (z_res != Z_OK && z_res != Z_DATA_ERROR) // Z_DATA_ERROR signals that internal state was BUSY
-        TC_LOG_ERROR("network", "Can't close packet compression stream (zlib: deflateEnd) Error code: %i (%s)", z_res, zError(z_res));
-
-    delete _compressionStream;
 }
 
 std::string const & WorldSession::GetPlayerName() const
@@ -205,7 +192,7 @@ std::string WorldSession::GetPlayerInfo() const
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet, bool forced /*= false*/)
 {
-    if (!m_Socket)
+    if (!m_Socket[packet->GetConnection()])
         return;
 
     if (packet->GetOpcode() == NULL_OPCODE)
@@ -265,38 +252,7 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool forced /*= false*/
 
     sScriptMgr->OnPacketSend(this, *packet);
 
-    m_Socket->SendPacket(*packet);
-}
-
-uint32 WorldSession::CompressPacket(uint8* buffer, WorldPacket const& packet)
-{
-    uint32 opcode = packet.GetOpcode();
-    uint32 bufferSize = deflateBound(_compressionStream, packet.size() + sizeof(opcode));
-
-    _compressionStream->next_out = buffer;
-    _compressionStream->avail_out = bufferSize;
-    _compressionStream->next_in = (Bytef*)&opcode;
-    _compressionStream->avail_in = sizeof(uint32);
-
-    int32 z_res = deflate(_compressionStream, Z_BLOCK);
-    if (z_res != Z_OK)
-    {
-        TC_LOG_ERROR("network", "Can't compress packet opcode (zlib: deflate) Error code: %i (%s, msg: %s)", z_res, zError(z_res), _compressionStream->msg);
-        return 0;
-    }
-
-    _compressionStream->next_in = (Bytef*)packet.contents();
-    _compressionStream->avail_in = packet.size();
-
-    z_res = deflate(_compressionStream, Z_SYNC_FLUSH);
-    if (z_res != Z_OK)
-    {
-        TC_LOG_ERROR("network", "Can't compress packet data (zlib: deflate) Error code: %i (%s, msg: %s)", z_res, zError(z_res), _compressionStream->msg);
-        return 0;
-    }
-
-
-    return bufferSize - _compressionStream->avail_out;
+    m_Socket[packet->GetConnection()]->SendPacket(*packet);
 }
 
 /// Add an incoming packet to the queue
@@ -332,7 +288,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
     ///- Before we process anything:
     /// If necessary, kick the player from the character select screen
     if (IsConnectionIdle())
-        m_Socket->CloseSocket();
+        m_Socket[CONNECTION_TYPE_REALM]->CloseSocket();
 
     ///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not process packets if socket already closed
@@ -349,7 +305,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
     uint32 processedPackets = 0;
     time_t currentTime = time(NULL);
 
-    while (m_Socket && !_recvQueue.empty() && _recvQueue.peek(true) != firstDelayedPacket && _recvQueue.next(packet, updater))
+    while (m_Socket[CONNECTION_TYPE_REALM] && !_recvQueue.empty() && _recvQueue.peek(true) != firstDelayedPacket && _recvQueue.next(packet, updater))
     {
         if (!AntiDOS.EvaluateOpcode(*packet, currentTime))
             KickPlayer();
@@ -458,7 +414,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
             break;
     }
 
-    if (m_Socket && m_Socket->IsOpen() && _warden)
+    if (m_Socket[CONNECTION_TYPE_REALM] && m_Socket[CONNECTION_TYPE_REALM]->IsOpen() && _warden)
         _warden->Update();
 
     ProcessQueryCallbacks();
@@ -469,23 +425,25 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
     {
         time_t currTime = time(NULL);
         ///- If necessary, log the player out
-        if (ShouldLogOut(currTime) && !m_playerLoading)
+        if (ShouldLogOut(currTime) && m_playerLoading.IsEmpty())
             LogoutPlayer(true);
 
-        if (m_Socket && GetPlayer() && _warden)
+        if (m_Socket[CONNECTION_TYPE_REALM] && GetPlayer() && _warden)
             _warden->Update();
 
         ///- Cleanup socket pointer if need
-        if (m_Socket && !m_Socket->IsOpen())
+        if ((m_Socket[CONNECTION_TYPE_REALM] && !m_Socket[CONNECTION_TYPE_REALM]->IsOpen()) ||
+            (m_Socket[CONNECTION_TYPE_INSTANCE] && !m_Socket[CONNECTION_TYPE_INSTANCE]->IsOpen()))
         {
             expireTime -= expireTime > diff ? diff : expireTime;
             if (expireTime < diff || forceExit || !GetPlayer())
             {
-                m_Socket = nullptr;
+                m_Socket[CONNECTION_TYPE_REALM].reset();
+                m_Socket[CONNECTION_TYPE_INSTANCE].reset();
             }
         }
 
-        if (!m_Socket)
+        if (!m_Socket[CONNECTION_TYPE_REALM])
             return false;                                       //Will remove this session from the world session map
     }
 
@@ -587,7 +545,7 @@ void WorldSession::LogoutPlayer(bool save)
 
         // remove player from the group if he is:
         // a) in group; b) not in raid group; c) logging out normally (not being kicked or disconnected)
-        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket)
+        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket[CONNECTION_TYPE_REALM])
             _player->RemoveFromGroup();
 
         //! Send update to group and reset stored max enchanting level
@@ -621,8 +579,7 @@ void WorldSession::LogoutPlayer(bool save)
 
         //! Send the 'logout complete' packet to the client
         //! Client will respond by sending 3x CMSG_CANCEL_TRADE, which we currently dont handle
-        WorldPacket data(SMSG_LOGOUT_COMPLETE, 0);
-        SendPacket(&data);
+        SendPacket(WorldPackets::Character::LogoutComplete().Write());
         TC_LOG_DEBUG("network", "SESSION: Sent SMSG_LOGOUT_COMPLETE Message");
 
         //! Since each account can only have one online character at any given time, ensure all characters for active account are marked as offline
@@ -631,19 +588,28 @@ void WorldSession::LogoutPlayer(bool save)
         CharacterDatabase.Execute(stmt);
     }
 
+    if (m_Socket[CONNECTION_TYPE_INSTANCE])
+    {
+        m_Socket[CONNECTION_TYPE_INSTANCE]->CloseSocket();
+        m_Socket[CONNECTION_TYPE_INSTANCE].reset();
+    }
+
     m_playerLogout = false;
     m_playerSave = false;
     m_playerRecentlyLogout = true;
-    LogoutRequest(0);
+    SetLogoutStartTime(0);
 }
 
 /// Kick a player out of the World
 void WorldSession::KickPlayer()
 {
-    if (m_Socket)
+    for (uint8 i = 0; i < 2; ++i)
     {
-        m_Socket->CloseSocket();
-        forceExit = true;
+        if (m_Socket[i])
+        {
+            m_Socket[i]->CloseSocket();
+            forceExit = true;
+        }
     }
 }
 
@@ -973,7 +939,6 @@ void WorldSession::InitializeQueryCallbackParameters()
 {
     // Callback parameters that have pointers in them should be properly
     // initialized to nullptr here.
-    _charRenameCallback.SetParam(nullptr);
 }
 
 void WorldSession::ProcessQueryCallbacks()
@@ -985,7 +950,7 @@ void WorldSession::ProcessQueryCallbacks()
     {
         _charEnumCallback.GetResult(result);
 
-        if (bool undelete = _charEnumCallback.GetParam())
+        if (_charEnumCallback.GetParam())
             HandleCharUndeleteEnum(result);
         else
             HandleCharEnum(result);
@@ -998,6 +963,22 @@ void WorldSession::ProcessQueryCallbacks()
     {
         _charCreateCallback.GetResult(result);
         HandleCharCreateCallback(result, _charCreateCallback.GetParam().get());
+    }
+
+    //! HandleCharCustomizeOpcode
+    if (_charCustomizeCallback.IsReady())
+    {
+        _charCustomizeCallback.GetResult(result);
+        HandleCharCustomizeCallback(result, _charCustomizeCallback.GetParam().get());
+        _charCustomizeCallback.Reset();
+    }
+
+    //! HandleCharRaceOrFactionChangeOpcode
+    if (_charFactionChangeCallback.IsReady())
+    {
+        _charFactionChangeCallback.GetResult(result);
+        HandleCharRaceOrFactionChangeCallback(result, _charFactionChangeCallback.GetParam().get());
+        _charFactionChangeCallback.Reset();
     }
 
     //! HandlePlayerLoginOpcode
@@ -1020,9 +1001,7 @@ void WorldSession::ProcessQueryCallbacks()
     if (_charRenameCallback.IsReady())
     {
         _charRenameCallback.GetResult(result);
-        WorldPackets::Character::CharacterRenameInfo* renameInfo = _charRenameCallback.GetParam();
-        HandleCharRenameCallBack(result, renameInfo);
-        delete renameInfo;
+        HandleCharRenameCallBack(result, _charRenameCallback.GetParam().get());
         _charRenameCallback.Reset();
     }
 

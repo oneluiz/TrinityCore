@@ -2049,7 +2049,7 @@ void Spell::EffectSummonType(SpellEffIndex effIndex)
     // however so far noone found a generic check to find all of those (there's no related data in summonproperties.dbc
     // and in spell attributes, possibly we need to add a table for those)
     // so here's a list of MiscValueB values, which is currently most generic check
-    switch (properties->Id)
+    switch (properties->ID)
     {
         case 64:
         case 61:
@@ -2447,12 +2447,12 @@ void Spell::EffectLearnSkill(SpellEffIndex effIndex)
     if (!rcEntry)
         return;
 
-    SkillTiersEntry const* tier = sSkillTiersStore.LookupEntry(rcEntry->SkillTier);
+    SkillTiersEntry const* tier = sSkillTiersStore.LookupEntry(rcEntry->SkillTierID);
     if (!tier)
         return;
 
     uint16 skillval = unitTarget->ToPlayer()->GetPureSkillValue(skillid);
-    unitTarget->ToPlayer()->SetSkill(skillid, m_spellInfo->Effects[effIndex].CalcValue(), std::max<uint16>(skillval, 1), tier->MaxSkill[damage - 1]);
+    unitTarget->ToPlayer()->SetSkill(skillid, m_spellInfo->Effects[effIndex].CalcValue(), std::max<uint16>(skillval, 1), tier->Value[damage - 1]);
 }
 
 void Spell::EffectPlayMovie(SpellEffIndex effIndex)
@@ -2571,7 +2571,7 @@ void Spell::EffectEnchantItemPrismatic(SpellEffIndex effIndex)
         bool add_socket = false;
         for (uint8 i = 0; i < MAX_ITEM_ENCHANTMENT_EFFECTS; ++i)
         {
-            if (enchant->type[i] == ITEM_ENCHANTMENT_TYPE_PRISMATIC_SOCKET)
+            if (enchant->Effect[i] == ITEM_ENCHANTMENT_TYPE_PRISMATIC_SOCKET)
             {
                 add_socket = true;
                 break;
@@ -4026,7 +4026,7 @@ void Spell::EffectApplyGlyph(SpellEffIndex effIndex)
         {
             if (GlyphSlotEntry const* newGlyphSlot = sGlyphSlotStore.LookupEntry(player->GetGlyphSlot(m_glyphIndex)))
             {
-                if (newGlyphProperties->TypeFlags != newGlyphSlot->TypeFlags)
+                if (newGlyphProperties->Type != newGlyphSlot->Type)
                 {
                     SendCastResult(SPELL_FAILED_INVALID_GLYPH);
                     return;                                 // glyph slot mismatch
@@ -4034,27 +4034,27 @@ void Spell::EffectApplyGlyph(SpellEffIndex effIndex)
             }
 
             // remove old glyph
-            if (uint32 oldGlyph = player->GetGlyph(player->GetActiveSpec(), m_glyphIndex))
+            if (uint32 oldGlyph = player->GetGlyph(player->GetActiveTalentGroup(), m_glyphIndex))
             {
                 if (GlyphPropertiesEntry const* oldGlyphProperties = sGlyphPropertiesStore.LookupEntry(oldGlyph))
                 {
-                    player->RemoveAurasDueToSpell(oldGlyphProperties->SpellId);
+                    player->RemoveAurasDueToSpell(oldGlyphProperties->SpellID);
                     player->SetGlyph(m_glyphIndex, 0);
                 }
             }
 
-            player->CastSpell(m_caster, newGlyphProperties->SpellId, true);
+            player->CastSpell(m_caster, newGlyphProperties->SpellID, true);
             player->SetGlyph(m_glyphIndex, newGlyph);
-            player->SendTalentsInfoData(false);
+            player->SendTalentsInfoData();
         }
     }
-    else if (uint32 oldGlyph = player->GetGlyph(player->GetActiveSpec(), m_glyphIndex)) // Removing the glyph, get the old one
+    else if (uint32 oldGlyph = player->GetGlyph(player->GetActiveTalentGroup(), m_glyphIndex)) // Removing the glyph, get the old one
     {
         if (GlyphPropertiesEntry const* oldGlyphProperties = sGlyphPropertiesStore.LookupEntry(oldGlyph))
         {
-            player->RemoveAurasDueToSpell(oldGlyphProperties->SpellId);
+            player->RemoveAurasDueToSpell(oldGlyphProperties->SpellID);
             player->SetGlyph(m_glyphIndex, 0);
-            player->SendTalentsInfoData(false);
+            player->SendTalentsInfoData();
         }
     }
 }
@@ -5494,7 +5494,7 @@ void Spell::EffectSpecCount(SpellEffIndex /*effIndex*/)
     if (!unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
         return;
 
-    unitTarget->ToPlayer()->UpdateSpecCount(damage);
+    unitTarget->ToPlayer()->UpdateTalentGroupCount(damage);
 }
 
 void Spell::EffectActivateSpec(SpellEffIndex /*effIndex*/)
@@ -5505,7 +5505,7 @@ void Spell::EffectActivateSpec(SpellEffIndex /*effIndex*/)
     if (!unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
         return;
 
-    unitTarget->ToPlayer()->ActivateSpec(damage-1);  // damage is 1 or 2, spec is 0 or 1
+    unitTarget->ToPlayer()->ActivateTalentGroup(damage-1);  // damage is 1 or 2, spec is 0 or 1
 }
 
 void Spell::EffectPlaySound(SpellEffIndex effIndex)

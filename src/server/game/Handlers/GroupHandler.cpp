@@ -416,7 +416,7 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket& recvData)
         return;
     }
 
-    PartyResult res = GetPlayer()->CanUninviteFromGroup();
+    PartyResult res = GetPlayer()->CanUninviteFromGroup(guid);
     if (res != ERR_PARTY_RESULT_OK)
     {
         SendPartyResult(PARTY_OP_UNINVITE, "", res);
@@ -424,14 +424,8 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket& recvData)
     }
 
     Group* grp = GetPlayer()->GetGroup();
-    if (!grp)
-        return;
-
-    if (grp->IsLeader(guid))
-    {
-        SendPartyResult(PARTY_OP_UNINVITE, "", ERR_NOT_LEADER);
-        return;
-    }
+    // grp is checked already above in CanUninviteFromGroup()
+    ASSERT(grp);
 
     if (grp->IsMember(guid))
     {
@@ -693,7 +687,7 @@ void WorldSession::HandleMinimapPingOpcode(WorldPacket& recvData)
     /********************/
 
     // everything's fine, do it
-    WorldPacket data(MSG_MINIMAP_PING, (8+4+4));
+    WorldPacket data(SMSG_MINIMAP_PING, (8+4+4));
     data << GetPlayer()->GetGUID();
     data << float(x);
     data << float(y);
@@ -840,7 +834,7 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recvData)
     else
     {
         CharacterDatabase.EscapeString(name);
-        guid = sObjectMgr->GetPlayerGUIDByName(name.c_str());
+        guid = ObjectMgr::GetPlayerGUIDByName(name.c_str());
     }
 
     group->ChangeMembersGroup(guid, groupNr);

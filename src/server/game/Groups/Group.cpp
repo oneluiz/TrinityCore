@@ -166,7 +166,7 @@ void Group::LoadGroupFromDB(Field* fields)
     m_leaderGuid = ObjectGuid::Create<HighGuid::Player>(fields[0].GetUInt64());
 
     // group leader not exist
-    if (!sObjectMgr->GetPlayerNameByGUID(m_leaderGuid, m_leaderName))
+    if (!ObjectMgr::GetPlayerNameByGUID(m_leaderGuid, m_leaderName))
         return;
 
     m_lootMethod = LootMethod(fields[1].GetUInt8());
@@ -204,7 +204,7 @@ void Group::LoadMemberFromDB(ObjectGuid::LowType guidLow, uint8 memberFlags, uin
     member.guid = ObjectGuid::Create<HighGuid::Player>(guidLow);
 
     // skip non-existed member
-    if (!sObjectMgr->GetPlayerNameByGUID(member.guid, member.name))
+    if (!ObjectMgr::GetPlayerNameByGUID(member.guid, member.name))
     {
         PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_GROUP_MEMBER);
         stmt->setUInt64(0, guidLow);
@@ -1851,7 +1851,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattlegroundQueue(Battleground const* 
     // check for min / max count
     uint32 memberscount = GetMembersCount();
 
-    if (memberscount > bgEntry->maxGroupSize)                // no MinPlayerCount for battlegrounds
+    if (memberscount > bgEntry->MaxGroupSize)                // no MinPlayerCount for battlegrounds
         return ERR_BATTLEGROUND_NONE;                        // ERR_GROUP_JOIN_BATTLEGROUND_TOO_MANY handled on client side
 
     // get a player as reference, to compare other players' stats to (arena team id, queue id based on level, etc.)
@@ -1881,7 +1881,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattlegroundQueue(Battleground const* 
         if (member->GetTeam() != team)
             return ERR_BATTLEGROUND_JOIN_TIMED_OUT;
         // not in the same battleground level braket, don't let join
-        PvPDifficultyEntry const* memberBracketEntry = GetBattlegroundBracketByLevel(bracketEntry->mapId, member->getLevel());
+        PvPDifficultyEntry const* memberBracketEntry = GetBattlegroundBracketByLevel(bracketEntry->MapID, member->getLevel());
         if (memberBracketEntry != bracketEntry)
             return ERR_BATTLEGROUND_JOIN_RANGE_INDEX;
         // don't let join rated matches if the arena team id doesn't match
@@ -2008,7 +2008,7 @@ void Group::ResetInstances(uint8 method, bool isRaid, Player* SendMsgTo)
         if (method == INSTANCE_RESET_ALL)
         {
             // the "reset all instances" method can only reset normal maps
-            if (entry->map_type == MAP_RAID || diff == DUNGEON_DIFFICULTY_HEROIC)
+            if (entry->IsRaid() || diff == DUNGEON_DIFFICULTY_HEROIC)
             {
                 ++itr;
                 continue;
@@ -2093,7 +2093,7 @@ InstanceGroupBind* Group::GetBoundInstance(MapEntry const* mapEntry)
         return NULL;
 
     Difficulty difficulty = GetDifficulty(mapEntry->IsRaid());
-    return GetBoundInstance(difficulty, mapEntry->MapID);
+    return GetBoundInstance(difficulty, mapEntry->ID);
 }
 
 InstanceGroupBind* Group::GetBoundInstance(Difficulty difficulty, uint32 mapId)

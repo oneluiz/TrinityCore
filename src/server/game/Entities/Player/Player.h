@@ -115,46 +115,44 @@ struct PlayerSpell
     bool disabled          : 1;                             // first rank has been learned in result talent learn but currently talent unlearned, save max learned ranks
 };
 
-struct PlayerTalent
-{
-    PlayerSpellState state : 8;
-    uint8 spec             : 8;
-};
-
 extern uint32 const MasterySpells[MAX_CLASSES];
 
-enum TalentTree // talent tabs
+enum TalentSpecialization // talent tabs
 {
-    TALENT_TREE_WARRIOR_ARMS         = 746,
-    TALENT_TREE_WARRIOR_FURY         = 815,
-    TALENT_TREE_WARRIOR_PROTECTION   = 845,
-    TALENT_TREE_PALADIN_HOLY         = 831,
-    TALENT_TREE_PALADIN_PROTECTION   = 839,
-    TALENT_TREE_PALADIN_RETRIBUTION  = 855,
-    TALENT_TREE_HUNTER_BEAST_MASTERY = 811,
-    TALENT_TREE_HUNTER_MARKSMANSHIP  = 807,
-    TALENT_TREE_HUNTER_SURVIVAL      = 809,
-    TALENT_TREE_ROGUE_ASSASSINATION  = 182,
-    TALENT_TREE_ROGUE_COMBAT         = 181,
-    TALENT_TREE_ROGUE_SUBTLETY       = 183,
-    TALENT_TREE_PRIEST_DISCIPLINE    = 760,
-    TALENT_TREE_PRIEST_HOLY          = 813,
-    TALENT_TREE_PRIEST_SHADOW        = 795,
-    TALENT_TREE_DEATH_KNIGHT_BLOOD   = 398,
-    TALENT_TREE_DEATH_KNIGHT_FROST   = 399,
-    TALENT_TREE_DEATH_KNIGHT_UNHOLY  = 400,
-    TALENT_TREE_SHAMAN_ELEMENTAL     = 261,
-    TALENT_TREE_SHAMAN_ENHANCEMENT   = 263,
-    TALENT_TREE_SHAMAN_RESTORATION   = 262,
-    TALENT_TREE_MAGE_ARCANE          = 799,
-    TALENT_TREE_MAGE_FIRE            = 851,
-    TALENT_TREE_MAGE_FROST           = 823,
-    TALENT_TREE_WARLOCK_AFFLICTION   = 871,
-    TALENT_TREE_WARLOCK_DEMONOLOGY   = 867,
-    TALENT_TREE_WARLOCK_DESTRUCTION  = 865,
-    TALENT_TREE_DRUID_BALANCE        = 752,
-    TALENT_TREE_DRUID_FERAL_COMBAT   = 750,
-    TALENT_TREE_DRUID_RESTORATION    = 748
+    TALENT_SPEC_MAGE_ARCANE             = 62,
+    TALENT_SPEC_MAGE_FIRE               = 63,
+    TALENT_SPEC_MAGE_FROST              = 64,
+    TALENT_SPEC_PALADIN_HOLY            = 65,
+    TALENT_SPEC_PALADIN_PROTECTION      = 66,
+    TALENT_SPEC_PALADIN_RETRIBUTION     = 70,
+    TALENT_SPEC_WARRIOR_ARMS            = 71,
+    TALENT_SPEC_WARRIOR_FURY            = 72,
+    TALENT_SPEC_WARRIOR_PROTECTION      = 73,
+    TALENT_SPEC_DRUID_BALANCE           = 102,
+    TALENT_SPEC_DRUID_CAT               = 103,
+    TALENT_SPEC_DRUID_BEAR              = 104,
+    TALENT_SPEC_DRUID_RESTORATION       = 105,
+    TALENT_SPEC_DEATHKNIGHT_BLOOD       = 250,
+    TALENT_SPEC_DEATHKNIGHT_FROST       = 251,
+    TALENT_SPEC_DEATHKNIGHT_UNHOLY      = 252,
+    TALENT_SPEC_HUNTER_BEASTMASTER      = 253,
+    TALENT_SPEC_HUNTER_MARKSMAN         = 254,
+    TALENT_SPEC_HUNTER_SURVIVAL         = 255,
+    TALENT_SPEC_PRIEST_DISCIPLINE       = 256,
+    TALENT_SPEC_PRIEST_HOLY             = 257,
+    TALENT_SPEC_PRIEST_SHADOW           = 258,
+    TALENT_SPEC_ROGUE_ASSASSINATION     = 259,
+    TALENT_SPEC_ROGUE_COMBAT            = 260,
+    TALENT_SPEC_ROGUE_SUBTLETY          = 261,
+    TALENT_SPEC_SHAMAN_ELEMENTAL        = 262,
+    TALENT_SPEC_SHAMAN_ENCHANCEMENT     = 263,
+    TALENT_SPEC_SHAMAN_RESTORATION      = 264,
+    TALENT_SPEC_WARLOCK_AFFLICTION      = 265,
+    TALENT_SPEC_WARLOCK_DEMONOLOGY      = 266,
+    TALENT_SPEC_WARLOCK_DESTRUCTION     = 267,
+    TALENT_SPEC_MONK_BREWMASTER         = 268,
+    TALENT_SPEC_MONK_BATTLEDANCER       = 269,
+    TALENT_SPEC_MONK_MISTWEAVER         = 270
 };
 
 // Spell modifier (used for modify other spells)
@@ -165,7 +163,7 @@ struct SpellModifier
     SpellModType type : 8;
     int16 charges     : 16;
     int32 value;
-    flag96 mask;
+    flag128 mask;
     uint32 spellId;
     Aura* const ownerAura;
 };
@@ -185,7 +183,6 @@ struct PlayerCurrency
    uint32 weekCount;
 };
 
-typedef std::unordered_map<uint32, PlayerTalent*> PlayerTalentMap;
 typedef std::unordered_map<uint32, PlayerSpell*> PlayerSpellMap;
 typedef std::list<SpellModifier*> SpellModList;
 typedef std::unordered_map<uint32, PlayerCurrency> PlayerCurrenciesMap;
@@ -1214,45 +1211,52 @@ private:
     bool _isPvP;
 };
 
+struct TalentGroupInfo
+{
+    uint32 Talents[MAX_TALENT_TIERS];
+    uint32 Glyphs[MAX_GLYPH_SLOT_INDEX];
+    uint32 SpecID;
+
+    bool HasTalent(uint32 talentId)
+    {
+        for (uint32 i = 0; i < MAX_TALENT_TIERS; ++i)
+            if (Talents[i] == talentId)
+                return true;
+        return false;
+    }
+
+    uint32 TalentCount()
+    {
+        for (uint32 i = 0; i < MAX_TALENT_TIERS; ++i)
+            if (!Talents[i])
+                return i;
+        return MAX_TALENT_TIERS;
+    }
+
+    void Reset()
+    {
+        for (uint32 i = 0; i < MAX_TALENT_TIERS; ++i)
+            Talents[i] = 0;
+    }
+};
+
 struct PlayerTalentInfo
 {
-    PlayerTalentInfo() :
-        FreeTalentPoints(0), UsedTalentCount(0), QuestRewardedTalentCount(0),
-        ResetTalentsCost(0), ResetTalentsTime(0),
-        ActiveSpec(0), SpecsCount(1)
+    PlayerTalentInfo() : ResetTalentsCost(0), ResetTalentsTime(0), ActiveGroup(0), GroupsCount(1)
     {
-        for (uint8 i = 0; i < MAX_TALENT_SPECS; ++i)
+        for (uint8 i = 0; i < MAX_TALENT_GROUPS; ++i)
         {
-            SpecInfo[i].Talents = new PlayerTalentMap();
-            memset(SpecInfo[i].Glyphs, 0, MAX_GLYPH_SLOT_INDEX * sizeof(uint32));
-            SpecInfo[i].TalentTree = 0;
+            memset(GroupInfo[i].Talents, 0, sizeof(uint32)*MAX_TALENT_TIERS);
+            memset(GroupInfo[i].Glyphs, 0, MAX_GLYPH_SLOT_INDEX * sizeof(uint32));
+            GroupInfo[i].SpecID = 0;
         }
     }
 
-    ~PlayerTalentInfo()
-    {
-        for (uint8 i = 0; i < MAX_TALENT_SPECS; ++i)
-        {
-            for (PlayerTalentMap::const_iterator itr = SpecInfo[i].Talents->begin(); itr != SpecInfo[i].Talents->end(); ++itr)
-                delete itr->second;
-            delete SpecInfo[i].Talents;
-        }
-    }
-
-    struct TalentSpecInfo
-    {
-        PlayerTalentMap* Talents;
-        uint32 Glyphs[MAX_GLYPH_SLOT_INDEX];
-        uint32 TalentTree;
-    } SpecInfo[MAX_TALENT_SPECS];
-
-    uint32 FreeTalentPoints;
-    uint32 UsedTalentCount;
-    uint32 QuestRewardedTalentCount;
+    TalentGroupInfo GroupInfo[MAX_TALENT_GROUPS];
     uint32 ResetTalentsCost;
     time_t ResetTalentsTime;
-    uint8 ActiveSpec;
-    uint8 SpecsCount;
+    uint8 ActiveGroup;
+    uint8 GroupsCount;
 
 private:
     PlayerTalentInfo(PlayerTalentInfo const&);
@@ -1708,7 +1712,6 @@ class Player : public Unit, public GridObject<Player>
 
         static void SetUInt32ValueInArray(Tokenizer& data, uint16 index, uint32 value);
         static void SetFloatValueInArray(Tokenizer& data, uint16 index, float value);
-        static void Customize(WorldPackets::Character::CharacterCustomizeInfo const* customizeInfo, SQLTransaction& trans);
         static void SavePositionInDB(WorldLocation const& loc, uint16 zoneId, ObjectGuid guid, SQLTransaction& trans);
 
         static void DeleteFromDB(ObjectGuid playerguid, uint32 accountId, bool updateRealmChars = true, bool deleteFinally = false);
@@ -1800,7 +1803,7 @@ class Player : public Unit, public GridObject<Player>
         bool IsCurrentSpecMasterySpell(SpellInfo const* spellInfo) const;
 
         void SendProficiency(ItemClass itemClass, uint32 itemSubclassMask);
-        void SendInitialSpells();
+        void SendKnownSpells();
         bool AddSpell(uint32 spellId, bool active, bool learning, bool dependent, bool disabled, bool loading = false, bool fromSkill = false);
         void LearnSpell(uint32 spell_id, bool dependent, bool fromSkill = false);
         void RemoveSpell(uint32 spell_id, bool disabled = false, bool learn_low_rank = true);
@@ -1818,48 +1821,38 @@ class Player : public Unit, public GridObject<Player>
         std::string GetGuildName();
 
         // Talents
-        uint32 GetFreeTalentPoints() const { return _talentMgr->FreeTalentPoints; }
-        void SetFreeTalentPoints(uint32 points) { _talentMgr->FreeTalentPoints = points; }
-        uint32 GetUsedTalentCount() const { return _talentMgr->UsedTalentCount; }
-        void SetUsedTalentCount(uint32 talents) { _talentMgr->UsedTalentCount = talents; }
-        uint32 GetQuestRewardedTalentCount() const { return _talentMgr->QuestRewardedTalentCount; }
-        void AddQuestRewardedTalentCount(uint32 points) { _talentMgr->QuestRewardedTalentCount += points; }
         uint32 GetTalentResetCost() const { return _talentMgr->ResetTalentsCost; }
         void SetTalentResetCost(uint32 cost)  { _talentMgr->ResetTalentsCost = cost; }
         uint32 GetTalentResetTime() const { return _talentMgr->ResetTalentsTime; }
         void SetTalentResetTime(time_t time_)  { _talentMgr->ResetTalentsTime = time_; }
-        uint32 GetPrimaryTalentTree(uint8 spec) const { return _talentMgr->SpecInfo[spec].TalentTree; }
-        void SetPrimaryTalentTree(uint8 spec, uint32 tree) { _talentMgr->SpecInfo[spec].TalentTree = tree; }
-        uint8 GetActiveSpec() const { return _talentMgr->ActiveSpec; }
-        void SetActiveSpec(uint8 spec){ _talentMgr->ActiveSpec = spec; }
-        uint8 GetSpecsCount() const { return _talentMgr->SpecsCount; }
-        void SetSpecsCount(uint8 count) { _talentMgr->SpecsCount = count; }
+        uint8 GetActiveTalentGroup() const { return _talentMgr->ActiveGroup; }
+        void SetActiveTalentGroup(uint8 group){ _talentMgr->ActiveGroup = group; }
+        uint8 GetTalentGroupsCount() const { return _talentMgr->GroupsCount; }
+        void SetTalentGroupsCount(uint8 count) { _talentMgr->GroupsCount = count; }
+        uint32 GetTalentSpec(uint8 group) const { return _talentMgr->GroupInfo[group].SpecID; }
+        void SetTalentSpec(uint8 group, uint32 talentSpec) const { _talentMgr->GroupInfo[group].SpecID = talentSpec; }
+        uint32 GetActiveTalentSpec() const { return _talentMgr->GroupInfo[_talentMgr->ActiveGroup].SpecID; }
 
         bool ResetTalents(bool no_cost = false);
         uint32 GetNextResetTalentsCost() const;
         void InitTalentForLevel();
-        void BuildPlayerTalentsInfoData(WorldPacket* data);
-        void BuildPetTalentsInfoData(WorldPacket* data);
-        void SendTalentsInfoData(bool pet);
-        bool LearnTalent(uint32 talentId, uint32 talentRank);
-        void LearnPetTalent(ObjectGuid petGuid, uint32 talentId, uint32 talentRank);
-        bool AddTalent(uint32 spellId, uint8 spec, bool learning);
-        bool HasTalent(uint32 spell_id, uint8 spec) const;
-        uint32 CalculateTalentsPoints() const;
+        void SendTalentsInfoData();
+        bool LearnTalent(uint32 talentId);
+        bool AddTalent(uint32 talentId, uint8 spec);
+        bool HasTalent(uint32 talentId, uint8 spec);
 
         // Dual Spec
-        void UpdateSpecCount(uint8 count);
-        void ActivateSpec(uint8 spec);
+        void UpdateTalentGroupCount(uint8 count);
+        void ActivateTalentGroup(uint8 group);
 
         void InitGlyphsForLevel();
         void SetGlyphSlot(uint8 slot, uint32 slottype) { SetUInt32Value(PLAYER_FIELD_GLYPH_SLOTS_1 + slot, slottype); }
 
         uint32 GetGlyphSlot(uint8 slot) const { return GetUInt32Value(PLAYER_FIELD_GLYPH_SLOTS_1 + slot); }
         void SetGlyph(uint8 slot, uint32 glyph);
-        uint32 GetGlyph(uint8 spec, uint8 slot) const { return _talentMgr->SpecInfo[spec].Glyphs[slot]; }
+        uint32 GetGlyph(uint8 group, uint8 slot) const { return _talentMgr->GroupInfo[group].Glyphs[slot]; }
 
-        PlayerTalentMap const* GetTalentMap(uint8 spec) const { return _talentMgr->SpecInfo[spec].Talents; }
-        PlayerTalentMap* GetTalentMap(uint8 spec) { return _talentMgr->SpecInfo[spec].Talents; }
+        TalentGroupInfo* GetTalentGroupInfo(uint8 group) { return &_talentMgr->GroupInfo[group]; }
         ActionButtonList const& GetActionButtons() const { return m_actionButtons; }
 
         uint32 GetFreePrimaryProfessionPoints() const { return GetUInt32Value(PLAYER_CHARACTER_POINTS); }
@@ -2151,6 +2144,7 @@ class Player : public Unit, public GridObject<Player>
         void CheckAreaExploreAndOutdoor(void);
 
         static uint32 TeamForRace(uint8 race);
+        static TeamId TeamIdForRace(uint8 race);
         uint32 GetTeam() const { return m_team; }
         TeamId GetTeamId() const { return m_team == ALLIANCE ? TEAM_ALLIANCE : TEAM_HORDE; }
         void setFactionForRace(uint8 race);
@@ -2248,8 +2242,8 @@ class Player : public Unit, public GridObject<Player>
         void DeleteEquipmentSet(uint64 setGuid);
 
         void SendInitWorldStates(uint32 zone, uint32 area);
-        void SendUpdateWorldState(uint32 Field, uint32 Value);
-        void SendDirectMessage(WorldPacket* data);
+        void SendUpdateWorldState(uint32 variable, uint32 value, bool hidden = false);
+        void SendDirectMessage(WorldPacket const* data);
         void SendBGWeekendWorldStates();
         void SendBattlefieldWorldStates();
 
@@ -2484,7 +2478,7 @@ class Player : public Unit, public GridObject<Player>
         uint64 GetAuraUpdateMaskForRaid() const { return m_auraRaidUpdateMask; }
         void SetAuraUpdateMaskForRaid(uint8 slot) { m_auraRaidUpdateMask |= (uint64(1) << slot); }
         Player* GetNextRandomRaidMember(float radius);
-        PartyResult CanUninviteFromGroup() const;
+        PartyResult CanUninviteFromGroup(ObjectGuid guidMember = ObjectGuid::Empty) const;
 
         // Battleground / Battlefield Group System
         void SetBattlegroundOrBattlefieldRaid(Group* group, int8 subgroup = -1);
@@ -2539,7 +2533,7 @@ class Player : public Unit, public GridObject<Player>
         void CompletedAchievement(AchievementEntry const* entry);
 
         bool HasTitle(uint32 bitIndex) const;
-        bool HasTitle(CharTitlesEntry const* title) const { return HasTitle(title->bit_index); }
+        bool HasTitle(CharTitlesEntry const* title) const { return HasTitle(title->MaskID); }
         void SetTitle(CharTitlesEntry const* title, bool lost = false);
 
         //bool isActiveObject() const { return true; }

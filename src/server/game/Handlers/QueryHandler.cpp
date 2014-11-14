@@ -30,49 +30,47 @@
 #include "NPCHandler.h"
 #include "Pet.h"
 #include "MapManager.h"
+#include "BattlenetAccountMgr.h"
+#include "CharacterPackets.h"
+#include "QueryPackets.h"
 
 void WorldSession::SendNameQueryOpcode(ObjectGuid guid)
 {
     Player* player = ObjectAccessor::FindConnectedPlayer(guid);
-    CharacterNameData const* nameData = sWorld->GetCharacterNameData(guid);
+    CharacterInfo const* characterInfo = sWorld->GetCharacterInfo(guid);
 
-    WorldPacket data(SMSG_NAME_QUERY_RESPONSE, (8+1+1+1+1+1+10));
-    data << guid.WriteAsPacked();
-    if (!nameData)
+    WorldPackets::Character::PlayerNameResponse response;
+    response.Player = guid;
+
+    if (characterInfo)
     {
-        data << uint8(1);                           // name unknown
-        SendPacket(&data);
-        return;
-    }
+        uint32 accountId = player ? player->GetSession()->GetAccountId() : ObjectMgr::GetPlayerAccountIdByGUID(guid);
+        uint32 bnetAccountId = player ? player->GetSession()->GetBattlenetAccountId() : Battlenet::AccountMgr::GetIdByGameAccount(accountId);
 
-    data << uint8(0);                               // name known
-    data << nameData->m_name;                       // played name
-    data << uint8(0);                               // realm name - only set for cross realm interaction (such as Battlegrounds)
-    data << uint8(nameData->m_race);
-    data << uint8(nameData->m_gender);
-    data << uint8(nameData->m_class);
+        response.Result             = RESPONSE_SUCCESS; // name known
+        response.Data.IsDeleted     = characterInfo->IsDeleted;
+        response.Data.AccountID     = ObjectGuid::Create<HighGuid::WowAccount>(accountId);
+        response.Data.BnetAccountID = ObjectGuid::Create<HighGuid::BNetAccount>(bnetAccountId);
+        response.Data.Name          = characterInfo->Name;
+        response.Data.VirtualRealmAddress = GetVirtualRealmAddress();
+        response.Data.Race          = characterInfo->Race;
+        response.Data.Sex           = characterInfo->Sex;
+        response.Data.ClassID       = characterInfo->Class;
+        response.Data.Level         = characterInfo->Level;
 
-    if (DeclinedName const* names = (player ? player->GetDeclinedNames() : NULL))
-    {
-        data << uint8(1);                           // Name is declined
-        for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
-            data << names->name[i];
+        if (DeclinedName const* names = (player ? player->GetDeclinedNames() : nullptr))
+            for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+                response.Data.DeclinedNames.name[i] = names->name[i];
     }
     else
-        data << uint8(0);                           // Name is not declined
+        response.Result = RESPONSE_FAILURE; // name unknown
 
-    SendPacket(&data);
+    SendPacket(response.Write());
 }
 
-void WorldSession::HandleNameQueryOpcode(WorldPacket& recvData)
+void WorldSession::HandleNameQueryOpcode(WorldPackets::Character::QueryPlayerName& packet)
 {
-    ObjectGuid guid;
-    recvData >> guid;
-
-    // This is disable by default to prevent lots of console spam
-    // TC_LOG_INFO("network", "HandleNameQueryOpcode %u", guid);
-
-    SendNameQueryOpcode(guid);
+    SendNameQueryOpcode(packet.Player);
 }
 
 void WorldSession::HandleQueryTimeOpcode(WorldPacket & /*recvData*/)
@@ -89,84 +87,48 @@ void WorldSession::SendQueryTimeResponse()
 }
 
 /// Only _static_ data is sent in this packet !!!
-void WorldSession::HandleCreatureQueryOpcode(WorldPacket& recvData)
+void WorldSession::HandleCreatureQuery(WorldPackets::Query::QueryCreature& packet)
 {
-    uint32 entry;
-    recvData >> entry;
-    ObjectGuid guid;
-    recvData >> guid;
+    WorldPackets::Query::QueryCreatureResponse response;
 
-    CreatureTemplate const* creatureInfo = sObjectMgr->GetCreatureTemplate(entry);
+    CreatureTemplate const* creatureInfo = sObjectMgr->GetCreatureTemplate(packet.CreatureID);
+
+    response.CreatureID = packet.CreatureID;
+
     if (creatureInfo)
     {
-        std::string Name, FemaleName, SubName;
-        Name = creatureInfo->Name;
-        FemaleName = creatureInfo->FemaleName;
-        SubName = creatureInfo->SubName;
+        response.Allow = true;
 
-        LocaleConstant locale = GetSessionDbLocaleIndex();
-        if (locale >= 0)
-        {
-            if (CreatureLocale const* creatureLocale = sObjectMgr->GetCreatureLocale(entry))
-            {
-                ObjectMgr::GetLocaleString(creatureLocale->Name, locale, Name);
-                ObjectMgr::GetLocaleString(creatureLocale->FemaleName, locale, FemaleName);
-                ObjectMgr::GetLocaleString(creatureLocale->SubName, locale, SubName);
-            }
-        }
+        WorldPackets::Query::CreatureStats& stats = response.Stats;
 
-        TC_LOG_DEBUG("network", "WORLD: CMSG_CREATURE_QUERY '%s' - Entry: %u.", creatureInfo->Name.c_str(), entry);
-
-        WorldPacket data(SMSG_CREATURE_QUERY_RESPONSE, 100);          // guess size
-        data << uint32(entry);                                        // creature entry
-        data << Name;                                                 // Name
-
-        for (uint8 i = 0; i < 3; i++)
-            data << uint8(0);                                         // name2, ..., name3
-
-        data << FemaleName;                                           // FemaleName
-
-        for (uint8 i = 0; i < 3; i++)
-            data << uint8(0);                                         // name5, ..., name8
-
-        data << SubName;                                              // SubName
-        data << creatureInfo->IconName;                               // "Directions" for guard, string for Icons 2.3.0
-        data << uint32(creatureInfo->type_flags);                     // flags
-        data << uint32(creatureInfo->type_flags2);                    // unknown meaning
-        data << uint32(creatureInfo->type);                           // CreatureType.dbc
-        data << uint32(creatureInfo->family);                         // CreatureFamily.dbc
-        data << uint32(creatureInfo->rank);                           // Creature Rank (elite, boss, etc)
-        data << uint32(creatureInfo->KillCredit[0]);                  // new in 3.1, kill credit
-        data << uint32(creatureInfo->KillCredit[1]);                  // new in 3.1, kill credit
-        data << uint32(creatureInfo->Modelid1);                       // Modelid1
-        data << uint32(creatureInfo->Modelid2);                       // Modelid2
-        data << uint32(creatureInfo->Modelid3);                       // Modelid3
-        data << uint32(creatureInfo->Modelid4);                       // Modelid4
-        data << float(creatureInfo->ModHealth);                       // dmg/hp modifier
-        data << float(creatureInfo->ModMana);                         // dmg/mana modifier
-        data << uint8(creatureInfo->RacialLeader);                    // RacialLeader
-
+        stats.Title = creatureInfo->SubName;
+        stats.CursorName = creatureInfo->IconName;
+        stats.CreatureType = creatureInfo->type;
+        stats.CreatureFamily = creatureInfo->family;
+        stats.Classification = creatureInfo->rank;
+        stats.HpMulti = creatureInfo->ModHealth;
+        stats.EnergyMulti = creatureInfo->ModMana;
+        stats.Leader = creatureInfo->RacialLeader;
         for (uint8 i = 0; i < MAX_CREATURE_QUEST_ITEMS; ++i)
-            data << uint32(creatureInfo->questItems[i]);              // itemId[6], quest drop
-
-        data << uint32(creatureInfo->movementId);                     // CreatureMovementInfo.dbc
-        data << uint32(creatureInfo->expansionUnknown);               // unknown meaning
-
-        SendPacket(&data);
-
-        TC_LOG_DEBUG("network", "WORLD: Sent SMSG_CREATURE_QUERY_RESPONSE");
+            if (creatureInfo->questItems[i])
+                stats.QuestItems.push_back(creatureInfo->questItems[i]);
+        stats.CreatureMovementInfoID = creatureInfo->movementId;
+        stats.RequiredExpansion = creatureInfo->expansionUnknown;
+        stats.Flags[0] = creatureInfo->type_flags;
+        stats.Flags[1] = creatureInfo->type_flags2;
+        for (uint32 i = 0; i < MAX_KILL_CREDIT; ++i)
+            stats.ProxyCreatureID[i] = creatureInfo->KillCredit[i];
+        stats.CreatureDisplayID[0] = creatureInfo->Modelid1;
+        stats.CreatureDisplayID[1] = creatureInfo->Modelid2;
+        stats.CreatureDisplayID[2] = creatureInfo->Modelid3;
+        stats.CreatureDisplayID[3] = creatureInfo->Modelid4;
+        stats.Name[0] = creatureInfo->Name;
+        stats.NameAlt[0] = creatureInfo->FemaleName;
     }
     else
-    {
-        TC_LOG_DEBUG("network", "WORLD: CMSG_CREATURE_QUERY - NO CREATURE INFO! (%s, ENTRY: %u)",
-            guid.ToString().c_str(), entry);
+        response.Allow = false;
 
-        WorldPacket data(SMSG_CREATURE_QUERY_RESPONSE, 4);
-        data << uint32(entry | 0x80000000);
-        SendPacket(&data);
-
-        TC_LOG_DEBUG("network", "WORLD: Sent SMSG_CREATURE_QUERY_RESPONSE");
-    }
+    SendPacket(response.Write());
 }
 
 /// Only _static_ data is sent in this packet !!!
@@ -252,14 +214,14 @@ void WorldSession::HandleCorpseQueryOpcode(WorldPacket& /*recvData*/)
         // search entrance map for proper show entrance
         if (MapEntry const* corpseMapEntry = sMapStore.LookupEntry(mapid))
         {
-            if (corpseMapEntry->IsDungeon() && corpseMapEntry->entrance_map >= 0)
+            if (corpseMapEntry->IsDungeon() && corpseMapEntry->CorpseMapID >= 0)
             {
                 // if corpse map have entrance
-                if (Map const* entranceMap = sMapMgr->CreateBaseMap(corpseMapEntry->entrance_map))
+                if (Map const* entranceMap = sMapMgr->CreateBaseMap(corpseMapEntry->CorpseMapID))
                 {
-                    mapid = corpseMapEntry->entrance_map;
-                    x = corpseMapEntry->entrance_x;
-                    y = corpseMapEntry->entrance_y;
+                    mapid = corpseMapEntry->CorpseMapID;
+                    x = corpseMapEntry->CorpsePos.X;
+                    y = corpseMapEntry->CorpsePos.Y;
                     z = entranceMap->GetHeight(GetPlayer()->GetPhaseMask(), x, y, MAX_HEIGHT);
                 }
             }

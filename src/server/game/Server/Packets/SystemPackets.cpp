@@ -17,8 +17,54 @@
 
 #include "SystemPackets.h"
 
-WorldPackets::System::FeatureSystemStatusGlueScreen::FeatureSystemStatusGlueScreen()
-    : ServerPacket(SMSG_FEATURE_SYSTEM_STATUS_GLUE_SCREEN, 1) { }
+WorldPacket const* WorldPackets::System::FeatureSystemStatus::Write()
+{
+    _worldPacket << uint8(ComplaintStatus);
+
+    _worldPacket << uint32(ScrollOfResurrectionRequestsRemaining);
+    _worldPacket << uint32(ScrollOfResurrectionMaxRequestsPerDay);
+    _worldPacket << uint32(CfgRealmID);
+    _worldPacket << int32(CfgRealmRecID);
+
+    _worldPacket.WriteBit(VoiceEnabled);
+    _worldPacket.WriteBit(EuropaTicketSystemStatus.HasValue);
+    _worldPacket.WriteBit(ScrollOfResurrectionEnabled);
+    _worldPacket.WriteBit(BpayStoreEnabled);
+    _worldPacket.WriteBit(BpayStoreAvailable);
+    _worldPacket.WriteBit(BpayStoreDisabledByParentalControls);
+    _worldPacket.WriteBit(ItemRestorationButtonEnabled);
+    _worldPacket.WriteBit(BrowserEnabled);
+    _worldPacket.WriteBit(SessionAlert.HasValue);
+    _worldPacket.WriteBit(RecruitAFriendSendingEnabled);
+    _worldPacket.WriteBit(CharUndeleteEnabled);
+    _worldPacket.WriteBit(UnkBit21);
+    _worldPacket.WriteBit(UnkBit22);
+    _worldPacket.WriteBit(UnkBit90);
+
+    if (EuropaTicketSystemStatus.HasValue)
+    {
+        _worldPacket.WriteBit(EuropaTicketSystemStatus.value.UnkBit0);
+        _worldPacket.WriteBit(EuropaTicketSystemStatus.value.UnkBit1);
+        _worldPacket.WriteBit(EuropaTicketSystemStatus.value.TicketSystemEnabled);
+        _worldPacket.WriteBit(EuropaTicketSystemStatus.value.SubmitBugEnabled);
+
+        _worldPacket << uint32(EuropaTicketSystemStatus.value.ThrottleState.MaxTries);
+        _worldPacket << uint32(EuropaTicketSystemStatus.value.ThrottleState.PerMilliseconds);
+        _worldPacket << uint32(EuropaTicketSystemStatus.value.ThrottleState.TryCount);
+        _worldPacket << uint32(EuropaTicketSystemStatus.value.ThrottleState.LastResetTimeBeforeNow);
+    }
+
+    if (SessionAlert.HasValue)
+    {
+        _worldPacket << int32(SessionAlert.value.Delay);
+        _worldPacket << int32(SessionAlert.value.Period);
+        _worldPacket << int32(SessionAlert.value.DisplayTime);
+    }
+
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
 
 WorldPacket const* WorldPackets::System::FeatureSystemStatusGlueScreen::Write()
 {
@@ -31,8 +77,21 @@ WorldPacket const* WorldPackets::System::FeatureSystemStatusGlueScreen::Write()
     return &_worldPacket;
 }
 
-WorldPackets::System::SetTimeZoneInformation::SetTimeZoneInformation()
-    : ServerPacket(SMSG_SET_TIME_ZONE_INFORMATION) { }
+WorldPacket const* WorldPackets::System::MOTD::Write()
+{
+    ASSERT(Text);
+    _worldPacket.WriteBits(Text->size(), 4);
+    _worldPacket.FlushBits();
+
+    for (std::string const& line : *Text)
+    {
+        _worldPacket.WriteBits(line.length(), 7);
+        _worldPacket.FlushBits();
+        _worldPacket.WriteString(line);
+    }
+
+    return &_worldPacket;
+}
 
 WorldPacket const* WorldPackets::System::SetTimeZoneInformation::Write()
 {

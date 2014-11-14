@@ -54,7 +54,6 @@ struct DeclinedName;
 struct ItemTemplate;
 struct MovementInfo;
 struct TradeStatusInfo;
-struct z_stream_s;
 
 namespace lfg
 {
@@ -78,14 +77,43 @@ namespace WorldPackets
     {
         struct CharacterCreateInfo;
         struct CharacterRenameInfo;
-        struct CharacterCustomizeInfo;
-        struct CharacterFactionChangeInfo;
+        struct CharCustomizeInfo;
+        struct CharRaceOrFactionChangeInfo;
         struct CharacterUndeleteInfo;
 
         class CharacterCreate;
         class CharacterDelete;
+        class CharacterRenameRequest;
+        class CharCustomize;
+        class CharRaceOrFactionChange;
+        class GenerateRandomCharacterName;
+        class ReorderCharacters;
         class UndeleteCharacter;
         class PlayerLogin;
+        class LogoutRequest;
+        class LogoutCancel;
+        class LoadingScreenNotify;
+        class QueryPlayerName;
+    }
+
+    namespace Guild
+    {
+        class QueryGuildInfo;
+    }
+
+    namespace Trade
+    {
+        class CancelTrade;
+    }
+
+    namespace Misc
+    {
+        class ViolenceLevel;
+    }
+
+    namespace Query
+    {
+        class QueryCreature;
     }
 }
 
@@ -221,7 +249,7 @@ class WorldSession
         WorldSession(uint32 id, uint32 battlenetAccountId, std::shared_ptr<WorldSocket> sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter);
         ~WorldSession();
 
-        bool PlayerLoading() const { return m_playerLoading; }
+        bool PlayerLoading() const { return !m_playerLoading.IsEmpty(); }
         bool PlayerLogout() const { return m_playerLogout; }
         bool PlayerLogoutWithSave() const { return m_playerLogout && m_playerSave; }
         bool PlayerRecentlyLoggedOut() const { return m_playerRecentlyLogout; }
@@ -231,7 +259,7 @@ class WorldSession
         bool IsAddonRegistered(const std::string& prefix) const;
 
         void SendPacket(WorldPacket const* packet, bool forced = false);
-        uint32 CompressPacket(uint8* buffer, WorldPacket const& packet);
+        void AddInstanceConnection(std::shared_ptr<WorldSocket> sock) { m_Socket[1] = sock; }
 
         void SendNotification(const char *format, ...) ATTR_PRINTF(2, 3);
         void SendNotification(uint32 string_id, ...);
@@ -270,7 +298,7 @@ class WorldSession
         bool isLogingOut() const { return _logoutTime || m_playerLogout; }
 
         /// Engage the logout process for the user
-        void LogoutRequest(time_t requestTime)
+        void SetLogoutStartTime(time_t requestTime)
         {
             _logoutTime = requestTime;
         }
@@ -417,8 +445,6 @@ class WorldSession
         uint32 GetRecruiterId() const { return recruiterId; }
         bool IsARecruiter() const { return isRecruiter; }
 
-        z_stream_s* GetCompressionStream() { return _compressionStream; }
-
     public:                                                 // opcodes handlers
 
         void Handle_NULL(WorldPacket& recvPacket);          // not used
@@ -434,15 +460,19 @@ class WorldSession
         void HandleCharCreateOpcode(WorldPackets::Character::CharacterCreate& charCreate);
         void HandleCharCreateCallback(PreparedQueryResult result, WorldPackets::Character::CharacterCreateInfo* createInfo);
         void HandlePlayerLoginOpcode(WorldPackets::Character::PlayerLogin& playerLogin);
-        void HandleLoadScreenOpcode(WorldPacket& recvPacket);
+        void HandleContinuePlayerLogin();
+        void HandleLoadScreenOpcode(WorldPackets::Character::LoadingScreenNotify& loadingScreenNotify);
         void HandlePlayerLogin(LoginQueryHolder * holder);
-        void HandleCharRenameOpcode(WorldPacket& recvData);
-        void HandleCharRenameCallBack(PreparedQueryResult result, WorldPackets::Character::CharacterRenameInfo const* renameInfo);
+        void HandleCharRenameOpcode(WorldPackets::Character::CharacterRenameRequest& request);
+        void HandleCharRenameCallBack(PreparedQueryResult result, WorldPackets::Character::CharacterRenameInfo* renameInfo);
         void HandleSetPlayerDeclinedNames(WorldPacket& recvData);
         void HandleAlterAppearance(WorldPacket& recvData);
-        void HandleCharFactionOrRaceChange(WorldPacket& recvData);
-        void HandleRandomizeCharNameOpcode(WorldPacket& recvData);
-        void HandleReorderCharacters(WorldPacket& recvData);
+        void HandleCharCustomizeOpcode(WorldPackets::Character::CharCustomize& packet);
+        void HandleCharCustomizeCallback(PreparedQueryResult result, WorldPackets::Character::CharCustomizeInfo* customizeInfo);
+        void HandleCharRaceOrFactionChangeOpcode(WorldPackets::Character::CharRaceOrFactionChange& packet);
+        void HandleCharRaceOrFactionChangeCallback(PreparedQueryResult result, WorldPackets::Character::CharRaceOrFactionChangeInfo* factionChangeInfo);
+        void HandleRandomizeCharNameOpcode(WorldPackets::Character::GenerateRandomCharacterName& packet);
+        void HandleReorderCharacters(WorldPackets::Character::ReorderCharacters& reorderChars);
         void HandleOpeningCinematic(WorldPacket& recvData);
         void HandleUndeleteCooldownStatusQuery(WorldPacket& /*recvData*/);
         void HandleUndeleteCooldownStatusCallback(PreparedQueryResult result);
@@ -451,9 +481,9 @@ class WorldSession
 
         void SendCharCreate(ResponseCodes result);
         void SendCharDelete(ResponseCodes result);
-        void SendCharRename(ResponseCodes result, WorldPackets::Character::CharacterRenameInfo const& renameInfo);
-        void SendCharCustomize(ResponseCodes result, WorldPackets::Character::CharacterCustomizeInfo const& customizeInfo);
-        void SendCharFactionChange(ResponseCodes result, WorldPackets::Character::CharacterFactionChangeInfo const& factionChangeInfo);
+        void SendCharRename(ResponseCodes result, WorldPackets::Character::CharacterRenameInfo const* renameInfo);
+        void SendCharCustomize(ResponseCodes result, WorldPackets::Character::CharCustomizeInfo const* customizeInfo);
+        void SendCharFactionChange(ResponseCodes result, WorldPackets::Character::CharRaceOrFactionChangeInfo const* factionChangeInfo);
         void SendSetPlayerDeclinedNamesResult(DeclinedNameResult result, ObjectGuid guid);
         void SendBarberShopResult(BarberShopResult result);
         void SendUndeleteCooldownStatusResponse(uint32 currentCooldown, uint32 maxCooldown);
@@ -506,9 +536,8 @@ class WorldSession
         void HandleLootReleaseOpcode(WorldPacket& recvPacket);
         void HandleLootMasterGiveOpcode(WorldPacket& recvPacket);
         void HandleWhoOpcode(WorldPacket& recvPacket);
-        void HandleLogoutRequestOpcode(WorldPacket& recvPacket);
-        void HandlePlayerLogoutOpcode(WorldPacket& recvPacket);
-        void HandleLogoutCancelOpcode(WorldPacket& recvPacket);
+        void HandleLogoutRequestOpcode(WorldPackets::Character::LogoutRequest& logoutRequest);
+        void HandleLogoutCancelOpcode(WorldPackets::Character::LogoutCancel& logoutCancel);
 
         // GM Ticket opcodes
         void HandleGMTicketCreateOpcode(WorldPacket& recvPacket);
@@ -551,11 +580,11 @@ class WorldSession
         void HandleMeetingStoneInfo(WorldPacket& recPacket);
         void HandleGameobjectReportUse(WorldPacket& recvPacket);
 
-        void HandleNameQueryOpcode(WorldPacket& recvPacket);
+        void HandleNameQueryOpcode(WorldPackets::Character::QueryPlayerName& packet);
 
         void HandleQueryTimeOpcode(WorldPacket& recvPacket);
 
-        void HandleCreatureQueryOpcode(WorldPacket& recvPacket);
+        void HandleCreatureQuery(WorldPackets::Query::QueryCreature& packet);
 
         void HandleGameObjectQueryOpcode(WorldPacket& recvPacket);
 
@@ -607,7 +636,7 @@ class WorldSession
         void HandleOfferPetitionOpcode(WorldPacket& recvData);
         void HandleTurnInPetitionOpcode(WorldPacket& recvData);
 
-        void HandleGuildQueryOpcode(WorldPacket& recvPacket);
+        void HandleGuildQueryOpcode(WorldPackets::Guild::QueryGuildInfo& query);
         void HandleGuildInviteOpcode(WorldPacket& recvPacket);
         void HandleGuildRemoveOpcode(WorldPacket& recvPacket);
         void HandleGuildAcceptOpcode(WorldPacket& recvPacket);
@@ -681,7 +710,7 @@ class WorldSession
         void HandleAcceptTradeOpcode(WorldPacket& recvPacket);
         void HandleBeginTradeOpcode(WorldPacket& recvPacket);
         void HandleBusyTradeOpcode(WorldPacket& recvPacket);
-        void HandleCancelTradeOpcode(WorldPacket& recvPacket);
+        void HandleCancelTradeOpcode(WorldPackets::Trade::CancelTrade& cancelTrade);
         void HandleClearTradeItemOpcode(WorldPacket& recvPacket);
         void HandleIgnoreTradeOpcode(WorldPacket& recvPacket);
         void HandleInitiateTradeOpcode(WorldPacket& recvPacket);
@@ -991,7 +1020,6 @@ class WorldSession
         void HandleSpellClick(WorldPacket& recvData);
         void HandleMirrorImageDataRequest(WorldPacket& recvData);
         void HandleRemoveGlyph(WorldPacket& recvData);
-        void HandleCharCustomize(WorldPacket& recvData);
         void HandleQueryInspectAchievements(WorldPacket& recvData);
         void HandleGuildAchievementProgressQuery(WorldPacket& recvData);
         void HandleEquipmentSetSave(WorldPacket& recvData);
@@ -1006,9 +1034,12 @@ class WorldSession
         void HandleUpdateProjectilePosition(WorldPacket& recvPacket);
         void HandleRequestHotfix(WorldPacket& recvPacket);
         void HandleUpdateMissileTrajectory(WorldPacket& recvPacket);
-        void HandleViolenceLevel(WorldPacket& recvPacket);
+        void HandleViolenceLevel(WorldPackets::Misc::ViolenceLevel& violenceLevel);
         void HandleObjectUpdateFailedOpcode(WorldPacket& recvPacket);
         void HandleRequestCategoryCooldowns(WorldPacket& recvPacket);
+
+        void SendSpellCategoryCooldowns();
+
         int32 HandleEnableNagleAlgorithm();
 
         // Compact Unit Frames (4.x)
@@ -1027,7 +1058,9 @@ class WorldSession
         QueryCallback<PreparedQueryResult, uint32> _stableSwapCallback;
         QueryCallback<PreparedQueryResult, ObjectGuid> _sendStabledPetCallback;
         QueryCallback<PreparedQueryResult, std::shared_ptr<WorldPackets::Character::CharacterCreateInfo>, true> _charCreateCallback;
-        QueryCallback<PreparedQueryResult, WorldPackets::Character::CharacterRenameInfo*> _charRenameCallback;
+        QueryCallback<PreparedQueryResult, std::shared_ptr<WorldPackets::Character::CharacterRenameInfo>> _charRenameCallback;
+        QueryCallback<PreparedQueryResult, std::shared_ptr<WorldPackets::Character::CharCustomizeInfo>> _charCustomizeCallback;
+        QueryCallback<PreparedQueryResult, std::shared_ptr<WorldPackets::Character::CharRaceOrFactionChangeInfo>> _charFactionChangeCallback;
         QueryCallback<PreparedQueryResult, bool, true> _undeleteCooldownStatusCallback;
         QueryCallback<PreparedQueryResult, std::shared_ptr<WorldPackets::Character::CharacterUndeleteInfo>, true> _charUndeleteCallback;
         QueryResultHolderFuture _charLoginCallback;
@@ -1084,7 +1117,7 @@ class WorldSession
 
         ObjectGuid::LowType m_GUIDLow;                      // set logined or recently logout player (while m_playerRecentlyLogout set)
         Player* _player;
-        std::shared_ptr<WorldSocket> m_Socket;
+        std::shared_ptr<WorldSocket> m_Socket[2];
         std::string m_Address;                              // Current Remote Address
      // std::string m_LAddress;                             // Last Attempted Remote Adress - we can not set attempted ip for a non-existing session!
 
@@ -1100,7 +1133,7 @@ class WorldSession
 
         time_t _logoutTime;
         bool m_inQueue;                                     // session wait in auth.queue
-        bool m_playerLoading;                               // code processed in LoginPlayer
+        ObjectGuid m_playerLoading;                         // code processed in LoginPlayer
         bool m_playerLogout;                                // code processed in LogoutPlayer
         bool m_playerRecentlyLogout;
         bool m_playerSave;
@@ -1117,7 +1150,6 @@ class WorldSession
         uint32 recruiterId;
         bool isRecruiter;
         LockedQueue<WorldPacket*> _recvQueue;
-        z_stream_s* _compressionStream;
         rbac::RBACData* _RBACData;
         uint32 expireTime;
         bool forceExit;

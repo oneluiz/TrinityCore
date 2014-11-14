@@ -24,6 +24,7 @@
 #include "Guild.h"
 #include "GuildFinderMgr.h"
 #include "GuildMgr.h"
+#include "GuildPackets.h"
 #include "Language.h"
 #include "Log.h"
 #include "ScriptMgr.h"
@@ -810,15 +811,6 @@ void EmblemInfo::LoadFromDB(Field* fields)
     m_backgroundColor   = fields[7].GetUInt8();
 }
 
-void EmblemInfo::WritePacket(WorldPacket& data) const
-{
-    data << uint32(m_style);
-    data << uint32(m_color);
-    data << uint32(m_borderStyle);
-    data << uint32(m_borderColor);
-    data << uint32(m_backgroundColor);
-}
-
 void EmblemInfo::SaveToDB(ObjectGuid::LowType guildId) const
 {
     PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GUILD_EMBLEM_INFO);
@@ -1483,44 +1475,31 @@ void Guild::HandleRoster(WorldSession* session)
     session->SendPacket(&data);
 }
 
-void Guild::HandleQuery(WorldSession* session)
+void Guild::SendQueryResponse(WorldSession* session)
 {
-    WorldPacket data(SMSG_GUILD_QUERY_RESPONSE, 8 * 32 + 200);      // Guess size
+    WorldPackets::Guild::QueryGuildInfoResponse response;
+    response.GuildGuid = GetGUID();
+    response.Info.HasValue = true;
 
-    data << GetGUID();
-    data << m_name;
+    response.Info.value.GuildGUID = GetGUID();
+    response.Info.value.VirtualRealmAddress = GetVirtualRealmAddress();
 
-    // Rank name
-    for (uint8 i = 0; i < GUILD_RANKS_MAX_COUNT; ++i)               // Always show 10 ranks
+    response.Info.value.EmblemStyle = m_emblemInfo.GetStyle();
+    response.Info.value.EmblemColor = m_emblemInfo.GetColor();
+    response.Info.value.BorderStyle = m_emblemInfo.GetBorderStyle();
+    response.Info.value.BorderColor = m_emblemInfo.GetBorderColor();
+    response.Info.value.BackgroundColor = m_emblemInfo.GetBackgroundColor();
+
+    for (uint8 i = 0; i < _GetRanksSize(); ++i)
     {
-        if (i < _GetRanksSize())
-            data << m_ranks[i].GetName();
-        else
-            data << uint8(0);                                       // Empty string
+        WorldPackets::Guild::QueryGuildInfoResponse::GuildInfo::GuildInfoRank info
+            (m_ranks[i].GetId(), i, m_ranks[i].GetName());
+        response.Info.value.Ranks.insert(info);
     }
 
-    // Rank order of creation
-    for (uint8 i = 0; i < GUILD_RANKS_MAX_COUNT; ++i)
-    {
-        if (i < _GetRanksSize())
-            data << uint32(i);
-        else
-            data << uint32(0);
-    }
+    response.Info.value.GuildName = m_name;
 
-    // Rank order of "importance" (sorting by rights)
-    for (uint8 i = 0; i < GUILD_RANKS_MAX_COUNT; ++i)
-    {
-        if (i < _GetRanksSize())
-            data << uint32(m_ranks[i].GetId());
-        else
-            data << uint32(0);
-    }
-
-    m_emblemInfo.WritePacket(data);
-    data << uint32(_GetRanksSize());                                // Number of ranks used
-
-    session->SendPacket(&data);
+    session->SendPacket(response.Write());
     TC_LOG_DEBUG("guild", "SMSG_GUILD_QUERY_RESPONSE [%s]", session->GetPlayerInfo().c_str());
 }
 
@@ -1645,7 +1624,7 @@ void Guild::HandleSetEmblem(WorldSession* session, const EmblemInfo& emblemInfo)
 
         SendSaveEmblemResult(session, ERR_GUILDEMBLEM_SUCCESS); // "Guild Emblem saved."
 
-        HandleQuery(session);
+        SendQueryResponse(session);
     }
 }
 
@@ -1875,7 +1854,7 @@ void Guild::HandleAcceptMember(WorldSession* session)
 {
     Player* player = session->GetPlayer();
     if (!sWorld->getBoolConfig(CONFIG_ALLOW_TWO_SIDE_INTERACTION_GUILD) &&
-        player->GetTeam() != sObjectMgr->GetPlayerTeamByGUID(GetLeaderGUID()))
+        player->GetTeam() != ObjectMgr::GetPlayerTeamByGUID(GetLeaderGUID()))
         return;
 
     AddMember(player->GetGUID());
@@ -2374,8 +2353,8 @@ void Guild::SendLoginInfo(WorldSession* session)
 
     for (uint32 i = 0; i < sGuildPerkSpellsStore.GetNumRows(); ++i)
         if (GuildPerkSpellsEntry const* entry = sGuildPerkSpellsStore.LookupEntry(i))
-            if (entry->Level <= GetLevel())
-                player->LearnSpell(entry->SpellId, true);
+            if (entry->GuildLevel <= GetLevel())
+                player->LearnSpell(entry->SpellID, true);
 
     SendGuildReputationWeeklyCap(session, member->GetWeekReputation());
 
@@ -2830,8 +2809,8 @@ void Guild::DeleteMember(ObjectGuid guid, bool isDisbanding, bool isKicked, bool
 
         for (uint32 i = 0; i < sGuildPerkSpellsStore.GetNumRows(); ++i)
             if (GuildPerkSpellsEntry const* entry = sGuildPerkSpellsStore.LookupEntry(i))
-                if (entry->Level <= GetLevel())
-                    player->RemoveSpell(entry->SpellId, false, false);
+                if (entry->GuildLevel <= GetLevel())
+                    player->RemoveSpell(entry->SpellID, false, false);
     }
 
     _DeleteMemberFromDB(guid.GetCounter());
@@ -3586,8 +3565,8 @@ void Guild::GiveXP(uint32 xp, Player* source)
         std::vector<uint32> perksToLearn;
         for (uint32 i = 0; i < sGuildPerkSpellsStore.GetNumRows(); ++i)
             if (GuildPerkSpellsEntry const* entry = sGuildPerkSpellsStore.LookupEntry(i))
-                if (entry->Level > oldLevel && entry->Level <= GetLevel())
-                    perksToLearn.push_back(entry->SpellId);
+                if (entry->GuildLevel > oldLevel && entry->GuildLevel <= GetLevel())
+                    perksToLearn.push_back(entry->SpellID);
 
         // Notify all online players that guild level changed and learn perks
         for (Members::const_iterator itr = m_members.begin(); itr != m_members.end(); ++itr)

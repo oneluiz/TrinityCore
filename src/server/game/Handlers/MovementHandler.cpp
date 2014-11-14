@@ -158,14 +158,14 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     if (mInstance)
     {
         Difficulty diff = GetPlayer()->GetDifficulty(mEntry->IsRaid());
-        if (MapDifficulty const* mapDiff = GetMapDifficultyData(mEntry->MapID, diff))
+        if (MapDifficulty const* mapDiff = GetMapDifficultyData(mEntry->ID, diff))
         {
             if (mapDiff->resetTime)
             {
-                if (time_t timeReset = sInstanceSaveMgr->GetResetTimeFor(mEntry->MapID, diff))
+                if (time_t timeReset = sInstanceSaveMgr->GetResetTimeFor(mEntry->ID, diff))
                 {
                     uint32 timeleft = uint32(timeReset - time(NULL));
-                    GetPlayer()->SendInstanceResetWarning(mEntry->MapID, diff, timeleft);
+                    GetPlayer()->SendInstanceResetWarning(mEntry->ID, diff, timeleft);
                 }
             }
         }
@@ -348,7 +348,7 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvPacket)
         plrMover->m_transport->RemovePassenger(plrMover);
 
     // fall damage generation (ignore in flight case that can be triggered also at lags in moment teleportation to another map).
-    if (opcode == MSG_MOVE_FALL_LAND && plrMover && !plrMover->IsInFlight())
+    if (opcode == CMSG_MOVE_FALL_LAND && plrMover && !plrMover->IsInFlight())
         plrMover->HandleFall(movementInfo);
 
     if (plrMover && ((movementInfo.flags & MOVEMENTFLAG_SWIMMING) != 0) != plrMover->IsInWater())
