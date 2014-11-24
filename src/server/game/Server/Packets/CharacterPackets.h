@@ -25,6 +25,14 @@ namespace WorldPackets
 {
     namespace Character
     {
+        class EnumCharacters final : public ClientPacket
+        {
+        public:
+            EnumCharacters(WorldPacket&& packet) : ClientPacket(CMSG_CHAR_ENUM, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
         struct CharacterCreateInfo
         {
             /// User specified variables
@@ -86,13 +94,13 @@ namespace WorldPackets
             std::string Name;
         };
 
-        class CharEnumResult final : public ServerPacket
+        class EnumCharactersResult final : public ServerPacket
         {
         public:
             struct CharacterInfo
             {
                 /**
-                 * @fn  void WorldPackets::Character::CharEnumResult::CharacterInfo::CharacterInfo(Field* fields);
+                 * @fn  void WorldPackets::Character::EnumCharactersResult::CharacterInfo::CharacterInfo(Field* fields);
                  *
                  * @brief   Initialize the struct with values from QueryResult
                  *
@@ -150,7 +158,7 @@ namespace WorldPackets
                 uint8 Race = 0;
             };
 
-            CharEnumResult() : ServerPacket(SMSG_CHAR_ENUM) { }
+            EnumCharactersResult() : ServerPacket(SMSG_CHAR_ENUM) { }
 
             WorldPacket const* Write() override;
 
@@ -161,10 +169,10 @@ namespace WorldPackets
             std::list<RestrictedFactionChangeRuleInfo> FactionChangeRestrictions; ///< @todo: research
         };
 
-        class CharacterCreate final : public ClientPacket
+        class CreateChar final : public ClientPacket
         {
         public:
-            CharacterCreate(WorldPacket&& packet) : ClientPacket(CMSG_CHAR_CREATE, std::move(packet)) { }
+            CreateChar(WorldPacket&& packet) : ClientPacket(CMSG_CHAR_CREATE, std::move(packet)) { }
 
             void Read() override;
 
@@ -194,10 +202,10 @@ namespace WorldPackets
             uint8 Code = 0; ///< Result code @see enum ResponseCodes
         };
 
-        class CharacterDelete final : public ClientPacket
+        class DeleteChar final : public ClientPacket
         {
         public:
-            CharacterDelete(WorldPacket&& packet): ClientPacket(CMSG_CHAR_DELETE, std::move(packet)) { }
+            DeleteChar(WorldPacket&& packet): ClientPacket(CMSG_CHAR_DELETE, std::move(packet)) { }
 
             void Read() override;
 
@@ -464,50 +472,6 @@ namespace WorldPackets
 
             int32 MapID = -1;
             bool Showing = false;
-        };
-
-        struct PlayerGuidLookupHint
-        {
-            Optional<uint32> VirtualRealmAddress; ///< current realm (?) (identifier made from the Index, BattleGroup and Region)
-            Optional<uint32> NativeRealmAddress; ///< original realm (?) (identifier made from the Index, BattleGroup and Region)
-        };
-
-        struct PlayerGuidLookupData
-        {
-            bool IsDeleted             = false;
-            ObjectGuid AccountID;
-            ObjectGuid BnetAccountID;
-            ObjectGuid GuidActual;
-            std::string Name;
-            uint32 VirtualRealmAddress = 0;
-            uint8 Race                 = RACE_NONE;
-            uint8 Sex                  = GENDER_NONE;
-            uint8 ClassID              = CLASS_NONE;
-            uint8 Level                = 0;
-            DeclinedName DeclinedNames;
-        };
-
-        class QueryPlayerName final : public ClientPacket
-        {
-        public:
-            QueryPlayerName(WorldPacket&& packet) : ClientPacket(CMSG_NAME_QUERY, std::move(packet)) { }
-
-            void Read() override;
-
-            ObjectGuid Player;
-            PlayerGuidLookupHint Hint;
-        };
-
-        class PlayerNameResponse final : public ServerPacket
-        {
-        public:
-            PlayerNameResponse() : ServerPacket(SMSG_NAME_QUERY_RESPONSE, 60) { }
-
-            WorldPacket const* Write() override;
-
-            ObjectGuid Player;
-            uint8 Result = 0; // 0 - full packet, != 0 - only guid
-            PlayerGuidLookupData Data;
         };
     }
 }

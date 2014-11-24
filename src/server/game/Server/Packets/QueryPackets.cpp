@@ -27,29 +27,33 @@ WorldPacket const* WorldPackets::Query::QueryCreatureResponse::Write()
     _worldPacket << CreatureID;
     _worldPacket.WriteBit(Allow);
 
+    _worldPacket.FlushBits();
+
     if (Allow)
     {
-        _worldPacket.WriteBits(uint32(Stats.Title.length()+1), 11);
-        _worldPacket.WriteBits(uint32(Stats.TitleAlt.length()+1), 11);
-        _worldPacket.WriteBits(uint32(Stats.CursorName.length()+1), 6);
+        _worldPacket.WriteBits(Stats.Title.length() + 1, 11);
+        _worldPacket.WriteBits(Stats.TitleAlt.length() + 1, 11);
+        _worldPacket.WriteBits(Stats.CursorName.length() + 1, 6);
         _worldPacket.WriteBit(Stats.Leader);
 
         for (uint32 i = 0; i < MAX_CREATURE_NAMES; ++i)
         {
-            _worldPacket.WriteBits(uint32(Stats.Name[i].length()+1), 11);
-            _worldPacket.WriteBits(uint32(Stats.NameAlt[i].length()+1), 11);
+            _worldPacket.WriteBits(Stats.Name[i].length() + 1, 11);
+            _worldPacket.WriteBits(Stats.NameAlt[i].length() + 1, 11);
         }
 
         for (uint32 i = 0; i < MAX_CREATURE_NAMES; ++i)
         {
             if (!Stats.Name[i].empty())
                 _worldPacket << Stats.Name[i];
+
             if (!Stats.NameAlt[i].empty())
                 _worldPacket << Stats.NameAlt[i];
         }
 
-        _worldPacket << Stats.Flags[0];
-        _worldPacket << Stats.Flags[1];
+        for (uint8 i = 0; i < 2; ++i)
+            _worldPacket << Stats.Flags[i];
+
         _worldPacket << Stats.CreatureType;
         _worldPacket << Stats.CreatureFamily;
         _worldPacket << Stats.Classification;
@@ -69,20 +73,83 @@ WorldPacket const* WorldPackets::Query::QueryCreatureResponse::Write()
 
         _worldPacket << int32(0); // FlagQuest
 
-        if (Stats.Title.length())
+        if (!Stats.Title.empty())
             _worldPacket << Stats.Title;
 
-        if (Stats.TitleAlt.length())
+        if (!Stats.TitleAlt.empty())
             _worldPacket << Stats.TitleAlt;
 
-        if (Stats.CursorName.length())
+        if (!Stats.CursorName.empty())
             _worldPacket << Stats.CursorName;
 
-        for (uint32 i = 0; i < Stats.QuestItems.size(); ++i)
-            _worldPacket << Stats.QuestItems[i];
+        for (int32 questItem : Stats.QuestItems)
+            _worldPacket << questItem;
     }
-    
-    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Query::QueryPlayerName::Read()
+{
+    _worldPacket >> Player;
+
+    Hint.VirtualRealmAddress.HasValue = _worldPacket.ReadBit();
+    Hint.NativeRealmAddress.HasValue = _worldPacket.ReadBit();
+
+    if (Hint.VirtualRealmAddress.HasValue)
+        _worldPacket >> Hint.VirtualRealmAddress.Value;
+
+    if (Hint.NativeRealmAddress.HasValue)
+        _worldPacket >> Hint.NativeRealmAddress.Value;
+}
+
+WorldPacket const* WorldPackets::Query::QueryPlayerNameResponse::Write()
+{
+    _worldPacket << Result;
+    _worldPacket << Player;
+
+    if (Result == RESPONSE_SUCCESS)
+    {
+        _worldPacket.WriteBits(Data.Name.length(), 7);
+
+        for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+            _worldPacket.WriteBits(Data.DeclinedNames.name[i].length(), 7);
+
+        for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+            _worldPacket.WriteString(Data.DeclinedNames.name[i]);
+
+        _worldPacket << Data.AccountID;
+        _worldPacket << Data.BnetAccountID;
+        _worldPacket << Data.GuidActual;
+        _worldPacket << Data.VirtualRealmAddress;
+        _worldPacket << Data.Race;
+        _worldPacket << Data.Sex;
+        _worldPacket << Data.ClassID;
+        _worldPacket << Data.Level;
+        _worldPacket.WriteString(Data.Name);
+    }
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Query::QueryPageText::Read()
+{
+    _worldPacket >> PageTextID;
+    _worldPacket >> ItemGUID;
+}
+
+WorldPacket const* WorldPackets::Query::QueryPageTextResponse::Write()
+{
+    _worldPacket << PageTextID;
+    _worldPacket.WriteBit(Allow);
+
+    if (Allow)
+    {
+        _worldPacket << Info.ID;
+        _worldPacket << Info.NextPageID;
+        _worldPacket.WriteBits(Info.Text.length(), 12);
+        _worldPacket.WriteString(Info.Text);
+    }
 
     return &_worldPacket;
 }

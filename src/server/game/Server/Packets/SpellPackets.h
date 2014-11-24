@@ -19,6 +19,7 @@
 #define SpellPackets_h__
 
 #include "Packet.h"
+#include "Player.h"
 
 namespace WorldPackets
 {
@@ -32,8 +33,8 @@ namespace WorldPackets
                 CategoryCooldownInfo(uint32 category, int32 cooldown)
                     : Category(category), ModCooldown(cooldown) { }
 
-                uint32 Category = 0;
-                int32 ModCooldown = 0;
+                uint32 Category   = 0; ///< SpellCategory Id
+                int32 ModCooldown = 0; ///< Reduced Cooldown in ms
             };
 
             CategoryCooldown() : ServerPacket(SMSG_SPELL_CATEGORY_COOLDOWN, 4) { }
@@ -53,7 +54,53 @@ namespace WorldPackets
             bool InitialLogin = false;
             std::vector<uint32> KnownSpells;
         };
+
+        class UpdateActionButtons final : public ServerPacket
+        {
+        public:
+            UpdateActionButtons() : ServerPacket(SMSG_ACTION_BUTTONS, MAX_ACTION_BUTTONS * 8 + 1)
+            {
+                std::memset(ActionButtons, 0, sizeof(ActionButtons));
+            }
+
+            WorldPacket const* Write() override;
+
+            uint64 ActionButtons[MAX_ACTION_BUTTONS];
+            uint8 Reason = 0;
+            /*
+                Reason can be 0, 1, 2
+                0 - Sends initial action buttons, client does not validate if we have the spell or not
+                1 - Used used after spec swaps, client validates if a spell is known.
+                2 - Clears the action bars client sided. This is sent during spec swap before unlearning and before sending the new buttons
+            */
+        };
+
+        class SendUnlearnSpells final : public ServerPacket
+        {
+        public:
+            SendUnlearnSpells() : ServerPacket(SMSG_SEND_UNLEARN_SPELLS, 4) { }
+
+            WorldPacket const* Write() override;
+
+            std::vector<uint32> Spells;
+        };
+
+        struct SpellLogPowerData
+        {
+            int32 PowerType = 0;
+            int32 Amount    = 0;
+        };
+
+        struct SpellCastLogData
+        {
+            int32 Health        = 0;
+            int32 AttackPower   = 0;
+            int32 SpellPower    = 0;
+            std::vector<SpellLogPowerData> PowerData;
+        };
     }
 }
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Spell::SpellCastLogData& spellCastLogData);
 
 #endif // SpellPackets_h__
