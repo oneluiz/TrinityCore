@@ -68,7 +68,7 @@ GameObject::~GameObject()
 {
     delete m_AI;
     delete m_model;
-    if (m_goInfo->type == GAMEOBJECT_TYPE_TRANSPORT)
+    if (m_goInfo && m_goInfo->type == GAMEOBJECT_TYPE_TRANSPORT)
         delete m_goValue.Transport.StopFrames;
     //if (m_uint32Values)                                      // field array can be not exist if GameOBject not loaded
     //    CleanupsBeforeDelete();
@@ -875,7 +875,7 @@ bool GameObject::LoadGameObjectFromDB(ObjectGuid::LowType guid, Map* map, bool a
     if (data->phaseGroup)
     {
         // Set the gameobject in all the phases of the phasegroup
-        for (auto ph : GetPhasesForGroup(data->phaseGroup))
+        for (auto ph : sDB2Manager.GetPhasesForGroup(data->phaseGroup))
             SetInPhase(ph, false, true);
     }
 
@@ -1809,9 +1809,9 @@ void GameObject::CastSpell(Unit* target, uint32 spellId, bool triggered /*= true
         return;
 
     bool self = false;
-    for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+    for (SpellEffectInfo const* effect : spellInfo->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
     {
-        if (spellInfo->Effects[i].TargetA.GetTarget() == TARGET_UNIT_CASTER)
+        if (effect && effect->TargetA.GetTarget() == TARGET_UNIT_CASTER)
         {
             self = true;
             break;
@@ -2150,7 +2150,7 @@ void GameObject::SetTransportState(GOState state, uint32 stopFrame /*= 0*/)
     }
     else
     {
-        ASSERT(state < GO_STATE_TRANSPORT_STOPPED + MAX_GO_STATE_TRANSPORT_STOP_FRAMES);
+        ASSERT(state < GOState(GO_STATE_TRANSPORT_STOPPED + MAX_GO_STATE_TRANSPORT_STOP_FRAMES));
         ASSERT(stopFrame < m_goValue.Transport.StopFrames->size());
         m_goValue.Transport.PathProgress = getMSTime() + m_goValue.Transport.StopFrames->at(stopFrame);
         SetGoState(GOState(GO_STATE_TRANSPORT_STOPPED + stopFrame));

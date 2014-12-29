@@ -19,6 +19,10 @@
 #define ChatPackets_h__
 
 #include "Packet.h"
+#include "SharedDefines.h"
+#include "ObjectGuid.h"
+
+class WorldObject;
 
 namespace WorldPackets
 {
@@ -132,24 +136,25 @@ namespace WorldPackets
         public:
             Chat() : ServerPacket(SMSG_MESSAGECHAT, 100) { }
 
+            void Initalize(ChatMsg chatType, Language language, WorldObject const* sender, WorldObject const* receiver, std::string message, uint32 achievementId = 0, std::string channelName = "", LocaleConstant locale = DEFAULT_LOCALE, std::string addonPrefix = "");
             WorldPacket const* Write() override;
 
-            uint8 SlashCmd = 0;
-            uint8 Language = LANG_UNIVERSAL;
+            uint8 SlashCmd = 0;     ///< @see enum ChatMsg
+            uint8 _Language = LANG_UNIVERSAL;
             ObjectGuid SenderGUID;
             ObjectGuid SenderGuildGUID;
             ObjectGuid SenderAccountGUID;
             ObjectGuid TargetGUID;
             ObjectGuid PartyGUID;
-            uint32 SenderVirtualAddress;
-            uint32 TargetVirtualAddress;
+            uint32 SenderVirtualAddress = 0;
+            uint32 TargetVirtualAddress = 0;
             std::string SenderName;
             std::string TargetName;
-            std::string Prefix;
-            std::string Channel;
+            std::string Prefix;     ///< Addon Prefix
+            std::string _Channel;   ///< Channel Name
             std::string ChatText;
             uint32 AchievementID = 0;
-            uint8 ChatFlags = 0;
+            uint8 _ChatFlags = 0;   ///< @see enum ChatFlags
             float DisplayTime = 0.0f;
             bool HideChatLog = false;
             bool FakeSenderName = false;
@@ -163,7 +168,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             ObjectGuid Guid;
-            int32 EmoteID;
+            int32 EmoteID = 0;
         };
 
         class CTextEmote final : public ClientPacket
@@ -174,8 +179,8 @@ namespace WorldPackets
             void Read() override;
 
             ObjectGuid Target;
-            int32 EmoteID;
-            int32 SoundIndex;
+            int32 EmoteID = 0;
+            int32 SoundIndex = -1;
         };
 
         class STextEmote final : public ServerPacket
@@ -188,8 +193,8 @@ namespace WorldPackets
             ObjectGuid SourceGUID;
             ObjectGuid SourceAccountGUID;
             ObjectGuid TargetGUID;
-            int32 SoundIndex;
-            int32 EmoteID;
+            int32 SoundIndex = -1;
+            int32 EmoteID = 0;
         };
     }
 }

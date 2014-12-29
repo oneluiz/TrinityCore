@@ -130,6 +130,7 @@ enum SpellScriptHookType
     SPELL_SCRIPT_HOOK_EFFECT_LAUNCH_TARGET,
     SPELL_SCRIPT_HOOK_EFFECT_HIT,
     SPELL_SCRIPT_HOOK_EFFECT_HIT_TARGET,
+    SPELL_SCRIPT_HOOK_EFFECT_SUCCESSFUL_DISPEL,
     SPELL_SCRIPT_HOOK_BEFORE_HIT,
     SPELL_SCRIPT_HOOK_HIT,
     SPELL_SCRIPT_HOOK_AFTER_HIT,
@@ -292,6 +293,7 @@ class SpellScript : public _SpellScript
         HookList<EffectHandler> OnEffectLaunchTarget;
         HookList<EffectHandler> OnEffectHit;
         HookList<EffectHandler> OnEffectHitTarget;
+        HookList<EffectHandler> OnEffectSuccessfulDispel;
         #define SpellEffectFn(F, I, N) EffectHandlerFunction(&F, I, N)
 
         // example: BeforeHit += SpellHitFn(class::function);
@@ -334,6 +336,9 @@ class SpellScript : public _SpellScript
         // 11. OnHit - executed just before spell deals damage and procs auras - when spell hits target - called for each target from spell target map
         // 12. AfterHit - executed just after spell finishes all it's jobs for target - called for each target from spell target map
 
+        // this hook is only executed after a successful dispel of any aura
+        // OnEffectSuccessfulDispel - executed just after effect successfully dispelled aura(s)
+
         //
         // methods allowing interaction with Spell object
         //
@@ -342,6 +347,7 @@ class SpellScript : public _SpellScript
         Unit* GetOriginalCaster();
         SpellInfo const* GetSpellInfo();
         SpellValue const* GetSpellValue();
+        SpellEffectInfo const* GetEffectInfo(SpellEffIndex) const;
 
         // methods useable after spell is prepared
         // accessors to the explicit targets of the spell
@@ -411,7 +417,8 @@ class SpellScript : public _SpellScript
         // will not work if effects were already handled
         void PreventHitDefaultEffect(SpellEffIndex effIndex);
 
-        // method avalible only in EffectHandler method
+        // method available only in EffectHandler method
+        SpellEffectInfo const* GetEffectInfo() const;
         int32 GetEffectValue() const;
         void SetEffectValue(int32 value);
 

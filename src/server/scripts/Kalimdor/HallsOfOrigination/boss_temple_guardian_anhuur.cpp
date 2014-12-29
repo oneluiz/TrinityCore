@@ -80,7 +80,17 @@ public:
 
     struct boss_temple_guardian_anhuurAI : public BossAI
     {
-        boss_temple_guardian_anhuurAI(Creature* creature) : BossAI(creature, DATA_TEMPLE_GUARDIAN_ANHUUR) { }
+        boss_temple_guardian_anhuurAI(Creature* creature) : BossAI(creature, DATA_TEMPLE_GUARDIAN_ANHUUR)
+        {
+            Initialize();
+        }
+
+        void Initialize()
+        {
+            _phase = PHASE_FIRST_SHIELD;
+            _oldPhase = PHASE_FIRST_SHIELD;
+            _beacons = 0;
+        }
 
         void CleanStalkers()
         {
@@ -95,9 +105,7 @@ public:
 
         void Reset() override
         {
-            _phase = PHASE_FIRST_SHIELD;
-            _oldPhase = PHASE_FIRST_SHIELD;
-            _beacons = 0;
+            Initialize();
             _Reset();
             CleanStalkers();
             me->RemoveAurasDueToSpell(SPELL_SHIELD_OF_LIGHT);
@@ -378,7 +386,7 @@ public:
             {
                 CustomSpellValues values;
                 values.AddSpellMod(SPELLVALUE_BASE_POINT0, aurEff->GetAmount());
-                caster->CastCustomSpell(GetSpellInfo()->Effects[EFFECT_0].TriggerSpell, values, GetTarget());
+                caster->CastCustomSpell(GetSpellInfo()->GetEffect(caster, EFFECT_0)->TriggerSpell, values, GetTarget());
             }
         }
 

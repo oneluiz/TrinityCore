@@ -132,60 +132,37 @@ void WorldSession::HandleCreatureQuery(WorldPackets::Query::QueryCreature& packe
 }
 
 /// Only _static_ data is sent in this packet !!!
-void WorldSession::HandleGameObjectQueryOpcode(WorldPacket& recvData)
+void WorldSession::HandleGameObjectQueryOpcode(WorldPackets::Query::QueryGameObject& packet)
 {
-    uint32 entry;
-    recvData >> entry;
-    ObjectGuid guid;
-    recvData >> guid;
+    WorldPackets::Query::QueryGameObjectResponse response;
 
-    const GameObjectTemplate* info = sObjectMgr->GetGameObjectTemplate(entry);
-    if (info)
+    response.GameObjectID = packet.GameObjectID;
+
+    if (GameObjectTemplate const* gameObjectInfo = sObjectMgr->GetGameObjectTemplate(packet.GameObjectID))
     {
-        std::string Name;
-        std::string IconName;
-        std::string CastBarCaption;
+        response.Allow = true;
+        WorldPackets::Query::GameObjectStats& stats = response.Stats;
 
-        Name = info->name;
-        IconName = info->IconName;
-        CastBarCaption = info->castBarCaption;
+        stats.CastBarCaption = gameObjectInfo->castBarCaption;
+        stats.DisplayID = gameObjectInfo->displayId;
+        stats.IconName = gameObjectInfo->IconName;
+        stats.Name[0] = gameObjectInfo->name;
 
-        int loc_idx = GetSessionDbLocaleIndex();
-        if (loc_idx >= 0)
-        {
-            if (GameObjectLocale const* gl = sObjectMgr->GetGameObjectLocale(entry))
-            {
-                ObjectMgr::GetLocaleString(gl->Name, loc_idx, Name);
-                ObjectMgr::GetLocaleString(gl->CastBarCaption, loc_idx, CastBarCaption);
-            }
-        }
-        TC_LOG_DEBUG("network", "WORLD: CMSG_GAMEOBJECT_QUERY '%s' - Entry: %u. ", info->name.c_str(), entry);
-        WorldPacket data (SMSG_GAMEOBJECT_QUERY_RESPONSE, 150);
-        data << uint32(entry);
-        data << uint32(info->type);
-        data << uint32(info->displayId);
-        data << Name;
-        data << uint8(0) << uint8(0) << uint8(0);           // name2, name3, name4
-        data << IconName;                                   // 2.0.3, string. Icon name to use instead of default icon for go's (ex: "Attack" makes sword)
-        data << CastBarCaption;                             // 2.0.3, string. Text will appear in Cast Bar when using GO (ex: "Collecting")
-        data << info->unk1;                                 // 2.0.3, string
-        data.append(info->raw.data, MAX_GAMEOBJECT_DATA);
-        data << float(info->size);                          // go size
-        for (uint32 i = 0; i < MAX_GAMEOBJECT_QUEST_ITEMS; ++i)
-            data << uint32(info->questItems[i]);            // itemId[6], quest drop
-        data << int32(info->unkInt32);                      // 4.x, unknown
-        SendPacket(&data);
-        TC_LOG_DEBUG("network", "WORLD: Sent SMSG_GAMEOBJECT_QUERY_RESPONSE");
+        for (uint8 i = 0; i < MAX_GAMEOBJECT_QUEST_ITEMS; i++)
+            if (gameObjectInfo->questItems[i])
+                stats.QuestItems.push_back(gameObjectInfo->questItems[i]);
+        for (uint32 i = 0; i < MAX_GAMEOBJECT_DATA; i++)
+            stats.Data[i] = gameObjectInfo->raw.data[i];
+
+        stats.Size = gameObjectInfo->size;
+        stats.Type = gameObjectInfo->type;
+        stats.UnkString = gameObjectInfo->unk1;
+        stats.Expansion = 0;
     }
     else
-    {
-        TC_LOG_DEBUG("network", "WORLD: CMSG_GAMEOBJECT_QUERY - Missing gameobject info for (%s, ENTRY: %u)",
-            guid.ToString().c_str(), entry);
-        WorldPacket data (SMSG_GAMEOBJECT_QUERY_RESPONSE, 4);
-        data << uint32(entry | 0x80000000);
-        SendPacket(&data);
-        TC_LOG_DEBUG("network", "WORLD: Sent SMSG_GAMEOBJECT_QUERY_RESPONSE");
-    }
+        response.Allow = false;
+
+    SendPacket(response.Write());
 }
 
 void WorldSession::HandleCorpseQueryOpcode(WorldPacket& /*recvData*/)
@@ -247,7 +224,7 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPackets::Query::QueryNPCText& p
 
     WorldPackets::Query::QueryNPCTextResponse response;
     response.TextID = packet.TextID;
-    
+
     if (gossip)
     {
         for (uint8 i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
@@ -268,7 +245,7 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPackets::Query::QueryNPCText& p
 void WorldSession::HandlePageTextQueryOpcode(WorldPackets::Query::QueryPageText& packet)
 {
     TC_LOG_DEBUG("network", "WORLD: Received CMSG_PAGE_TEXT_QUERY");
-    
+
     uint32 pageID = packet.PageTextID;
 
     while (pageID)
@@ -287,7 +264,7 @@ void WorldSession::HandlePageTextQueryOpcode(WorldPackets::Query::QueryPageText&
         {
             response.Allow = true;
             response.Info.ID = pageID;
-            
+
             int loc_idx = GetSessionDbLocaleIndex();
             if (loc_idx >= 0)
                 if (PageTextLocale const* player = sObjectMgr->GetPageTextLocale(pageID))
@@ -296,7 +273,7 @@ void WorldSession::HandlePageTextQueryOpcode(WorldPackets::Query::QueryPageText&
             response.Info.NextPageID = pageText->NextPageID;
             pageID = pageText->NextPageID;
         }
-        
+
         SendPacket(response.Write());
 
         TC_LOG_DEBUG("network", "WORLD: Sent SMSG_PAGE_TEXT_QUERY_RESPONSE");
@@ -434,14 +411,14 @@ void WorldSession::HandleQuestPOIQuery(WorldPacket& recvData)
 
 void WorldSession::HandleDBQueryBulk(WorldPackets::Query::DBQueryBulk& packet)
 {
-    DB2StorageBase const* store = GetDB2Storage(packet.TableHash);
+    DB2StorageBase const* store = sDB2Manager.GetStorage(packet.TableHash);
     if (!store)
     {
-        TC_LOG_ERROR("network", "CMSG_REQUEST_HOTFIX: Received unknown hotfix type: %u", packet.TableHash);
+        TC_LOG_ERROR("network", "CMSG_DB_QUERY_BULK: Received unknown hotfix type: %u", packet.TableHash);
         return;
     }
 
-    for (WorldPackets::Query::DBQueryRecord const& rec : packet.Queries)
+    for (WorldPackets::Query::DBQueryBulk::DBQueryRecord const& rec : packet.Queries)
     {
         WorldPackets::Query::DBReply response;
         response.TableHash = packet.TableHash;
@@ -450,15 +427,16 @@ void WorldSession::HandleDBQueryBulk(WorldPackets::Query::DBQueryBulk& packet)
         {
             response.RecordID = rec.RecordID;
             response.Locale = GetSessionDbcLocale();
-            response.Timestamp = sObjectMgr->GetHotfixDate(rec.RecordID, packet.TableHash);
+            response.Timestamp = sDB2Manager.GetHotfixDate(rec.RecordID, packet.TableHash);
             response.Data = store;
         }
         else
         {
-            response.RecordID = -rec.RecordID;
+            TC_LOG_ERROR("network", "CMSG_DB_QUERY_BULK: Entry %u does not exist in datastore: %u", rec.RecordID, packet.TableHash);
+            response.RecordID = -int32(rec.RecordID);
             response.Timestamp = time(NULL);
         }
-        
+
         SendPacket(response.Write());
     }
 }

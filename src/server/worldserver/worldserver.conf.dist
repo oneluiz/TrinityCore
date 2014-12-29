@@ -93,7 +93,7 @@ LogsDir = ""
 #        Default:     "127.0.0.1;3306;trinity;trinity;auth"       - (LoginDatabaseInfo)
 #                     "127.0.0.1;3306;trinity;trinity;world"      - (WorldDatabaseInfo)
 #                     "127.0.0.1;3306;trinity;trinity;characters" - (CharacterDatabaseInfo)
-#                     "127.0.0.1;3306;trinity;trinity;hotfixes"     - (HotfixDatabaseInfo)
+#                     "127.0.0.1;3306;trinity;trinity;hotfixes"   - (HotfixDatabaseInfo)
 
 LoginDatabaseInfo     = "127.0.0.1;3306;trinity;trinity;auth"
 WorldDatabaseInfo     = "127.0.0.1;3306;trinity;trinity;world"
@@ -595,6 +595,22 @@ MinCharterName = 2
 #        Default:     2
 
 MinPetName = 2
+
+#
+#    Guild.CharterCost
+#    ArenaTeam.CharterCost.2v2
+#    ArenaTeam.CharterCost.3v3
+#    ArenaTeam.CharterCost.5v5
+#        Description: Amount of money (in Copper) the petitions costs.
+#        Default:     1000 - (10 Silver)
+#                     800000 - (80 Gold)
+#                     1200000 - (120 Gold)
+#                     2000000 - (200 Gold)
+
+Guild.CharterCost = 1000
+ArenaTeam.CharterCost.2v2 = 800000
+ArenaTeam.CharterCost.3v3 = 1200000
+ArenaTeam.CharterCost.5v5 = 2000000
 
 #
 #    MaxWhoListReturns
@@ -3034,7 +3050,7 @@ AuctionHouseBot.Buyer.Neutral.Chance.Ratio = 3
 ###################################################################################################
 
 ###################################################################################################
-#  LOGGING SYSTEM SETTINGS
+# LOGGING SYSTEM SETTINGS
 #
 #  Appender config values: Given a appender "name"
 #    Appender.name
@@ -3192,67 +3208,6 @@ Allow.IP.Based.Action.Logging = 0
 ###################################################################################################
 
 ###################################################################################################
-#  GUILD LEVELING SETTINGS
-#
-#    Guild.LevelingEnabled
-#        Description: Controls whether guild can gain levels
-#        Default:     1
-#
-
-Guild.LevelingEnabled = 1
-
-#
-#    Guild.SaveInterval
-#        Description: Time (in minutes) between guild experience saves
-#        Default:     15
-#
-
-Guild.SaveInterval = 15
-
-#
-#    Guild.MaxLevel
-#        Description: Defines max level a guild can reach
-#        Default:     25
-#
-
-Guild.MaxLevel = 25
-
-#
-#    Guild.UndeletableLevel
-#        Description: Guild reaching this level (and higher) cannot be disbanded anymore
-#        Default:     4
-#
-
-Guild.UndeletableLevel = 4
-
-#
-#    Guild.XPModifier
-#        Description: Multiplier for guild experience gained from quests
-#        Default:     0.25
-#
-
-Guild.XPModifier = 0.25
-
-#
-#    Guild.DailyXPCap
-#        Description: Maximum experience points a guild can earn each day
-#        Default:     7807500
-#
-
-Guild.DailyXPCap = 7807500
-
-#
-#    Guild.WeeklyReputationCap
-#        Description: Maximum guild reputation a player can earn every week
-#        Default:     4375
-#
-
-Guild.WeeklyReputationCap = 4375
-
-#
-###################################################################################################
-
-###################################################################################################
 # CURRENCIES SETTINGS
 #
 #    Currency.ResetInterval
@@ -3293,6 +3248,22 @@ Currency.StartHonorPoints = 0
 #
 
 Currency.MaxHonorPoints = 4000
+
+#
+#    Currency.StartApexisCrystals
+#        Amount of Apexis Crystals that new players will start with
+#        Default: 0 (with precision)
+#
+
+Currency.StartApexisCrystals = 0
+
+#
+#    Currency.MaxApexisCrystals
+#        Amount Apexis Crystals a player can have
+#        Default: 20000
+#
+
+Currency.MaxApexisCrystals = 20000
 
 #
 #    Currency.StartJusticePoints

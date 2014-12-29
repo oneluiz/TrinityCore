@@ -38,7 +38,7 @@ Battlenet::Session::ModuleHandler const Battlenet::Session::ModuleHandlers[MODUL
 
 Battlenet::Session::Session(tcp::socket&& socket) : Socket(std::move(socket)), _accountId(0), _accountName(), _locale(),
     _os(), _build(0), _gameAccountId(0), _gameAccountName(), _accountSecurityLevel(SEC_PLAYER), I(), s(), v(), b(), B(), K(),
-    _reconnectProof(), _crypt(), _authed(false), _subscribedToRealmListUpdates(false)
+    _reconnectProof(), _crypt(), _authed(false), _subscribedToRealmListUpdates(false), _toonOnline(false)
 {
     static uint8 const N_Bytes[] =
     {
@@ -393,9 +393,10 @@ void Battlenet::Session::HandlePing(Connection::Ping const& /*ping*/)
     AsyncWrite(new Connection::Pong());
 }
 
-void Battlenet::Session::HandleEnableEncryption(Connection::EnableEncryption const& /*enableEncryption*/)
+void Battlenet::Session::HandleEnableEncryption(Connection::EnableEncryption& enableEncryption)
 {
     _crypt.Init(&K);
+    _crypt.DecryptRecv(enableEncryption.GetRemainingData(), enableEncryption.GetRemainingSize());
 }
 
 void Battlenet::Session::HandleLogoutRequest(Connection::LogoutRequest const& /*logoutRequest*/)

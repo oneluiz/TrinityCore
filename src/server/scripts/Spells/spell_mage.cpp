@@ -221,7 +221,7 @@ class spell_mage_blast_wave : public SpellScriptLoader
             }
 
         private:
-            uint32 _targetCount;
+            uint32 _targetCount = 0;
         };
 
         SpellScript* GetSpellScript() const override
@@ -392,7 +392,7 @@ class spell_mage_cone_of_cold : public SpellScriptLoader
 };
 
 // 42955 Conjure Refreshment
-/// Updated 4.3.4
+/// Updated 6.0.3
 struct ConjureRefreshmentData
 {
     uint32 minLevel;
@@ -400,7 +400,7 @@ struct ConjureRefreshmentData
     uint32 spellId;
 };
 
-uint8 const MAX_CONJURE_REFRESHMENT_SPELLS = 7;
+uint8 const MAX_CONJURE_REFRESHMENT_SPELLS = 9;
 ConjureRefreshmentData const _conjureData[MAX_CONJURE_REFRESHMENT_SPELLS] =
 {
     { 33, 43, 92739 },
@@ -409,7 +409,9 @@ ConjureRefreshmentData const _conjureData[MAX_CONJURE_REFRESHMENT_SPELLS] =
     { 64, 73, 92805 },
     { 74, 79, 74625 },
     { 80, 84, 92822 },
-    { 85, 85, 92727 }
+    { 85, 89, 92727 },
+    { 90, 99, 116130 },
+    { 100, 100, 167143 }
 };
 
 // 42955 - Conjure Refreshment
@@ -462,6 +464,66 @@ class spell_mage_conjure_refreshment : public SpellScriptLoader
         }
 };
 
+uint8 const MAX_CONJURE_REFRESHMENT_TABLE_SPELLS = 5;
+ConjureRefreshmentData const _conjureTableData[MAX_CONJURE_REFRESHMENT_TABLE_SPELLS] =
+{
+    { 73, 79, 120056 },
+    { 80, 84, 120055 },
+    { 85, 89, 120054 },
+    { 90, 99, 120053 },
+    { 100, 100, 167145 }
+};
+
+// 43987 - Conjure Refreshment Table
+class spell_mage_conjure_refreshment_table : public SpellScriptLoader
+{
+public:
+    spell_mage_conjure_refreshment_table() : SpellScriptLoader("spell_mage_conjure_refreshment_table") { }
+
+    class spell_mage_conjure_refreshment_table_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_mage_conjure_refreshment_table_SpellScript);
+
+        bool Validate(SpellInfo const* /*spellInfo*/) override
+        {
+            for (uint8 i = 0; i < MAX_CONJURE_REFRESHMENT_TABLE_SPELLS; ++i)
+                if (!sSpellMgr->GetSpellInfo(_conjureTableData[i].spellId))
+                    return false;
+            return true;
+        }
+
+        bool Load() override
+        {
+            if (GetCaster()->GetTypeId() != TYPEID_PLAYER)
+                return false;
+            return true;
+        }
+
+        void HandleDummy(SpellEffIndex /*effIndex*/)
+        {
+            uint8 level = GetHitUnit()->getLevel();
+            for (uint8 i = 0; i < MAX_CONJURE_REFRESHMENT_TABLE_SPELLS; ++i)
+            {
+                ConjureRefreshmentData const& spellData = _conjureTableData[i];
+                if (level < spellData.minLevel || level > spellData.maxLevel)
+                    continue;
+                GetHitUnit()->CastSpell(GetHitUnit(), spellData.spellId);
+                break;
+            }
+        }
+
+        void Register() override
+        {
+            OnEffectHitTarget += SpellEffectFn(spell_mage_conjure_refreshment_table_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+        }
+    };
+
+    SpellScript* GetSpellScript() const override
+    {
+        return new spell_mage_conjure_refreshment_table_SpellScript();
+    }
+};
+
 // 543  - Fire War
 class spell_mage_fire_frost_ward : public SpellScriptLoader
 {
@@ -497,7 +559,7 @@ class spell_mage_fire_frost_ward : public SpellScriptLoader
 
             void Absorb(AuraEffect* aurEff, DamageInfo& dmgInfo, uint32& absorbAmount)
             {
-                Unit* target = GetTarget();
+                /*Unit* target = GetTarget();
                 if (AuraEffect* talentAurEff = target->GetAuraEffectOfRankedSpell(SPELL_MAGE_FROST_WARDING_R1, EFFECT_0))
                 {
                     int32 chance = talentAurEff->GetSpellInfo()->Effects[EFFECT_1].CalcValue(); // SPELL_EFFECT_DUMMY with NO_TARGET
@@ -510,7 +572,7 @@ class spell_mage_fire_frost_ward : public SpellScriptLoader
                         absorbAmount = 0;
                         PreventDefaultAction();
                     }
-                }
+                }*/
             }
 
             void Register() override
@@ -738,7 +800,7 @@ class spell_mage_living_bomb : public SpellScriptLoader
 
             bool Validate(SpellInfo const* spellInfo)
             {
-                if (!sSpellMgr->GetSpellInfo(uint32(spellInfo->Effects[EFFECT_1].CalcValue())))
+                if (!sSpellMgr->GetSpellInfo(uint32(spellInfo->GetEffect(EFFECT_1)->CalcValue())))
                     return false;
                 return true;
             }
@@ -780,7 +842,7 @@ class spell_mage_ice_barrier : public SpellScriptLoader
            {
                canBeRecalculated = false;
                if (Unit* caster = GetCaster())
-                   amount += int32(0.87f * caster->SpellBaseHealingBonusDone(GetSpellInfo()->GetSchoolMask()));
+                   amount += int32(4.95f * caster->SpellBaseHealingBonusDone(GetSpellInfo()->GetSchoolMask()));
            }
 
            void AfterRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
@@ -836,7 +898,7 @@ class spell_mage_ignite : public SpellScriptLoader
                 SpellInfo const* igniteDot = sSpellMgr->EnsureSpellInfo(SPELL_MAGE_IGNITE);
                 int32 pct = 8 * GetSpellInfo()->GetRank();
 
-                int32 amount = int32(CalculatePct(eventInfo.GetDamageInfo()->GetDamage(), pct) / igniteDot->GetMaxTicks());
+                int32 amount = int32(CalculatePct(eventInfo.GetDamageInfo()->GetDamage(), pct) / igniteDot->GetMaxTicks(DIFFICULTY_NONE));
                 amount += eventInfo.GetProcTarget()->GetRemainingPeriodicAmount(eventInfo.GetActor()->GetGUID(), SPELL_MAGE_IGNITE, SPELL_AURA_PERIODIC_DAMAGE);
                 GetTarget()->CastCustomSpell(SPELL_MAGE_IGNITE, SPELLVALUE_BASE_POINT0, amount, eventInfo.GetProcTarget(), true, NULL, aurEff);
             }
@@ -1078,12 +1140,6 @@ class spell_mage_polymorph : public SpellScriptLoader
                return true;
             }
 
-            bool Load() override
-            {
-                _caster = NULL;
-                return true;
-            }
-
             bool DoCheck(ProcEventInfo& eventInfo)
             {
                 _caster = GetCaster();
@@ -1111,7 +1167,7 @@ class spell_mage_polymorph : public SpellScriptLoader
             }
 
         private:
-            Unit* _caster;
+            Unit* _caster = nullptr;
         };
 
         AuraScript* GetAuraScript() const override
@@ -1238,51 +1294,53 @@ class spell_mage_ring_of_frost : public SpellScriptLoader
                 return true;
             }
 
-            bool Load() override
-            {
-                ringOfFrost = NULL;
-                return true;
-            }
-
             void HandleEffectPeriodic(AuraEffect const* /*aurEff*/)
             {
-                if (ringOfFrost)
-                    if (GetMaxDuration() - (int32)ringOfFrost->GetTimer() >= sSpellMgr->GetSpellInfo(SPELL_MAGE_RING_OF_FROST_DUMMY)->GetDuration())
+                if (TempSummon* ringOfFrost = GetRingOfFrostMinion())
+                    if (GetMaxDuration() - int32(ringOfFrost->GetTimer()) >= sSpellMgr->EnsureSpellInfo(SPELL_MAGE_RING_OF_FROST_DUMMY)->GetDuration())
                         GetTarget()->CastSpell(ringOfFrost->GetPositionX(), ringOfFrost->GetPositionY(), ringOfFrost->GetPositionZ(), SPELL_MAGE_RING_OF_FROST_FREEZE, true);
             }
 
             void Apply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
             {
-                std::list<Creature*> MinionList;
-                GetTarget()->GetAllMinionsByEntry(MinionList, GetSpellInfo()->Effects[EFFECT_0].MiscValue);
+                std::list<TempSummon*> MinionList;
+                GetTarget()->GetAllMinionsByEntry(MinionList, GetSpellInfo()->GetEffect(EFFECT_0)->MiscValue);
 
                 // Get the last summoned RoF, save it and despawn older ones
-                for (std::list<Creature*>::iterator itr = MinionList.begin(); itr != MinionList.end(); itr++)
+                for (std::list<TempSummon*>::iterator itr = MinionList.begin(); itr != MinionList.end(); itr++)
                 {
-                    TempSummon* summon = (*itr)->ToTempSummon();
+                    TempSummon* summon = (*itr);
 
-                    if (ringOfFrost && summon)
+                    if (TempSummon* ringOfFrost = GetRingOfFrostMinion())
                     {
                         if (summon->GetTimer() > ringOfFrost->GetTimer())
                         {
                             ringOfFrost->DespawnOrUnsummon();
-                            ringOfFrost = summon;
+                            _ringOfFrostGUID = summon->GetGUID();
                         }
                         else
                             summon->DespawnOrUnsummon();
                     }
-                    else if (summon)
-                        ringOfFrost = summon;
+                    else
+                        _ringOfFrostGUID = summon->GetGUID();
                 }
             }
 
-            TempSummon* ringOfFrost;
-
             void Register() override
             {
-                 OnEffectPeriodic += AuraEffectPeriodicFn(spell_mage_ring_of_frost_AuraScript::HandleEffectPeriodic, EFFECT_1, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
-                 OnEffectApply += AuraEffectApplyFn(spell_mage_ring_of_frost_AuraScript::Apply, EFFECT_1, SPELL_AURA_PERIODIC_TRIGGER_SPELL, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
+                OnEffectPeriodic += AuraEffectPeriodicFn(spell_mage_ring_of_frost_AuraScript::HandleEffectPeriodic, EFFECT_1, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
+                OnEffectApply += AuraEffectApplyFn(spell_mage_ring_of_frost_AuraScript::Apply, EFFECT_1, SPELL_AURA_PERIODIC_TRIGGER_SPELL, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
             }
+
+        private:
+            TempSummon* GetRingOfFrostMinion() const
+            {
+                if (Creature* creature = ObjectAccessor::GetCreature(*GetOwner(), _ringOfFrostGUID))
+                    return creature->ToTempSummon();
+                return nullptr;
+            }
+
+            ObjectGuid _ringOfFrostGUID;
         };
 
         AuraScript* GetAuraScript() const override
@@ -1313,13 +1371,17 @@ class spell_mage_ring_of_frost_freeze : public SpellScriptLoader
 
             void FilterTargets(std::list<WorldObject*>& targets)
             {
-                float outRadius = sSpellMgr->GetSpellInfo(SPELL_MAGE_RING_OF_FROST_SUMMON)->Effects[EFFECT_0].CalcRadius();
+                WorldLocation const* dest = GetExplTargetDest();
+                float outRadius = sSpellMgr->EnsureSpellInfo(SPELL_MAGE_RING_OF_FROST_SUMMON)->GetEffect(EFFECT_0)->CalcRadius();
                 float inRadius  = 4.7f;
 
-                for (std::list<WorldObject*>::iterator itr = targets.begin(); itr != targets.end(); ++itr)
-                    if (Unit* unit = (*itr)->ToUnit())
-                        if (unit->HasAura(SPELL_MAGE_RING_OF_FROST_DUMMY) || unit->HasAura(SPELL_MAGE_RING_OF_FROST_FREEZE) || unit->GetExactDist(GetExplTargetDest()) > outRadius || unit->GetExactDist(GetExplTargetDest()) < inRadius)
-                            targets.erase(itr--);
+                targets.remove_if([dest, outRadius, inRadius](WorldObject* target)
+                {
+                    Unit* unit = target->ToUnit();
+                    if (!unit)
+                        return true;
+                    return unit->HasAura(SPELL_MAGE_RING_OF_FROST_DUMMY) || unit->HasAura(SPELL_MAGE_RING_OF_FROST_FREEZE) || unit->GetExactDist(dest) > outRadius || unit->GetExactDist(dest) < inRadius;
+                });
             }
 
             void Register() override
@@ -1456,7 +1518,7 @@ class spell_mage_water_elemental_freeze : public SpellScriptLoader
            }
 
        private:
-           bool _didHit;
+           bool _didHit = false;
        };
 
        SpellScript* GetSpellScript() const
@@ -1474,6 +1536,7 @@ void AddSC_mage_spell_scripts()
     new spell_mage_cold_snap();
     new spell_mage_cone_of_cold();
     new spell_mage_conjure_refreshment();
+    new spell_mage_conjure_refreshment_table();
     new spell_mage_fire_frost_ward();
     new spell_mage_focus_magic();
     new spell_mage_frostbolt();

@@ -44,6 +44,7 @@
 #include "Pet.h"
 #include "PlayerDump.h"
 #include "Player.h"
+#include "QueryPackets.h"
 #include "ReputationMgr.h"
 #include "ScriptMgr.h"
 #include "SharedDefines.h"
@@ -99,6 +100,10 @@ bool LoginQueryHolder::Initialize()
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_QUESTSTATUS);
     stmt->setUInt64(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS, stmt);
+
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_QUESTSTATUS_OBJECTIVES);
+    stmt->setUInt64(0, lowGuid);
+    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_OBJECTIVES, stmt);
 
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_QUESTSTATUS_DAILY);
     stmt->setUInt64(0, lowGuid);
@@ -365,18 +370,18 @@ void WorldSession::HandleCharCreateOpcode(WorldPackets::Character::CreateChar& c
 
     // prevent character creating Expansion race without Expansion account
     uint8 raceExpansionRequirement = sObjectMgr->GetRaceExpansionRequirement(charCreate.CreateInfo->Race);
-    if (raceExpansionRequirement > Expansion())
+    if (raceExpansionRequirement > GetExpansion())
     {
-        TC_LOG_ERROR("network", "Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", Expansion(), GetAccountId(), raceExpansionRequirement, charCreate.CreateInfo->Race);
+        TC_LOG_ERROR("network", "Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", GetExpansion(), GetAccountId(), raceExpansionRequirement, charCreate.CreateInfo->Race);
         SendCharCreate(CHAR_CREATE_EXPANSION);
         return;
     }
 
     // prevent character creating Expansion class without Expansion account
     uint8 classExpansionRequirement = sObjectMgr->GetClassExpansionRequirement(charCreate.CreateInfo->Class);
-    if (classExpansionRequirement > Expansion())
+    if (classExpansionRequirement > GetExpansion())
     {
-        TC_LOG_ERROR("network", "Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", Expansion(), GetAccountId(), classExpansionRequirement, charCreate.CreateInfo->Class);
+        TC_LOG_ERROR("network", "Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", GetExpansion(), GetAccountId(), classExpansionRequirement, charCreate.CreateInfo->Class);
         SendCharCreate(CHAR_CREATE_EXPANSION_CLASS);
         return;
     }
@@ -927,17 +932,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     data << uint64(0);
     SendPacket(&data);
 
-    data.Initialize(SMSG_HOTFIX_INFO);
-    HotfixData const& hotfix = sObjectMgr->GetHotfixData();
-    data.WriteBits(hotfix.size(), 22);
-    data.FlushBits();
-    for (uint32 i = 0; i < hotfix.size(); ++i)
-    {
-        data << uint32(hotfix[i].Type);
-        data << uint32(hotfix[i].Timestamp);
-        data << uint32(hotfix[i].Entry);
-    }
-    SendPacket(&data);
+    WorldPackets::Query::HotfixNotifyBlob hotfixInfo;
+    hotfixInfo.Hotfixes = sDB2Manager.GetHotfixData();
+    SendPacket(hotfixInfo.Write());
 
     pCurrChar->SendInitialPacketsBeforeAddToMap();
 
@@ -2090,7 +2087,7 @@ void WorldSession::HandleCharRaceOrFactionChangeCallback(PreparedQueryResult res
                 {
                     Quest const* quest = iter->second;
                     uint32 newRaceMask = (newTeamId == TEAM_ALLIANCE) ? RACEMASK_ALLIANCE : RACEMASK_HORDE;
-                    if (quest->GetRequiredRaces() && !(quest->GetRequiredRaces() & newRaceMask))
+                    if (quest->GetAllowableRaces() != -1 && !(quest->GetAllowableRaces() & newRaceMask))
                     {
                         stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE_BY_QUEST);
                         stmt->setUInt64(0, lowGuid);
@@ -2175,7 +2172,7 @@ void WorldSession::HandleCharRaceOrFactionChangeCallback(PreparedQueryResult res
                 }
 
                 for (uint32 index = 0; index < ktcount; ++index)
-                    knownTitles[index] = atol(tokens[index]);
+                    knownTitles[index] = atoul(tokens[index]);
 
                 for (std::map<uint32, uint32>::const_iterator it = sObjectMgr->FactionChangeTitles.begin(); it != sObjectMgr->FactionChangeTitles.end(); ++it)
                 {

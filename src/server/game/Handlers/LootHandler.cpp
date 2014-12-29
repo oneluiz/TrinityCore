@@ -30,6 +30,7 @@
 #include "Player.h"
 #include "World.h"
 #include "WorldPacket.h"
+#include "LootPackets.h"
 #include "WorldSession.h"
 
 void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recvData)
@@ -225,18 +226,15 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recvData*/)
     }
 }
 
-void WorldSession::HandleLootOpcode(WorldPacket& recvData)
+void WorldSession::HandleLootOpcode(WorldPackets::Loot::LootUnit& packet)
 {
     TC_LOG_DEBUG("network", "WORLD: CMSG_LOOT");
 
-    ObjectGuid guid;
-    recvData >> guid;
-
     // Check possible cheat
-    if (!GetPlayer()->IsAlive() || !guid.IsCreatureOrVehicle())
+    if (!GetPlayer()->IsAlive() || !packet.Unit.IsCreatureOrVehicle())
         return;
 
-    GetPlayer()->SendLoot(guid, LOOT_CORPSE);
+    GetPlayer()->SendLoot(packet.Unit, LOOT_CORPSE);
 
     // interrupt cast
     if (GetPlayer()->IsNonMeleeSpellCast(false))
@@ -334,7 +332,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         ItemTemplate const* proto = pItem->GetTemplate();
 
         // destroy only 5 items from stack in case prospecting and milling
-        if (proto->Flags[0] & (ITEM_PROTO_FLAG_PROSPECTABLE | ITEM_PROTO_FLAG_MILLABLE))
+        if (proto->GetFlags() & (ITEM_PROTO_FLAG_PROSPECTABLE | ITEM_PROTO_FLAG_MILLABLE))
         {
             pItem->m_lootGenerated = false;
             pItem->loot.clear();
@@ -350,7 +348,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         else
         {
             // Only delete item if no loot or money (unlooted loot is saved to db) or if it isn't an openable item
-            if (pItem->loot.isLooted() || !(proto->Flags[0] & ITEM_PROTO_FLAG_OPENABLE))
+            if (pItem->loot.isLooted() || !(proto->GetFlags() & ITEM_PROTO_FLAG_OPENABLE))
                 player->DestroyItem(pItem->GetBagSlot(), pItem->GetSlot(), true);
         }
         return;                                             // item can be looted only single player

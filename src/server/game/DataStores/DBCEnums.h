@@ -51,11 +51,11 @@ enum LevelLimit
 enum BattlegroundBracketId                                  // bracketId for level ranges
 {
     BG_BRACKET_ID_FIRST          = 0,
-    BG_BRACKET_ID_LAST           = 15
-};
+    BG_BRACKET_ID_LAST           = 10,
 
-// must be max value in PvPDificulty slot+1
-#define MAX_BATTLEGROUND_BRACKETS  16
+    // must be max value in PvPDificulty slot + 1
+    MAX_BATTLEGROUND_BRACKETS
+};
 
 enum AreaTeams
 {
@@ -93,12 +93,6 @@ enum AchievementFlags
     ACHIEVEMENT_FLAG_SHOW_CRITERIA_MEMBERS = 0x00010000     //
 };
 
-enum AchievementCriteriaLimits
-{
-    MAX_CRITERIA_REQUIREMENTS          = 2,
-    MAX_ADDITIONAL_CRITERIA_CONDITIONS = 3
-};
-
 enum AchievementCriteriaCondition
 {
     ACHIEVEMENT_CRITERIA_CONDITION_NONE            = 0,
@@ -132,7 +126,7 @@ enum AchievementCriteriaAdditionalCondition
     ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_TARGET_AREA_OR_ZONE         = 18,
     ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_MAP_DIFFICULTY              = 20,
     ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_TARGET_CREATURE_YIELDS_XP   = 21, // NYI
-    ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_ARENA_TYPE                  = 24, // NYI
+    ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_ARENA_TYPE                  = 24,
     ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_SOURCE_RACE                 = 25,
     ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_SOURCE_CLASS                = 26,
     ACHIEVEMENT_CRITERIA_ADDITIONAL_CONDITION_TARGET_RACE                 = 27,
@@ -179,6 +173,8 @@ enum AchievementCriteriaTimedTypes
     ACHIEVEMENT_TIMED_TYPE_CREATURE         = 7,    // Timer is started by killing creature with entry in timerStartEvent
     ACHIEVEMENT_TIMED_TYPE_ITEM             = 9,    // Timer is started by using item with entry in timerStartEvent
     ACHIEVEMENT_TIMED_TYPE_UNK              = 10,   // Unknown
+    ACHIEVEMENT_TIMED_TYPE_UNK_2            = 13,   // Unknown
+    ACHIEVEMENT_TIMED_TYPE_SCENARIO_STAGE   = 14,   // Timer is started by changing stages in a scenario
 
     ACHIEVEMENT_TIMED_TYPE_MAX
 };
@@ -299,7 +295,13 @@ enum AchievementCriteriaTypes
     ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_GUILD_CHALLENGE      = 139  //struct { uint32 count; } Guild Challenge
 };
 
-#define ACHIEVEMENT_CRITERIA_TYPE_TOTAL 140
+#define ACHIEVEMENT_CRITERIA_TYPE_TOTAL 188
+
+enum AchievementCriteriaTreeOperator
+{
+    ACHIEVEMENT_CRITERIA_TREE_OPERATOR_ALL  = 4,
+    ACHIEVEMENT_CRITERIA_TREE_OPERATOR_ANY  = 8
+};
 
 enum AreaFlags
 {
@@ -337,16 +339,26 @@ enum AreaFlags
 
 enum Difficulty
 {
-    REGULAR_DIFFICULTY           = 0,
-
-    DUNGEON_DIFFICULTY_NORMAL    = 0,
-    DUNGEON_DIFFICULTY_HEROIC    = 1,
-    DUNGEON_DIFFICULTY_EPIC      = 2,
-
-    RAID_DIFFICULTY_10MAN_NORMAL = 0,
-    RAID_DIFFICULTY_25MAN_NORMAL = 1,
-    RAID_DIFFICULTY_10MAN_HEROIC = 2,
-    RAID_DIFFICULTY_25MAN_HEROIC = 3
+    DIFFICULTY_NONE           = 0,
+    DIFFICULTY_NORMAL         = 1,
+    DIFFICULTY_HEROIC         = 2,
+    DIFFICULTY_10_N           = 3,
+    DIFFICULTY_25_N           = 4,
+    DIFFICULTY_10_HC          = 5,
+    DIFFICULTY_25_HC          = 6,
+    DIFFICULTY_LFR            = 7,
+    DIFFICULTY_CHALLENGE      = 8,
+    DIFFICULTY_40             = 9,
+    DIFFICULTY_HC_SCENARIO    = 11,
+    DIFFICULTY_N_SCENARIO     = 12,
+    DIFFICULTY_NORMAL2        = 14,
+    DIFFICULTY_HEROIC2        = 15,
+    DIFFICULTY_MYTHIC         = 16,
+    DIFFICULTY_LFR2           = 17,
+    DIFFICULTY_EVENT          = 18,
+    DIFFICULTY_EVENT2         = 19,
+    DIFFICULTY_EVENT_SCENARIO = 20,
+    DIFFICULTY_MAX            = 21,
 };
 
 #define RAID_DIFFICULTY_MASK_25MAN 1    // since 25man difficulties are 1 and 3, we can check them like that
@@ -357,18 +369,18 @@ enum Difficulty
 
 enum SpawnMask
 {
-    SPAWNMASK_CONTINENT         = (1 << REGULAR_DIFFICULTY), // any maps without spawn modes
+    SPAWNMASK_CONTINENT = (1 << DIFFICULTY_NONE), // any maps without spawn modes
 
-    SPAWNMASK_DUNGEON_NORMAL    = (1 << DUNGEON_DIFFICULTY_NORMAL),
-    SPAWNMASK_DUNGEON_HEROIC    = (1 << DUNGEON_DIFFICULTY_HEROIC),
+    SPAWNMASK_DUNGEON_NORMAL    = (1 << DIFFICULTY_NORMAL),
+    SPAWNMASK_DUNGEON_HEROIC    = (1 << DIFFICULTY_HEROIC),
     SPAWNMASK_DUNGEON_ALL       = (SPAWNMASK_DUNGEON_NORMAL | SPAWNMASK_DUNGEON_HEROIC),
 
-    SPAWNMASK_RAID_10MAN_NORMAL = (1 << RAID_DIFFICULTY_10MAN_NORMAL),
-    SPAWNMASK_RAID_25MAN_NORMAL = (1 << RAID_DIFFICULTY_25MAN_NORMAL),
+    SPAWNMASK_RAID_10MAN_NORMAL = (1 << DIFFICULTY_10_N),
+    SPAWNMASK_RAID_25MAN_NORMAL = (1 << DIFFICULTY_25_N),
     SPAWNMASK_RAID_NORMAL_ALL   = (SPAWNMASK_RAID_10MAN_NORMAL | SPAWNMASK_RAID_25MAN_NORMAL),
 
-    SPAWNMASK_RAID_10MAN_HEROIC = (1 << RAID_DIFFICULTY_10MAN_HEROIC),
-    SPAWNMASK_RAID_25MAN_HEROIC = (1 << RAID_DIFFICULTY_25MAN_HEROIC),
+    SPAWNMASK_RAID_10MAN_HEROIC = (1 << DIFFICULTY_10_HC),
+    SPAWNMASK_RAID_25MAN_HEROIC = (1 << DIFFICULTY_25_HC),
     SPAWNMASK_RAID_HEROIC_ALL   = (SPAWNMASK_RAID_10MAN_HEROIC | SPAWNMASK_RAID_25MAN_HEROIC),
 
     SPAWNMASK_RAID_ALL          = (SPAWNMASK_RAID_NORMAL_ALL | SPAWNMASK_RAID_HEROIC_ALL)
@@ -396,7 +408,8 @@ enum MapTypes                                               // Lua_IsInInstance
     MAP_INSTANCE        = 1,                                // party
     MAP_RAID            = 2,                                // raid
     MAP_BATTLEGROUND    = 3,                                // pvp
-    MAP_ARENA           = 4                                 // arena
+    MAP_ARENA           = 4,                                // arena
+    MAP_SCENARIO        = 5                                 // scenario
 };
 
 enum MapFlags
@@ -431,6 +444,18 @@ enum ItemExtendedCostFlags
     ITEM_EXT_COST_CURRENCY_REQ_IS_SEASON_EARNED_3   = 0x08,
     ITEM_EXT_COST_CURRENCY_REQ_IS_SEASON_EARNED_4   = 0x10,
     ITEM_EXT_COST_CURRENCY_REQ_IS_SEASON_EARNED_5   = 0x20,
+};
+
+enum ItemBonusType
+{
+    ITEM_BONUS_ITEM_LEVEL     = 1,
+    ITEM_BONUS_STAT           = 2,
+    ITEM_BONUS_QUALITY        = 3,
+    ITEM_BONUS_DESCRIPTION    = 4,
+    ITEM_BONUS_SUFFIX         = 5,
+    ITEM_BONUS_SOCKET         = 6,
+    ITEM_BONUS_APPEARANCE     = 7,
+    ITEM_BONUS_REQUIRED_LEVEL = 8,
 };
 
 enum ItemLimitCategoryMode
@@ -588,6 +613,7 @@ enum CurrencyTypes
     CURRENCY_TYPE_VALOR_POINTS          = 396,
     CURRENCY_TYPE_CONQUEST_META_ARENA   = 483,
     CURRENCY_TYPE_CONQUEST_META_RBG     = 484,
+    CURRENCY_TYPE_APEXIS_CRYSTALS       = 823,
 };
 
 #endif

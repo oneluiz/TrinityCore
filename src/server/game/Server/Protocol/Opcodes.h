@@ -29,7 +29,10 @@
 enum ConnectionType
 {
     CONNECTION_TYPE_REALM       = 0,
-    CONNECTION_TYPE_INSTANCE    = 1
+    CONNECTION_TYPE_INSTANCE    = 1,
+    MAX_CONNECTION_TYPES,
+
+    CONNECTION_TYPE_DEFAULT     = -1
 };
 
 enum OpcodeMisc : uint32
@@ -98,7 +101,7 @@ enum OpcodeClient : uint32
     CMSG_BATTLEFIELD_MGR_QUEUE_REQUEST                = 0xBADD,
     CMSG_BATTLEFIELD_PORT                             = 0x11EB,
     CMSG_BATTLEFIELD_REQUEST_SCORE_DATA               = 0xBADD,
-    CMSG_BATTLEFIELD_STATUS                           = 0xBADD,
+    CMSG_BATTLEFIELD_STATUS                           = 0x0320,
     CMSG_BATTLEGROUND_PLAYER_POSITIONS                = 0xBADD,
     CMSG_BATTLEMASTER_JOIN                            = 0x0D2E,
     CMSG_BATTLEMASTER_JOIN_ARENA                      = 0x0DAE,
@@ -117,7 +120,7 @@ enum OpcodeClient : uint32
     CMSG_BUSY_TRADE                                   = 0xBADD,
     CMSG_BUYBACK_ITEM                                 = 0x02D3,
     CMSG_BUY_BANK_SLOT                                = 0x0A25,
-    CMSG_BUY_ITEM                                     = 0xBADD,
+    CMSG_BUY_ITEM                                     = 0x0352,
     CMSG_CALENDAR_ADD_EVENT                           = 0xBADD,
     CMSG_CALENDAR_ARENA_TEAM                          = 0xBADD,
     CMSG_CALENDAR_COMPLAIN                            = 0xBADD,
@@ -144,7 +147,7 @@ enum OpcodeClient : uint32
     CMSG_CANCEL_QUEUED_SPELL                          = 0xBADD,
     CMSG_CANCEL_TEMP_ENCHANTMENT                      = 0xBADD,
     CMSG_CANCEL_TRADE                                 = 0x1159,
-    CMSG_CAST_SPELL                                   = 0xBADD,
+    CMSG_CAST_SPELL                                   = 0x08FE,
     CMSG_CHANGEPLAYER_DIFFICULTY                      = 0xBADD,
     CMSG_CHANGE_SEATS_ON_CONTROLLED_VEHICLE           = 0xBADD,
     CMSG_CHANNEL_ANNOUNCEMENTS                        = 0xBADD,
@@ -226,7 +229,7 @@ enum OpcodeClient : uint32
     CMSG_GAMESPEED_SET                                = 0xBADD,
     CMSG_GAMETIME_SET                                 = 0xBADD,
     CMSG_GETDEATHBINDZONE                             = 0xBADD,
-    CMSG_GET_MAIL_LIST                                = 0xBADD,
+    CMSG_GET_MAIL_LIST                                = 0x0BD3,
     CMSG_GET_MIRRORIMAGE_DATA                         = 0xBADD,
     CMSG_GHOST                                        = 0xBADD,
     CMSG_GMRESPONSE_RESOLVE                           = 0xBADD,
@@ -265,7 +268,7 @@ enum OpcodeClient : uint32
     CMSG_GUILD_BANK_BUY_TAB                           = 0xBADD,
     CMSG_GUILD_BANK_DEPOSIT_MONEY                     = 0xBADD,
     CMSG_GUILD_BANK_LOG_QUERY                         = 0xBADD,
-    CMSG_GUILD_BANK_MONEY_WITHDRAWN_QUERY             = 0xBADD,
+    CMSG_GUILD_BANK_MONEY_WITHDRAWN_QUERY             = 0x063D,
     CMSG_GUILD_BANK_NOTE                              = 0xBADD,
     CMSG_GUILD_BANK_QUERY_TAB                         = 0xBADD,
     CMSG_GUILD_BANK_QUERY_TEXT                        = 0xBADD,
@@ -285,7 +288,7 @@ enum OpcodeClient : uint32
     CMSG_GUILD_MEMBER_SEND_SOR_REQUEST                = 0xBADD,
     CMSG_GUILD_MOTD                                   = 0xBADD,
     CMSG_GUILD_NEWS_UPDATE_STICKY                     = 0xBADD,
-    CMSG_GUILD_PERMISSIONS                            = 0xBADD,
+    CMSG_GUILD_PERMISSIONS                            = 0x1436,
     CMSG_GUILD_PROMOTE                                = 0xBADD,
     CMSG_GUILD_QUERY                                  = 0x0930,
     CMSG_GUILD_QUERY_NEWS                             = 0xBADD,
@@ -314,14 +317,14 @@ enum OpcodeClient : uint32
     CMSG_KEEP_ALIVE                                   = 0xBADD,
     CMSG_LEARN_PREVIEW_TALENTS                        = 0xBADD,
     CMSG_LEARN_PREVIEW_TALENTS_PET                    = 0xBADD,
-    CMSG_LEARN_TALENT                                 = 0xBADD,
+    CMSG_LEARN_TALENT                                 = 0x0BB6,
     CMSG_LEAVE_CHANNEL                                = 0x19F2,
-    CMSG_LFG_GET_STATUS                               = 0xBADD,
+    CMSG_LFG_GET_STATUS                               = 0x1BA4,
     CMSG_LFG_JOIN                                     = 0xBADD,
     CMSG_LFG_LEAVE                                    = 0xBADD,
     CMSG_LFG_LFR_JOIN                                 = 0xBADD,
     CMSG_LFG_LFR_LEAVE                                = 0xBADD,
-    CMSG_LFG_LOCK_INFO_REQUEST                        = 0xBADD,
+    CMSG_LFG_LOCK_INFO_REQUEST                        = 0x030F,
     CMSG_LFG_PROPOSAL_RESULT                          = 0xBADD,
     CMSG_LFG_SET_BOOT_VOTE                            = 0xBADD,
     CMSG_LFG_SET_COMMENT                              = 0xBADD,
@@ -349,10 +352,10 @@ enum OpcodeClient : uint32
     CMSG_LOOT_ROLL                                    = 0xBADD,
     CMSG_MAIL_CREATE_TEXT_ITEM                        = 0x13D1,
     CMSG_MAIL_DELETE                                  = 0x068C,
-    CMSG_MAIL_MARK_AS_READ                            = 0xBADD,
-    CMSG_MAIL_RETURN_TO_SENDER                        = 0xBADD,
-    CMSG_MAIL_TAKE_ITEM                               = 0xBADD,
-    CMSG_MAIL_TAKE_MONEY                              = 0xBADD,
+    CMSG_MAIL_MARK_AS_READ                            = 0x02D1,
+    CMSG_MAIL_RETURN_TO_SENDER                        = 0x1B84,
+    CMSG_MAIL_TAKE_ITEM                               = 0x0030,
+    CMSG_MAIL_TAKE_MONEY                              = 0x0806,
     CMSG_MEETINGSTONE_INFO                            = 0xBADD,
     CMSG_MESSAGECHAT_ADDON_GUILD                      = 0x137C,
     CMSG_MESSAGECHAT_ADDON_OFFICER                    = 0x188A,
@@ -467,20 +470,21 @@ enum OpcodeClient : uint32
     CMSG_PLAY_DANCE                                   = 0xBADD,
     CMSG_PUSHQUESTTOPARTY                             = 0xBADD,
     CMSG_PVP_LOG_DATA                                 = 0x08B5,
-    CMSG_QUERY_BATTLEFIELD_STATE                      = 0xBADD,
+    CMSG_QUERY_BATTLEFIELD_STATE                      = 0x0359,
     CMSG_QUERY_GUILD_MEMBERS_FOR_RECIPE               = 0xBADD,
     CMSG_QUERY_GUILD_MEMBER_RECIPES                   = 0xBADD,
     CMSG_QUERY_GUILD_RECIPES                          = 0xBADD,
     CMSG_QUERY_GUILD_REWARDS                          = 0xBADD,
     CMSG_QUERY_GUILD_XP                               = 0xBADD,
     CMSG_QUERY_INSPECT_ACHIEVEMENTS                   = 0xBADD,
+    CMSG_QUERY_NEXT_MAIL_TIME                         = 0x0B31,
     CMSG_QUERY_QUESTS_COMPLETED                       = 0xBADD,
     CMSG_QUERY_TIME                                   = 0xBADD,
     CMSG_QUESTGIVER_ACCEPT_QUEST                      = 0xBADD,
     CMSG_QUESTGIVER_CANCEL                            = 0xBADD,
-    CMSG_QUESTGIVER_CHOOSE_REWARD                     = 0xBADD,
-    CMSG_QUESTGIVER_COMPLETE_QUEST                    = 0xBADD,
-    CMSG_QUESTGIVER_HELLO                             = 0xBADD,
+    CMSG_QUESTGIVER_CHOOSE_REWARD                     = 0x0DAD,
+    CMSG_QUESTGIVER_COMPLETE_QUEST                    = 0x1E8A,
+    CMSG_QUESTGIVER_HELLO                             = 0x058E,
     CMSG_QUESTGIVER_QUERY_QUEST                       = 0x1924,
     CMSG_QUESTGIVER_QUEST_AUTOLAUNCH                  = 0xBADD,
     CMSG_QUESTGIVER_REQUEST_REWARD                    = 0xBADD,
@@ -500,7 +504,6 @@ enum OpcodeClient : uint32
     CMSG_REALM_SPLIT                                  = 0xBADD,
     CMSG_RECLAIM_CORPSE                               = 0xBADD,
     CMSG_RECRUIT_A_FRIEND                             = 0x07BA,
-    CMSG_REFORGE_ITEM                                 = 0xBADD,
     CMSG_REORDER_CHARACTERS                           = 0x0DAA,
     CMSG_REPAIR_ITEM                                  = 0x0B54,
     CMSG_REPLACE_ACCOUNT_DATA                         = 0xBADD,
@@ -538,7 +541,7 @@ enum OpcodeClient : uint32
     CMSG_SEND_SOR_REQUEST_VIA_BNET_ACCOUNT_ID         = 0xBADD,
     CMSG_SERVERTIME                                   = 0xBADD,
     CMSG_SETDEATHBINDPOINT                            = 0xBADD,
-    CMSG_SETSHEATHED                                  = 0xBADD,
+    CMSG_SETSHEATHED                                  = 0x1B43,
     CMSG_SET_ACTIONBAR_TOGGLES                        = 0xBADD,
     CMSG_SET_ACTION_BUTTON                            = 0x0599,
     CMSG_SET_ACTIVE_MOVER                             = 0xBADD,
@@ -576,7 +579,7 @@ enum OpcodeClient : uint32
     CMSG_SOCKET_GEMS                                  = 0xBADD,
     CMSG_SPELLCLICK                                   = 0x0BC2,
     CMSG_SPIRIT_HEALER_ACTIVATE                       = 0xBADD,
-    CMSG_SPLIT_ITEM                                   = 0xBADD,
+    CMSG_SPLIT_ITEM                                   = 0x0795,
     CMSG_STANDSTATECHANGE                             = 0xBADD,
     CMSG_START_QUEST                                  = 0xBADD,
     CMSG_STOP_DANCE                                   = 0xBADD,
@@ -586,9 +589,9 @@ enum OpcodeClient : uint32
     CMSG_SUGGESTION_SUBMIT                            = 0xBADD,
     CMSG_SUMMON_RESPONSE                              = 0xBADD,
     CMSG_SUSPEND_COMMS_ACK                            = 0x0C56,
-    CMSG_SUSPEND_TOKEN_RESPONSE                       = 0xBADD,
-    CMSG_SWAP_INV_ITEM                                = 0xBADD,
-    CMSG_SWAP_ITEM                                    = 0xBADD,
+    CMSG_SUSPEND_TOKEN_RESPONSE                       = 0x041E,
+    CMSG_SWAP_INV_ITEM                                = 0x0F17,
+    CMSG_SWAP_ITEM                                    = 0x0736,
     CMSG_SYNC_DANCE                                   = 0xBADD,
     CMSG_TAXICLEARALLNODES                            = 0xBADD,
     CMSG_TAXIENABLEALLNODES                           = 0xBADD,
@@ -660,7 +663,6 @@ enum OpcodeClient : uint32
     MSG_PARTY_ASSIGNMENT                              = 0xBADD,
     MSG_PETITION_DECLINE                              = 0xBADD,
     MSG_PETITION_RENAME                               = 0xBADD,
-    MSG_PVP_LOG_DATA                                  = 0xBADD,
     MSG_QUERY_NEXT_MAIL_TIME                          = 0xBADD,
     MSG_QUEST_PUSH_RESULT                             = 0xBADD,
     MSG_RAID_READY_CHECK                              = 0xBADD,
@@ -684,16 +686,16 @@ enum OpcodeServer : uint32
     SMSG_ACCOUNT_RESTRICTED_WARNING                   = 0xBADD,
     SMSG_ACCOUNT_TOYS_UPDATE                          = 0x0590,
     SMSG_ACHIEVEMENT_DELETED                          = 0xBADD,
-    SMSG_ACHIEVEMENT_EARNED                           = 0xBADD,
+    SMSG_ACHIEVEMENT_EARNED                           = 0x010E,
     SMSG_ACTION_BUTTONS                               = 0x1D1F,
     SMSG_ACTIVATETAXIREPLY                            = 0xBADD,
     SMSG_ADDON_INFO                                   = 0x1D9F,
     SMSG_ADD_RUNE_POWER                               = 0xBADD,
     SMSG_ADJUST_SPLINE_DURATION                       = 0x0104,
     SMSG_AI_REACTION                                  = 0x0BA1,
-    SMSG_ALL_ACHIEVEMENT_DATA                         = 0xBADD,
-    SMSG_ALL_ACHIEVEMENT_DATA_ACCOUNT                 = 0x0123,
-    SMSG_ALL_ACHIEVEMENT_DATA_PLAYER                  = 0x0030,
+    SMSG_ACCOUNT_CRITERIA_UPDATE                      = 0x0912,
+    SMSG_ALL_ACCOUNT_CRITERIA                         = 0x0123,
+    SMSG_ALL_ACHIEVEMENT_DATA                         = 0x0030,
     SMSG_AREA_SPIRIT_HEALER_TIME                      = 0xBADD,
     SMSG_AREA_TRIGGER_MESSAGE                         = 0xBADD,
     SMSG_AREA_TRIGGER_MOVEMENT_UPDATE                 = 0xBADD,
@@ -725,7 +727,6 @@ enum OpcodeServer : uint32
     SMSG_AURACASTLOG                                  = 0xBADD,
     SMSG_AURA_POINTS_DEPLETED                         = 0x093B,
     SMSG_AURA_UPDATE                                  = 0x091C,
-    SMSG_AURA_UPDATE_ALL                              = 0xBADD,
     SMSG_AUTH_CHALLENGE                               = 0x1759,
     SMSG_AUTH_RESPONSE                                = 0x0DA9,
     SMSG_AVAILABLE_VOICE_CHANNEL                      = 0x04D4,
@@ -790,7 +791,7 @@ enum OpcodeServer : uint32
     SMSG_CALENDAR_SEND_NUM_PENDING                    = 0x1B3A,
     SMSG_CALENDAR_UPDATE_INVITE_LIST                  = 0xBADD,
     SMSG_CAMERA_SHAKE                                 = 0xBADD,
-    SMSG_CANCEL_AUTO_REPEAT                           = 0xBADD,
+    SMSG_CANCEL_AUTO_REPEAT                           = 0x0B18,
     SMSG_CANCEL_COMBAT                                = 0xBADD,
     SMSG_CAST_FAILED                                  = 0x1A89,
     SMSG_CHANNEL_LIST                                 = 0x1411,
@@ -822,6 +823,7 @@ enum OpcodeServer : uint32
     SMSG_CLEAR_COOLDOWN                               = 0xBADD,
     SMSG_CLEAR_COOLDOWNS                              = 0xBADD,
     SMSG_CLEAR_FAR_SIGHT_IMMEDIATE                    = 0xBADD,
+    SMSG_CLEAR_QUEST_COMPLETED_BITS                   = 0x1D47,
     SMSG_CLEAR_TARGET                                 = 0xBADD,
     SMSG_CLIENTCACHE_VERSION                          = 0x080D,
     SMSG_CLIENT_CONTROL_UPDATE                        = 0xBADD,
@@ -850,9 +852,7 @@ enum OpcodeServer : uint32
     SMSG_CORPSE_RECLAIM_DELAY                         = 0x0BE2,
     SMSG_CREATURE_QUERY_RESPONSE                      = 0x0A26,
     SMSG_CRITERIA_DELETED                             = 0xBADD,
-    SMSG_CRITERIA_UPDATE                              = 0xBADD,
-    SMSG_CRITERIA_UPDATE_ACCOUNT                      = 0x0912,
-    SMSG_CRITERIA_UPDATE_PLAYER                       = 0x1904,
+    SMSG_CRITERIA_UPDATE                              = 0x1904,
     SMSG_CROSSED_INEBRIATION_THRESHOLD                = 0xBADD,
     SMSG_CURRENCY_LOOT_REMOVED                        = 0xBADD,
     SMSG_CURRENCY_LOOT_RESTORED                       = 0xBADD,
@@ -915,7 +915,7 @@ enum OpcodeServer : uint32
     SMSG_GAMEOBJECT_DESPAWN_ANIM                      = 0xBADD,
     SMSG_GAMEOBJECT_DESPAWN                           = 0x0D29,
     SMSG_GAMEOBJECT_PAGETEXT                          = 0xBADD,
-    SMSG_GAMEOBJECT_QUERY_RESPONSE                    = 0xBADD,
+    SMSG_GAMEOBJECT_QUERY_RESPONSE                    = 0x128A,
     SMSG_GAMEOBJECT_RESET_STATE                       = 0xBADD,
     SMSG_GAMESPEED_SET                                = 0xBADD,
     SMSG_GAMETIME_SET                                 = 0xBADD,
@@ -934,6 +934,7 @@ enum OpcodeServer : uint32
     SMSG_GM_MESSAGECHAT                               = 0xBADD,
     SMSG_GM_PLAYER_INFO                               = 0xBADD,
     SMSG_GM_TICKET_CASE_STATUS                        = 0x1D8D,
+    SMSG_GM_TICKET_GET_TICKET_RESPONSE                = 0x0389,
     SMSG_GM_TICKET_STATUS_UPDATE                      = 0xBADD,
     SMSG_GM_TICKET_SYSTEM_STATUS                      = 0x1229,
     SMSG_GODMODE                                      = 0xBADD,
@@ -953,13 +954,13 @@ enum OpcodeServer : uint32
     SMSG_GUILD_ACHIEVEMENT_DELETED                    = 0xBADD,
     SMSG_GUILD_ACHIEVEMENT_EARNED                     = 0xBADD,
     SMSG_GUILD_ACHIEVEMENT_MEMBERS                    = 0xBADD,
-    SMSG_GUILD_BANK_LIST                              = 0xBADD,
-    SMSG_GUILD_BANK_LOG_QUERY_RESULT                  = 0xBADD,
+    SMSG_GUILD_BANK_LIST                              = 0x1245,
+    SMSG_GUILD_BANK_LOG_QUERY_RESULT                  = 0x1237,
     SMSG_GUILD_BANK_MONEY_WITHDRAWN                   = 0x1047,
     SMSG_GUILD_BANK_QUERY_TEXT_RESULT                 = 0xBADD,
     SMSG_GUILD_CANCEL                                 = 0xBADD,
     SMSG_GUILD_CHALLENGE_COMPLETED                    = 0xBADD,
-    SMSG_GUILD_CHALLENGE_UPDATED                      = 0xBADD,
+    SMSG_GUILD_CHALLENGE_UPDATED                      = 0x1A06,
     SMSG_GUILD_CHANGE_NAME_RESULT                     = 0xBADD,
     SMSG_GUILD_COMMAND_RESULT                         = 0xBADD,
     SMSG_GUILD_COMMAND_RESULT_2                       = 0xBADD,
@@ -972,12 +973,12 @@ enum OpcodeServer : uint32
     SMSG_GUILD_EVENT_LOG_QUERY_RESULT                 = 0xBADD,
     SMSG_GUILD_EVENT_PRESENCE_CHANGE                  = 0x1228,
     SMSG_GUILD_FLAGGED_FOR_RENAME                     = 0xBADD,
-    SMSG_GUILD_INVITE                                 = 0xBADD,
+    SMSG_GUILD_INVITE                                 = 0x1025,
     SMSG_GUILD_INVITE_CANCEL                          = 0xBADD,
     SMSG_GUILD_KNOWN_RECIPES                          = 0xBADD,
     SMSG_GUILD_MAX_DAILY_XP                           = 0xBADD,
     SMSG_GUILD_MEMBERS_FOR_RECIPE                     = 0xBADD,
-    SMSG_GUILD_MEMBER_DAILY_RESET                     = 0xBADD,
+    SMSG_GUILD_MEMBER_DAILY_RESET                     = 0x1015,
     SMSG_GUILD_MEMBER_RECIPES                         = 0xBADD,
     SMSG_GUILD_MEMBER_UPDATE_NOTE                     = 0xBADD,
     SMSG_GUILD_MOTD                                   = 0x1825,
@@ -989,7 +990,7 @@ enum OpcodeServer : uint32
     SMSG_GUILD_PERMISSIONS_QUERY_RESULTS              = 0x1827,
     SMSG_GUILD_QUERY_RESPONSE                         = 0x1046,
     SMSG_GUILD_RANK                                   = 0x1218,
-    SMSG_GUILD_RANKS_UPDATE                           = 0xBADD,
+    SMSG_GUILD_RANKS_UPDATE                           = 0x1207,
     SMSG_GUILD_RECIPES                                = 0x1078,
     SMSG_GUILD_RENAMED                                = 0xBADD,
     SMSG_GUILD_REPUTATION_REACTION_CHANGED            = 0xBADD,
@@ -1005,8 +1006,8 @@ enum OpcodeServer : uint32
     SMSG_GUILD_XP_UPDATE                              = 0xBADD,
     SMSG_HEALTH_UPDATE                                = 0xBADD,
     SMSG_HIGHEST_THREAT_UPDATE                        = 0x059A,
-    SMSG_HOTFIX_INFO                                  = 0x1D1D,
     SMSG_HOTFIX_NOTIFY                                = 0xBADD,
+    SMSG_HOTFIX_NOTIFY_BLOB                           = 0x1D1D,
     SMSG_IGNORE_DIMINISHING_RETURNS_CHEAT             = 0xBADD,
     SMSG_IGNORE_REQUIREMENTS_CHEAT                    = 0xBADD,
     SMSG_INITIALIZE_FACTIONS                          = 0x0B10,
@@ -1027,7 +1028,7 @@ enum OpcodeServer : uint32
     SMSG_INVALIDATE_DANCE                             = 0xBADD,
     SMSG_INVALIDATE_PLAYER                            = 0x0B37,
     SMSG_INVALID_PROMOTION_CODE                       = 0xBADD,
-    SMSG_INVENTORY_CHANGE_FAILURE                     = 0xBADD,
+    SMSG_INVENTORY_CHANGE_FAILURE                     = 0x0112,
     SMSG_ITEM_ADD_PASSIVE                             = 0xBADD,
     SMSG_ITEM_COOLDOWN                                = 0xBADD,
     SMSG_ITEM_ENCHANT_TIME_UPDATE                     = 0x010D,
@@ -1042,7 +1043,7 @@ enum OpcodeServer : uint32
     SMSG_JOINED_BATTLEGROUND_QUEUE                    = 0xBADD,
     SMSG_KICK_REASON                                  = 0xBADD,
     SMSG_LEARNED_DANCE_MOVES                          = 0xBADD,
-    SMSG_LEARNED_SPELL                                = 0xBADD,
+    SMSG_LEARNED_SPELLS                               = 0x08AB,
     SMSG_LEVELUP_INFO                                 = 0xBADD,
     SMSG_LFG_BOOT_PROPOSAL_UPDATE                     = 0xBADD,
     SMSG_LFG_DISABLED                                 = 0xBADD,
@@ -1114,36 +1115,35 @@ enum OpcodeServer : uint32
     SMSG_MOVE_COLLISION_DISABLE                       = 0xBADD,
     SMSG_MOVE_COLLISION_ENABLE                        = 0xBADD,
     SMSG_MOVE_FEATHER_FALL                            = 0xBADD,
-    SMSG_MOVE_FORCE_RUN_SPEED_CHANGE                  = 0x08F5,
-    SMSG_MOVE_FORCE_SWIM_SPEED_CHANGE                 = 0x061A,
     SMSG_MOVE_GRAVITY_DISABLE                         = 0x02C6,
     SMSG_MOVE_GRAVITY_ENABLE                          = 0xBADD,
     SMSG_MOVE_KNOCK_BACK                              = 0xBADD,
-    SMSG_MOVE_LAND_WALK                               = 0xBADD,
+    SMSG_MOVE_LAND_WALK                               = 0x13DA,
     SMSG_MOVE_NORMAL_FALL                             = 0xBADD,
     SMSG_MOVE_ROOT                                    = 0x1B5A,
     SMSG_MOVE_SET_ACTIVE_MOVER                        = 0xBADD,
-    SMSG_MOVE_SET_CAN_FLY                             = 0xBADD,
-    SMSG_MOVE_SET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY = 0xBADD,
+    SMSG_MOVE_SET_CAN_FLY                             = 0x01F6,
+    SMSG_MOVE_SET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY = 0x08CE,
     SMSG_MOVE_SET_COLLISION_HEIGHT                    = 0x008D,
     SMSG_MOVE_SET_COMPOUND_STATE                      = 0xBADD,
     SMSG_MOVE_SET_FLIGHT_BACK_SPEED                   = 0xBADD,
     SMSG_MOVE_SET_FLIGHT_SPEED                        = 0xBADD,
-    SMSG_MOVE_SET_HOVER                               = 0xBADD,
+    SMSG_MOVE_SET_HOVER                               = 0x0296,
     SMSG_MOVE_SET_PITCH_RATE                          = 0xBADD,
     SMSG_MOVE_SET_RUN_BACK_SPEED                      = 0xBADD,
-    SMSG_MOVE_SET_RUN_SPEED                           = 0xBADD,
+    SMSG_MOVE_SET_RUN_SPEED                           = 0x08F5,
     SMSG_MOVE_SET_SWIM_BACK_SPEED                     = 0xBADD,
-    SMSG_MOVE_SET_SWIM_SPEED                          = 0xBADD,
+    SMSG_MOVE_SET_SWIM_SPEED                          = 0x061A,
     SMSG_MOVE_SET_TURN_RATE                           = 0xBADD,
     SMSG_MOVE_SET_VEHICLE_REC_ID                      = 0xBADD,
     SMSG_MOVE_SET_WALK_IN_AIR                         = 0xBADD,
     SMSG_MOVE_SET_WALK_SPEED                          = 0xBADD,
     SMSG_MOVE_TELEPORT                                = 0x03A6,
-    SMSG_MOVE_UNROOT                                  = 0xBADD,
-    SMSG_MOVE_UNSET_CAN_FLY                           = 0xBADD,
-    SMSG_MOVE_UNSET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY = 0xBADD,
-    SMSG_MOVE_UNSET_HOVER                             = 0xBADD,
+    SMSG_MOVE_UNROOT                                  = 0x08BD,
+    SMSG_MOVE_UNSET_CAN_FLY                           = 0x0BAE,
+    SMSG_MOVE_UNSET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY = 0x00C5,
+    SMSG_MOVE_UNSET_HOVER                             = 0x01A5,
+    SMSG_MOVE_UNSET_IGNORE_MOVEMENT_FORCES            = 0x039E,
     SMSG_MOVE_UNSET_WALK_IN_AIR                       = 0xBADD,
     SMSG_MOVE_UPDATE_COLLISION_HEIGHT                 = 0xBADD,
     SMSG_MOVE_UPDATE_FLIGHT_BACK_SPEED                = 0xBADD,
@@ -1157,7 +1157,7 @@ enum OpcodeServer : uint32
     SMSG_MOVE_UPDATE_TELEPORT                         = 0x03D5,
     SMSG_MOVE_UPDATE_TURN_RATE                        = 0x08BE,
     SMSG_MOVE_UPDATE_WALK_SPEED                       = 0x01E5,
-    SMSG_MOVE_WATER_WALK                              = 0xBADD,
+    SMSG_MOVE_WATER_WALK                              = 0x02A6,
     SMSG_MULTIPLE_PACKETS                             = 0xBADD,
     SMSG_NAME_QUERY_RESPONSE                          = 0x0828,
     SMSG_NEW_TAXI_PATH                                = 0xBADD,
@@ -1204,7 +1204,7 @@ enum OpcodeServer : uint32
     SMSG_PET_SPELLS                                   = 0x0174,
     SMSG_PET_TAME_FAILURE                             = 0xBADD,
     SMSG_PET_UPDATE_COMBO_POINTS                      = 0xBADD,
-    SMSG_PLAYED_TIME                                  = 0xBADD,
+    SMSG_PLAYED_TIME                                  = 0x038B,
     SMSG_PLAYERBINDERROR                              = 0xBADD,
     SMSG_PLAYERBOUND                                  = 0xBADD,
     SMSG_PLAYER_DIFFICULTY_CHANGE                     = 0xBADD,
@@ -1270,9 +1270,8 @@ enum OpcodeServer : uint32
     SMSG_REDIRECT_CLIENT                              = 0x175A,
     SMSG_REFER_A_FRIEND_EXPIRED                       = 0xBADD,
     SMSG_REFER_A_FRIEND_FAILURE                       = 0xBADD,
-    SMSG_REFORGE_RESULT                               = 0xBADD,
     SMSG_REFRESH_SPELL_HISTORY                        = 0x0A2A,
-    SMSG_REMOVED_SPELL                                = 0xBADD,
+    SMSG_REMOVED_SPELL                                = 0x0B3B,
     SMSG_REPORT_PVP_AFK_RESULT                        = 0xBADD,
     SMSG_REQUEST_CEMETERY_LIST_RESPONSE               = 0x059E,
     SMSG_REQUEST_PVP_REWARDS_RESPONSE                 = 0xBADD,
@@ -1283,6 +1282,7 @@ enum OpcodeServer : uint32
     SMSG_RESISTLOG                                    = 0xBADD,
     SMSG_RESPOND_INSPECT_ACHIEVEMENTS                 = 0xBADD,
     SMSG_RESUME_COMMS                                 = 0x07C9,
+    SMSG_RESUME_TOKEN                                 = 0x0326,
     SMSG_RESURRECT_FAILED                             = 0xBADD,
     SMSG_RESURRECT_REQUEST                            = 0xBADD,
     SMSG_RESYNC_RUNES                                 = 0xBADD,
@@ -1343,6 +1343,7 @@ enum OpcodeServer : uint32
     SMSG_SPELL_FAILED_OTHER                           = 0x1A03,
     SMSG_SPELL_FAILURE                                = 0x11DB,
     SMSG_SPELL_GO                                     = 0x1161,
+    SMSG_SPELL_MULTISTRIKE_EFFECT                     = 0x131C,
     SMSG_SPELL_START                                  = 0x0803,
     SMSG_SPELL_UPDATE_CHAIN_TARGETS                   = 0x0374,
     SMSG_SPIRIT_HEALER_CONFIRM                        = 0xBADD,
@@ -1462,6 +1463,162 @@ enum OpcodeServer : uint32
     SMSG_ZONE_UNDER_ATTACK                            = 0x1401
 };
 
+inline bool IsInstanceOnlyOpcode(uint32 opcode)
+{
+    // TODO: Use names when known
+    switch (opcode)
+    {
+        case 0x000F: // Client
+        case 0x0111: // Client
+        case 0x03E4: // Client
+        case 0x0549: // Client
+        case 0x054C: // Client
+        case 0x055A: // Client
+        case 0x056C: // Client
+        case 0x057A: // Client
+        case 0x057B: // Client
+        case 0x05CC: // Client
+        case 0x05EA: // Client
+        case 0x05EC: // Client
+        case 0x05F9: // Client
+        case 0x05FB: // Client
+        case 0x074C: // Client
+        case 0x075B: // Client
+        case 0x076C: // Client
+        case 0x077B: // Client
+        case 0x077C: // Client
+        case 0x07CC: // Client
+        case 0x07DB: // Client
+        case 0x07EC: // Client
+        case 0x07FB: // Client
+        case 0x07FC: // Client
+        case 0x0827: // Client
+        case 0x0935: // Client
+        case 0x0F0C: // ClientSpell
+        case 0x0F10: // ClientSpell
+        case 0x0F1B: // ClientSpell
+        case 0x0F1C: // ClientSpell
+        case 0x0F20: // ClientSpell
+        case 0x0F2C: // ClientSpell
+        case 0x0F2F: // ClientSpell
+        case 0x0F3B: // ClientSpell
+        case 0x0F8B: // ClientSpell
+        case 0x0F8C: // ClientSpell
+        case 0x0F90: // ClientSpell
+        case 0x0F9F: // ClientSpell
+        case 0x0FA0: // ClientSpell
+        case SMSG_ATTACKSTOP: // Client
+        case 0x14C9: // Client
+        case 0x154A: // Client
+        case 0x155A: // Client
+        case 0x155C: // Client
+        case SMSG_QUESTGIVER_STATUS: // ClientQuest
+        case 0x156A: // Client
+        case 0x156B: // Client
+        case 0x157A: // Client
+        case 0x157B: // Client
+        case 0x15DC: // Client
+        case 0x15EB: // Client
+        case 0x15FB: // Client
+        case 0x170C: // ClientSpell
+        case 0x171C: // ClientSpell
+        case 0x171F: // ClientSpell
+        case 0x172C: // ClientSpell
+        case 0x172F: // ClientSpell
+        case 0x173C: // ClientSpell
+        case 0x173F: // ClientSpell
+        case 0x1740: // ClientSpell
+        case 0x1790: // ClientSpell
+        case 0x179B: // ClientSpell
+        case 0x179F: // ClientSpell
+        case SMSG_ATTACKSTART: // Client
+        case 0x1D82: // ClientQuest
+        case 0x1D83: // ClientQuest
+        case 0x1D85: // ClientQuest
+        case 0x1D87: // ClientQuest
+        case 0x1D93: // ClientQuest
+        case 0x1D96: // ClientQuest
+        case 0x1D97: // ClientQuest
+        case 0x1DA1: // ClientQuest
+        case 0x1DA2: // ClientQuest
+        case 0x1DA3: // ClientQuest
+        case 0x1DA4: // ClientQuest
+        case 0x1DA5: // ClientQuest
+        case 0x1DA7: // ClientQuest
+        case SMSG_QUERY_TIME_RESPONSE: // Client
+        case 0x1DC2: // ClientQuest
+        case 0x1DC6: // ClientQuest
+        case 0x1DC7: // ClientQuest
+        case 0x1DD2: // ClientQuest
+        case 0x1DD3: // ClientQuest
+        case 0x1DD6: // ClientQuest
+        case 0x1DD7: // ClientQuest
+        case 0x1DD8: // ClientQuest
+        case 0x1DE4: // ClientQuest
+        case 0x1DE5: // ClientQuest
+        case 0x1DE7: // ClientQuest
+        case 0x1F02: // ClientQuest
+        case 0x1F06: // ClientQuest
+        case 0x1F07: // ClientQuest
+        case 0x1F0C: // ClientSpell
+        case 0x1F12: // ClientQuest
+        case 0x1F13: // ClientQuest
+        case 0x1F16: // ClientQuest
+        case 0x1F17: // ClientQuest
+        case 0x1F18: // ClientQuest
+        case 0x1F1C: // ClientSpell
+        case 0x1F1F: // ClientSpell
+        case 0x1F24: // ClientQuest
+        case 0x1F25: // ClientQuest
+        case 0x1F27: // ClientQuest
+        case 0x1F2C: // ClientSpell
+        case 0x1F2F: // ClientSpell
+        case 0x1F3C: // ClientSpell
+        case 0x1F3F: // ClientSpell
+        case 0x1F40: // ClientSpell
+        case 0x1F44: // ClientQuest
+        case 0x1F48: // ClientQuest
+        case 0x1F51: // ClientQuest
+        case 0x1F55: // ClientQuest
+        case 0x1F57: // ClientQuest
+        case 0x1F61: // ClientQuest
+        case 0x1F63: // ClientQuest
+        case 0x1F64: // ClientQuest
+        case 0x1F65: // ClientQuest
+        case 0x1F67: // ClientQuest
+        case 0x1F85: // ClientQuest
+        case 0x1F86: // ClientQuest
+        case 0x1F87: // ClientQuest
+        case 0x1F90: // ClientSpell
+        case 0x1F92: // ClientQuest
+        case 0x1F94: // ClientQuest
+        case 0x1F96: // ClientQuest
+        case 0x1F97: // ClientQuest
+        case 0x1F9B: // ClientSpell
+        case 0x1F9F: // ClientSpell
+        case 0x1FA1: // ClientQuest
+        case 0x1FA2: // ClientQuest
+        case 0x1FA3: // ClientQuest
+        case 0x1FA4: // ClientQuest
+        case 0x1FA5: // ClientQuest
+        case 0x1FA7: // ClientQuest
+        case 0x1FC2: // ClientQuest
+        case 0x1FC6: // ClientQuest
+        case 0x1FC7: // ClientQuest
+        case 0x1FD2: // ClientQuest
+        case 0x1FD3: // ClientQuest
+        case 0x1FD6: // ClientQuest
+        case 0x1FD7: // ClientQuest
+        case 0x1FD8: // ClientQuest
+        case 0x1FE4: // ClientQuest
+        case 0x1FE5: // ClientQuest
+        case 0x1FE7: // ClientQuest
+            return true;
+        default:
+            return false;
+    }
+}
+
 /// Player state
 enum SessionStatus
 {
@@ -1493,16 +1650,31 @@ class WorldSession;
 class OpcodeHandler
 {
 public:
-    OpcodeHandler(char const* _name, SessionStatus _status, PacketProcessing _processing)
-        : Name(_name), Status(_status), ProcessingPlace(_processing) { }
-
+    OpcodeHandler(char const* name, SessionStatus status) : Name(name), Status(status) { }
     virtual ~OpcodeHandler() { }
-
-    virtual void Call(WorldSession* session, WorldPacket& packet) const = 0;
 
     char const* Name;
     SessionStatus Status;
+};
+
+class ClientOpcodeHandler : public OpcodeHandler
+{
+public:
+    ClientOpcodeHandler(char const* name, SessionStatus status, PacketProcessing processing)
+        : OpcodeHandler(name, status), ProcessingPlace(processing) { }
+
+    virtual void Call(WorldSession* session, WorldPacket& packet) const = 0;
+
     PacketProcessing ProcessingPlace;
+};
+
+class ServerOpcodeHandler : public OpcodeHandler
+{
+public:
+    ServerOpcodeHandler(char const* name, SessionStatus status, ConnectionType conIdx)
+        : OpcodeHandler(name, status), ConnectionIndex(conIdx) { }
+
+    ConnectionType ConnectionIndex;
 };
 
 class OpcodeTable
@@ -1528,24 +1700,24 @@ class OpcodeTable
 
         void Initialize();
 
-        OpcodeHandler const* operator[](OpcodeClient index) const
+        ClientOpcodeHandler const* operator[](OpcodeClient index) const
         {
             return _internalTableClient[index];
         }
 
-        OpcodeHandler const* operator[](OpcodeServer index) const
+        ServerOpcodeHandler const* operator[](OpcodeServer index) const
         {
             return _internalTableServer[index];
         }
 
     private:
         template<class PacketClass, void(WorldSession::*HandlerFunction)(PacketClass&)>
-        void ValidateAndSetOpcode(OpcodeClient opcode, char const* name, SessionStatus status, PacketProcessing processing);
+        void ValidateAndSetClientOpcode(OpcodeClient opcode, char const* name, SessionStatus status, PacketProcessing processing);
 
-        void ValidateAndSetOpcode(OpcodeServer opcode, char const* name, SessionStatus status);
+        void ValidateAndSetServerOpcode(OpcodeServer opcode, char const* name, SessionStatus status, ConnectionType conIdx);
 
-        OpcodeHandler* _internalTableClient[NUM_OPCODE_HANDLERS];
-        OpcodeHandler* _internalTableServer[NUM_OPCODE_HANDLERS];
+        ClientOpcodeHandler* _internalTableClient[NUM_OPCODE_HANDLERS];
+        ServerOpcodeHandler* _internalTableServer[NUM_OPCODE_HANDLERS];
 };
 
 extern OpcodeTable opcodeTable;

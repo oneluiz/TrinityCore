@@ -70,7 +70,7 @@ enum SkillFieldOffset
     SKILL_PERM_BONUS_OFFSET = SKILL_TEMP_BONUS_OFFSET + 64
 };
 
-#define PLAYER_EXPLORED_ZONES_SIZE  156
+#define PLAYER_EXPLORED_ZONES_SIZE  189
 
 // Note: SPELLMOD_* values is aura types in fact
 enum SpellModType
@@ -114,6 +114,12 @@ struct PlayerSpell
     bool active            : 1;                             // show in spellbook
     bool dependent         : 1;                             // learned as result another spell learn, skill grow, quest reward, etc
     bool disabled          : 1;                             // first rank has been learned in result talent learn but currently talent unlearned, save max learned ranks
+};
+
+struct PlayerTalent
+{
+    PlayerSpellState state : 8;
+    uint8 spec             : 8;
 };
 
 extern uint32 const MasterySpells[MAX_CLASSES];
@@ -184,6 +190,7 @@ struct PlayerCurrency
    uint32 weekCount;
 };
 
+typedef std::unordered_map<uint32, PlayerTalent*> PlayerTalentMap;
 typedef std::unordered_map<uint32, PlayerSpell*> PlayerSpellMap;
 typedef std::list<SpellModifier*> SpellModList;
 typedef std::unordered_map<uint32, PlayerCurrency> PlayerCurrenciesMap;
@@ -329,7 +336,7 @@ enum ReputationSource
 };
 
 #define ACTION_BUTTON_ACTION(X) (uint64(X) & 0x00000000FFFFFFFF)
-#define ACTION_BUTTON_TYPE(X)   ((uint64(X) & 0xFFFFFFFF00000000) >> 32)
+#define ACTION_BUTTON_TYPE(X)   ((uint64(X) & 0xFFFFFFFF00000000) >> 56)
 #define MAX_ACTION_BUTTON_ACTION_VALUE (0xFFFFFFFF)
 
 struct ActionButton
@@ -344,7 +351,7 @@ struct ActionButton
     uint32 GetAction() const { return ACTION_BUTTON_ACTION(packedData); }
     void SetActionAndType(uint32 action, ActionButtonType type)
     {
-        uint64 newData = uint64(action) | (uint64(type) << 32);
+        uint64 newData = uint64(action) | (uint64(type) << 56);
         if (newData != packedData || uState == ACTIONBUTTON_DELETED)
         {
             packedData = newData;
@@ -892,42 +899,43 @@ enum PlayedTimeIndex
 // used at player loading query list preparing, and later result selection
 enum PlayerLoginQueryIndex
 {
-    PLAYER_LOGIN_QUERY_LOAD_FROM                    = 0,
-    PLAYER_LOGIN_QUERY_LOAD_GROUP                   = 1,
-    PLAYER_LOGIN_QUERY_LOAD_BOUND_INSTANCES         = 2,
-    PLAYER_LOGIN_QUERY_LOAD_AURAS                   = 3,
-    PLAYER_LOGIN_QUERY_LOAD_SPELLS                  = 4,
-    PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS            = 5,
-    PLAYER_LOGIN_QUERY_LOAD_DAILY_QUEST_STATUS      = 6,
-    PLAYER_LOGIN_QUERY_LOAD_REPUTATION              = 7,
-    PLAYER_LOGIN_QUERY_LOAD_INVENTORY               = 8,
-    PLAYER_LOGIN_QUERY_LOAD_ACTIONS                 = 9,
-    PLAYER_LOGIN_QUERY_LOAD_MAIL_COUNT              = 10,
-    PLAYER_LOGIN_QUERY_LOAD_MAIL_DATE               = 11,
-    PLAYER_LOGIN_QUERY_LOAD_SOCIAL_LIST             = 12,
-    PLAYER_LOGIN_QUERY_LOAD_HOME_BIND               = 13,
-    PLAYER_LOGIN_QUERY_LOAD_SPELL_COOLDOWNS         = 14,
-    PLAYER_LOGIN_QUERY_LOAD_DECLINED_NAMES          = 15,
-    PLAYER_LOGIN_QUERY_LOAD_GUILD                   = 16,
-    PLAYER_LOGIN_QUERY_LOAD_ARENA_INFO              = 17,
-    PLAYER_LOGIN_QUERY_LOAD_ACHIEVEMENTS            = 18,
-    PLAYER_LOGIN_QUERY_LOAD_CRITERIA_PROGRESS       = 19,
-    PLAYER_LOGIN_QUERY_LOAD_EQUIPMENT_SETS          = 20,
-    PLAYER_LOGIN_QUERY_LOAD_BG_DATA                 = 21,
-    PLAYER_LOGIN_QUERY_LOAD_GLYPHS                  = 22,
-    PLAYER_LOGIN_QUERY_LOAD_TALENTS                 = 23,
-    PLAYER_LOGIN_QUERY_LOAD_ACCOUNT_DATA            = 24,
-    PLAYER_LOGIN_QUERY_LOAD_SKILLS                  = 25,
-    PLAYER_LOGIN_QUERY_LOAD_WEEKLY_QUEST_STATUS     = 26,
-    PLAYER_LOGIN_QUERY_LOAD_RANDOM_BG               = 27,
-    PLAYER_LOGIN_QUERY_LOAD_BANNED                  = 28,
-    PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_REW        = 29,
-    PLAYER_LOGIN_QUERY_LOAD_INSTANCE_LOCK_TIMES     = 30,
-    PLAYER_LOGIN_QUERY_LOAD_SEASONAL_QUEST_STATUS   = 31,
-    PLAYER_LOGIN_QUERY_LOAD_MONTHLY_QUEST_STATUS    = 32,
-    PLAYER_LOGIN_QUERY_LOAD_VOID_STORAGE            = 33,
-    PLAYER_LOGIN_QUERY_LOAD_CURRENCY                = 34,
-    PLAYER_LOGIN_QUERY_LOAD_CUF_PROFILES            = 35,
+    PLAYER_LOGIN_QUERY_LOAD_FROM,
+    PLAYER_LOGIN_QUERY_LOAD_GROUP,
+    PLAYER_LOGIN_QUERY_LOAD_BOUND_INSTANCES,
+    PLAYER_LOGIN_QUERY_LOAD_AURAS,
+    PLAYER_LOGIN_QUERY_LOAD_SPELLS,
+    PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS,
+    PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_OBJECTIVES,
+    PLAYER_LOGIN_QUERY_LOAD_DAILY_QUEST_STATUS,
+    PLAYER_LOGIN_QUERY_LOAD_REPUTATION,
+    PLAYER_LOGIN_QUERY_LOAD_INVENTORY,
+    PLAYER_LOGIN_QUERY_LOAD_ACTIONS,
+    PLAYER_LOGIN_QUERY_LOAD_MAIL_COUNT,
+    PLAYER_LOGIN_QUERY_LOAD_MAIL_DATE,
+    PLAYER_LOGIN_QUERY_LOAD_SOCIAL_LIST,
+    PLAYER_LOGIN_QUERY_LOAD_HOME_BIND,
+    PLAYER_LOGIN_QUERY_LOAD_SPELL_COOLDOWNS,
+    PLAYER_LOGIN_QUERY_LOAD_DECLINED_NAMES,
+    PLAYER_LOGIN_QUERY_LOAD_GUILD,
+    PLAYER_LOGIN_QUERY_LOAD_ARENA_INFO,
+    PLAYER_LOGIN_QUERY_LOAD_ACHIEVEMENTS,
+    PLAYER_LOGIN_QUERY_LOAD_CRITERIA_PROGRESS,
+    PLAYER_LOGIN_QUERY_LOAD_EQUIPMENT_SETS,
+    PLAYER_LOGIN_QUERY_LOAD_BG_DATA,
+    PLAYER_LOGIN_QUERY_LOAD_GLYPHS,
+    PLAYER_LOGIN_QUERY_LOAD_TALENTS,
+    PLAYER_LOGIN_QUERY_LOAD_ACCOUNT_DATA,
+    PLAYER_LOGIN_QUERY_LOAD_SKILLS,
+    PLAYER_LOGIN_QUERY_LOAD_WEEKLY_QUEST_STATUS,
+    PLAYER_LOGIN_QUERY_LOAD_RANDOM_BG,
+    PLAYER_LOGIN_QUERY_LOAD_BANNED,
+    PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_REW,
+    PLAYER_LOGIN_QUERY_LOAD_INSTANCE_LOCK_TIMES,
+    PLAYER_LOGIN_QUERY_LOAD_SEASONAL_QUEST_STATUS,
+    PLAYER_LOGIN_QUERY_LOAD_MONTHLY_QUEST_STATUS,
+    PLAYER_LOGIN_QUERY_LOAD_VOID_STORAGE,
+    PLAYER_LOGIN_QUERY_LOAD_CURRENCY,
+    PLAYER_LOGIN_QUERY_LOAD_CUF_PROFILES,
     MAX_PLAYER_LOGIN_QUERY
 };
 
@@ -1223,48 +1231,36 @@ private:
     bool _isPvP;
 };
 
-struct TalentGroupInfo
-{
-    uint32 Talents[MAX_TALENT_TIERS];
-    uint32 Glyphs[MAX_GLYPH_SLOT_INDEX];
-    uint32 SpecID;
-
-    bool HasTalent(uint32 talentId)
-    {
-        for (uint32 i = 0; i < MAX_TALENT_TIERS; ++i)
-            if (Talents[i] == talentId)
-                return true;
-        return false;
-    }
-
-    uint32 TalentCount()
-    {
-        for (uint32 i = 0; i < MAX_TALENT_TIERS; ++i)
-            if (!Talents[i])
-                return i;
-        return MAX_TALENT_TIERS;
-    }
-
-    void Reset()
-    {
-        for (uint32 i = 0; i < MAX_TALENT_TIERS; ++i)
-            Talents[i] = 0;
-    }
-};
-
 struct PlayerTalentInfo
 {
-    PlayerTalentInfo() : ResetTalentsCost(0), ResetTalentsTime(0), ActiveGroup(0), GroupsCount(1)
+    PlayerTalentInfo() : UsedTalentCount(0), ResetTalentsCost(0), ResetTalentsTime(0), ActiveGroup(0), GroupsCount(1)
     {
         for (uint8 i = 0; i < MAX_TALENT_GROUPS; ++i)
         {
-            memset(GroupInfo[i].Talents, 0, sizeof(uint32)*MAX_TALENT_TIERS);
+            GroupInfo[i].Talents = new PlayerTalentMap();
             memset(GroupInfo[i].Glyphs, 0, MAX_GLYPH_SLOT_INDEX * sizeof(uint32));
-            GroupInfo[i].SpecID = 0;
+            GroupInfo[i].TalentTree = 0;
         }
     }
 
-    TalentGroupInfo GroupInfo[MAX_TALENT_GROUPS];
+    ~PlayerTalentInfo()
+    {
+        for (uint8 i = 0; i < MAX_TALENT_GROUPS; ++i)
+        {
+            for (PlayerTalentMap::const_iterator itr = GroupInfo[i].Talents->begin(); itr != GroupInfo[i].Talents->end(); ++itr)
+                delete itr->second;
+            delete GroupInfo[i].Talents;
+        }
+    }
+
+    struct TalentGroupInfo
+    {
+        PlayerTalentMap* Talents;
+        uint32 Glyphs[MAX_GLYPH_SLOT_INDEX];
+        uint32 TalentTree;
+    } GroupInfo[MAX_TALENT_GROUPS];
+
+    uint32 UsedTalentCount;
     uint32 ResetTalentsCost;
     time_t ResetTalentsTime;
     uint8 ActiveGroup;
@@ -1550,7 +1546,6 @@ class Player : public Unit, public GridObject<Player>
         void AddEnchantmentDuration(Item* item, EnchantmentSlot slot, uint32 duration);
         void ApplyEnchantment(Item* item, EnchantmentSlot slot, bool apply, bool apply_dur = true, bool ignore_condition = false);
         void ApplyEnchantment(Item* item, bool apply);
-        void ApplyReforgeEnchantment(Item* item, bool apply);
         void UpdateSkillEnchantments(uint16 skill_id, uint16 curr_value, uint16 new_value);
         void SendEnchantmentDurations();
         void BuildEnchantmentsInfoData(WorldPacket* data);
@@ -1597,6 +1592,7 @@ class Player : public Unit, public GridObject<Player>
         void AddQuest(Quest const* quest, Object* questGiver);
         void CompleteQuest(uint32 quest_id);
         void IncompleteQuest(uint32 quest_id);
+        uint32 GetQuestXPReward(Quest const* quest);
         void RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, bool announce = true);
         void FailQuest(uint32 quest_id);
         bool SatisfyQuestSkill(Quest const* qInfo, bool msg) const;
@@ -1659,12 +1655,13 @@ class Player : public Unit, public GridObject<Player>
         void TalkedToCreature(uint32 entry, ObjectGuid guid);
         void MoneyChanged(uint32 value);
         void ReputationChanged(FactionEntry const* factionEntry);
-        void ReputationChanged2(FactionEntry const* factionEntry);
         bool HasQuestForItem(uint32 itemId) const;
         bool HasQuestForGO(int32 goId) const;
         void UpdateForQuestWorldObjects();
         bool CanShareQuest(uint32 questId) const;
 
+        int32 GetQuestObjectiveData(Quest const* quest, uint32 objective) const;
+        void SetQuestObjectiveData(Quest const* quest, uint32 objective, int32 data);
         void SendQuestComplete(Quest const* quest);
         void SendQuestReward(Quest const* quest, uint32 XP);
         void SendQuestFailed(uint32 questId, InventoryResult reason = EQUIP_ERR_OK);
@@ -1672,8 +1669,8 @@ class Player : public Unit, public GridObject<Player>
         void SendCanTakeQuestResponse(QuestFailedReason msg) const;
         void SendQuestConfirmAccept(Quest const* quest, Player* pReceiver);
         void SendPushToPartyResponse(Player* player, uint8 msg);
-        void SendQuestUpdateAddCreatureOrGo(Quest const* quest, ObjectGuid guid, uint32 creatureOrGOIdx, uint16 oldCount, uint16 addCount);
-        void SendQuestUpdateAddPlayer(Quest const* quest, uint16 oldCount, uint16 addCount);
+        void SendQuestUpdateAddCredit(Quest const* quest, ObjectGuid guid, uint32 objective, uint16 count);
+        void SendQuestUpdateAddPlayer(Quest const* quest, uint16 newCount, uint32 required);
 
         ObjectGuid GetDivider() const { return m_divider; }
         void SetDivider(ObjectGuid guid) { m_divider = guid; }
@@ -1833,25 +1830,35 @@ class Player : public Unit, public GridObject<Player>
         std::string GetGuildName();
 
         // Talents
+        uint32 GetUsedTalentCount() const { return _talentMgr->UsedTalentCount; }
+        void SetUsedTalentCount(uint32 talents) { _talentMgr->UsedTalentCount = talents; }
         uint32 GetTalentResetCost() const { return _talentMgr->ResetTalentsCost; }
         void SetTalentResetCost(uint32 cost)  { _talentMgr->ResetTalentsCost = cost; }
         uint32 GetTalentResetTime() const { return _talentMgr->ResetTalentsTime; }
         void SetTalentResetTime(time_t time_)  { _talentMgr->ResetTalentsTime = time_; }
-        uint8 GetActiveTalentGroup() const { return _talentMgr->ActiveGroup; }
-        void SetActiveTalentGroup(uint8 group){ _talentMgr->ActiveGroup = group; }
+
         uint8 GetTalentGroupsCount() const { return _talentMgr->GroupsCount; }
         void SetTalentGroupsCount(uint8 count) { _talentMgr->GroupsCount = count; }
-        uint32 GetTalentSpec(uint8 group) const { return _talentMgr->GroupInfo[group].SpecID; }
-        void SetTalentSpec(uint8 group, uint32 talentSpec) const { _talentMgr->GroupInfo[group].SpecID = talentSpec; }
-        uint32 GetActiveTalentSpec() const { return _talentMgr->GroupInfo[_talentMgr->ActiveGroup].SpecID; }
+        uint8 GetActiveTalentGroup() const { return _talentMgr->ActiveGroup; }
+        void SetActiveTalentGroup(uint8 group){ _talentMgr->ActiveGroup = group; }
 
-        bool ResetTalents(bool no_cost = false);
+        uint32 GetTalentSpec(uint8 group) const { return _talentMgr->GroupInfo[group].TalentTree; }
+        void SetTalentSpec(uint8 group, uint32 talentSpec) const { _talentMgr->GroupInfo[group].TalentTree = talentSpec; }
+        uint32 GetActiveTalentSpec() const { return _talentMgr->GroupInfo[_talentMgr->ActiveGroup].TalentTree; }
+
+
+        bool ResetTalents(bool noCost = false, bool resetTalents = true, bool resetSpecialization = true);
+        bool RemoveTalent(uint32 talentId);
+
         uint32 GetNextResetTalentsCost() const;
         void InitTalentForLevel();
         void SendTalentsInfoData();
         bool LearnTalent(uint32 talentId);
-        bool AddTalent(uint32 talentId, uint8 spec);
+        bool AddTalent(uint32 talentId, uint8 spec, bool learning);
         bool HasTalent(uint32 talentId, uint8 spec);
+        uint32 CalculateTalentsPoints() const;
+
+
         void LearnTalentSpecialization(uint32 talentSpec);
 
         // Dual Spec
@@ -1865,7 +1872,8 @@ class Player : public Unit, public GridObject<Player>
         void SetGlyph(uint8 slot, uint32 glyph);
         uint32 GetGlyph(uint8 group, uint8 slot) const { return _talentMgr->GroupInfo[group].Glyphs[slot]; }
 
-        TalentGroupInfo* GetTalentGroupInfo(uint8 group) { return &_talentMgr->GroupInfo[group]; }
+        PlayerTalentMap const* GetTalentMap(uint8 spec) const { return _talentMgr->GroupInfo[spec].Talents; }
+        PlayerTalentMap* GetTalentMap(uint8 spec) { return _talentMgr->GroupInfo[spec].Talents; }
         ActionButtonList const& GetActionButtons() const { return m_actionButtons; }
 
         uint32 GetFreePrimaryProfessionPoints() const { return GetUInt32Value(PLAYER_CHARACTER_POINTS); }
@@ -2102,7 +2110,7 @@ class Player : public Unit, public GridObject<Player>
         void UpdateUnderwaterState(Map* m, float x, float y, float z) override;
 
         void SendMessageToSet(WorldPacket const* data, bool self) override {SendMessageToSetInRange(data, GetVisibilityRange(), self); };// overwrite Object::SendMessageToSet
-        void SendMessageToSetInRange(WorldPacket const* data, float fist, bool self) override;// overwrite Object::SendMessageToSetInRange
+        void SendMessageToSetInRange(WorldPacket const* data, float dist, bool self) override; // overwrite Object::SendMessageToSetInRange
         void SendMessageToSetInRange(WorldPacket const* data, float dist, bool self, bool own_team_only);
         void SendMessageToSet(WorldPacket const* data, Player const* skipped_rcvr) override;
 
@@ -2237,8 +2245,8 @@ class Player : public Unit, public GridObject<Player>
         void _RemoveAllItemMods();
         void _ApplyAllItemMods();
         void _ApplyAllLevelScaleItemMods(bool apply);
-        void _ApplyItemBonuses(ItemTemplate const* proto, uint8 slot, bool apply, bool only_level_scale = false);
-        void _ApplyWeaponDamage(uint8 slot, ItemTemplate const* proto, ScalingStatValuesEntry const* ssv, bool apply);
+        void _ApplyItemBonuses(Item* item, uint8 slot, bool apply);
+        void _ApplyWeaponDamage(uint8 slot, Item* item, bool apply);
         bool EnchantmentFitsRequirements(uint32 enchantmentcondition, int8 slot);
         void ToggleMetaGemsActive(uint8 exceptslot, bool apply);
         void CorrectMetaGemEnchants(uint8 slot, bool apply);
@@ -2652,6 +2660,7 @@ class Player : public Unit, public GridObject<Player>
         void _LoadMail();
         void _LoadMailedItems(Mail* mail);
         void _LoadQuestStatus(PreparedQueryResult result);
+        void _LoadQuestStatusObjectives(PreparedQueryResult result);
         void _LoadQuestStatusRewarded(PreparedQueryResult result);
         void _LoadDailyQuestStatus(PreparedQueryResult result);
         void _LoadWeeklyQuestStatus(PreparedQueryResult result);
@@ -2893,7 +2902,7 @@ class Player : public Unit, public GridObject<Player>
         // know currencies are not removed at any point (0 displayed)
         void AddKnownCurrency(uint32 itemId);
 
-        void AdjustQuestReqItemCount(Quest const* quest, QuestStatusData& questStatusData);
+        void AdjustQuestReqItemCount(Quest const* quest);
 
         bool IsCanDelayTeleport() const { return m_bCanDelayTeleport; }
         void SetCanDelayTeleport(bool setting) { m_bCanDelayTeleport = setting; }
