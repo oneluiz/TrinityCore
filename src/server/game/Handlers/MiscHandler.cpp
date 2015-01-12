@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -839,33 +839,30 @@ void WorldSession::SendAreaTriggerMessage(const char* Text, ...)
     SendPacket(&data);
 }
 
-void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
+void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& packet)
 {
-    uint32 triggerId;
-    recvData >> triggerId;
-
-    TC_LOG_DEBUG("network", "CMSG_AREATRIGGER. Trigger ID: %u", triggerId);
+    TC_LOG_DEBUG("network", "CMSG_AREATRIGGER. Trigger ID: %u", packet.AreaTriggerID);
 
     Player* player = GetPlayer();
     if (player->IsInFlight())
     {
         TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) in flight, ignore Area Trigger ID:%u",
-            player->GetName().c_str(), player->GetGUID().ToString().c_str(), triggerId);
+            player->GetName().c_str(), player->GetGUID().ToString().c_str(), packet.AreaTriggerID);
         return;
     }
 
-    AreaTriggerEntry const* atEntry = sAreaTriggerStore.LookupEntry(triggerId);
+    AreaTriggerEntry const* atEntry = sAreaTriggerStore.LookupEntry(packet.AreaTriggerID);
     if (!atEntry)
     {
         TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) send unknown (by DBC) Area Trigger ID:%u",
-            player->GetName().c_str(), player->GetGUID().ToString().c_str(), triggerId);
+            player->GetName().c_str(), player->GetGUID().ToString().c_str(), packet.AreaTriggerID);
         return;
     }
 
     if (player->GetMapId() != atEntry->MapID)
     {
         TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far (trigger map: %u player map: %u), ignore Area Trigger ID: %u",
-            player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->MapID, player->GetMapId(), triggerId);
+            player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->MapID, player->GetMapId(), packet.AreaTriggerID);
         return;
     }
 
@@ -879,7 +876,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
         if (dist > atEntry->Radius + delta)
         {
             TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far (radius: %f distance: %f), ignore Area Trigger ID: %u",
-                player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->Radius, dist, triggerId);
+                player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->Radius, dist, packet.AreaTriggerID);
             return;
         }
     }
@@ -910,20 +907,20 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
             (std::fabs(dz) > atEntry->BoxHeight / 2 + delta))
         {
             TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far (1/2 box X: %f 1/2 box Y: %f 1/2 box Z: %f rotatedPlayerX: %f rotatedPlayerY: %f dZ:%f), ignore Area Trigger ID: %u",
-                player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->BoxLength / 2, atEntry->BoxWidth / 2, atEntry->BoxHeight / 2, rotPlayerX, rotPlayerY, dz, triggerId);
+                player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->BoxLength / 2, atEntry->BoxWidth / 2, atEntry->BoxHeight / 2, rotPlayerX, rotPlayerY, dz, packet.AreaTriggerID);
             return;
         }
     }
 
     if (player->isDebugAreaTriggers)
-        ChatHandler(player->GetSession()).PSendSysMessage(LANG_DEBUG_AREATRIGGER_REACHED, triggerId);
+        ChatHandler(player->GetSession()).PSendSysMessage(LANG_DEBUG_AREATRIGGER_REACHED, packet.AreaTriggerID);
 
     if (sScriptMgr->OnAreaTrigger(player, atEntry))
         return;
 
     if (player->IsAlive())
     {
-        if (uint32 questId = sObjectMgr->GetQuestForAreaTrigger(triggerId))
+        if (uint32 questId = sObjectMgr->GetQuestForAreaTrigger(packet.AreaTriggerID))
         {
             Quest const* qInfo = sObjectMgr->GetQuestTemplate(questId);
             if (qInfo && player->GetQuestStatus(questId) == QUEST_STATUS_INCOMPLETE)
@@ -943,7 +940,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
         }
     }
 
-    if (sObjectMgr->IsTavernAreaTrigger(triggerId))
+    if (sObjectMgr->IsTavernAreaTrigger(packet.AreaTriggerID))
     {
         // set resting flag we are in the inn
         player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
@@ -958,13 +955,13 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recvData)
 
     if (Battleground* bg = player->GetBattleground())
         if (bg->GetStatus() == STATUS_IN_PROGRESS)
-            bg->HandleAreaTrigger(player, triggerId);
+            bg->HandleAreaTrigger(player, packet.AreaTriggerID);
 
     if (OutdoorPvP* pvp = player->GetOutdoorPvP())
-        if (pvp->HandleAreaTrigger(_player, triggerId))
+        if (pvp->HandleAreaTrigger(_player, packet.AreaTriggerID))
             return;
 
-    AreaTriggerStruct const* at = sObjectMgr->GetAreaTrigger(triggerId);
+    AreaTriggerStruct const* at = sObjectMgr->GetAreaTrigger(packet.AreaTriggerID);
     if (!at)
         return;
 
@@ -1064,9 +1061,9 @@ void WorldSession::HandleSetActionButtonOpcode(WorldPackets::Spells::SetActionBu
     TC_LOG_DEBUG("network", "CMSG_SET_ACTION_BUTTON Button: %u Action: %u Type: %u", packet.Index, action, type);
 
     if (!packet.Action)
-        GetPlayer()->removeActionButton(packet.Index);
+        GetPlayer()->RemoveActionButton(packet.Index);
     else
-        GetPlayer()->addActionButton(packet.Index, action, type);
+        GetPlayer()->AddActionButton(packet.Index, action, type);
 }
 
 void WorldSession::HandleCompleteCinematic(WorldPacket& /*recvData*/)
@@ -1543,26 +1540,38 @@ void WorldSession::HandleResetInstancesOpcode(WorldPacket& /*recvData*/)
     if (Group* group = _player->GetGroup())
     {
         if (group->IsLeader(_player->GetGUID()))
-            group->ResetInstances(INSTANCE_RESET_ALL, false, _player);
+            group->ResetInstances(INSTANCE_RESET_ALL, false, false, _player);
     }
     else
-        _player->ResetInstances(INSTANCE_RESET_ALL, false);
+        _player->ResetInstances(INSTANCE_RESET_ALL, false, false);
 }
 
-void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recvData)
+void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPackets::Misc::SetDungeonDifficulty& setDungeonDifficulty)
 {
-    TC_LOG_DEBUG("network", "MSG_SET_DUNGEON_DIFFICULTY");
-
-    uint32 mode;
-    recvData >> mode;
-
-    if (mode >= MAX_DUNGEON_DIFFICULTY)
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(setDungeonDifficulty.DifficultyID);
+    if (!difficultyEntry)
     {
-        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent an invalid instance mode %d!", _player->GetGUID().ToString().c_str(), mode);
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent an invalid instance mode %d!",
+            _player->GetGUID().ToString().c_str(), setDungeonDifficulty.DifficultyID);
         return;
     }
 
-    if (Difficulty(mode) == _player->GetDungeonDifficulty())
+    if (difficultyEntry->InstanceType != MAP_INSTANCE)
+    {
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent an non-dungeon instance mode %d!",
+            _player->GetGUID().ToString().c_str(), difficultyEntry->ID);
+        return;
+    }
+
+    if (!(difficultyEntry->Flags & DIFFICULTY_FLAG_CAN_SELECT))
+    {
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent unselectable instance mode %d!",
+            _player->GetGUID().ToString().c_str(), difficultyEntry->ID);
+        return;
+    }
+
+    Difficulty difficultyID = Difficulty(difficultyEntry->ID);
+    if (difficultyID == _player->GetDungeonDifficultyID())
         return;
 
     // cannot reset while in an instance
@@ -1597,40 +1606,61 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recvData)
             }
             // the difficulty is set even if the instances can't be reset
             //_player->SendDungeonDifficulty(true);
-            group->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, false, _player);
-            group->SetDungeonDifficulty(Difficulty(mode));
+            group->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, false, false, _player);
+            group->SetDungeonDifficultyID(difficultyID);
         }
     }
     else
     {
-        _player->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, false);
-        _player->SetDungeonDifficulty(Difficulty(mode));
+        _player->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, false, false);
+        _player->SetDungeonDifficultyID(difficultyID);
+        _player->SendDungeonDifficulty();
     }
 }
 
-void WorldSession::HandleSetRaidDifficultyOpcode(WorldPacket& recvData)
+void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDifficulty& setRaidDifficulty)
 {
-    TC_LOG_DEBUG("network", "MSG_SET_RAID_DIFFICULTY");
-
-    uint32 mode;
-    recvData >> mode;
-
-    if (mode >= MAX_RAID_DIFFICULTY)
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(setRaidDifficulty.DifficultyID);
+    if (!difficultyEntry)
     {
-        TC_LOG_ERROR("network", "WorldSession::HandleSetRaidDifficultyOpcode: %s sent an invalid instance mode %d!", _player->GetGUID().ToString().c_str(), mode);
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent an invalid instance mode %u!",
+            _player->GetGUID().ToString().c_str(), setRaidDifficulty.DifficultyID);
         return;
     }
+
+    if (difficultyEntry->InstanceType != MAP_RAID)
+    {
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent an non-dungeon instance mode %u!",
+            _player->GetGUID().ToString().c_str(), difficultyEntry->ID);
+        return;
+    }
+
+    if (!(difficultyEntry->Flags & DIFFICULTY_FLAG_CAN_SELECT))
+    {
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent unselectable instance mode %u!",
+            _player->GetGUID().ToString().c_str(), difficultyEntry->ID);
+        return;
+    }
+
+    if (((difficultyEntry->Flags & DIFFICULTY_FLAG_LEGACY) >> 5) != setRaidDifficulty.Legacy)
+    {
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetDungeonDifficultyOpcode: %s sent not matching legacy difficulty %u!",
+            _player->GetGUID().ToString().c_str(), difficultyEntry->ID);
+        return;
+    }
+
+    Difficulty difficultyID = Difficulty(difficultyEntry->ID);
+    if (difficultyID == (setRaidDifficulty.Legacy ?  _player->GetLegacyRaidDifficultyID() : _player->GetRaidDifficultyID()))
+        return;
 
     // cannot reset while in an instance
     Map* map = _player->FindMap();
     if (map && map->IsDungeon())
     {
-        TC_LOG_DEBUG("network", "WorldSession::HandleSetRaidDifficultyOpcode: %s tried to reset the instance while inside!", _player->GetGUID().ToString().c_str());
+        TC_LOG_DEBUG("network", "WorldSession::HandleSetRaidDifficultyOpcode: player (Name: %s, %s) tried to reset the instance while player is inside!",
+            _player->GetName().c_str(), _player->GetGUID().ToString().c_str());
         return;
     }
-
-    if (Difficulty(mode) == _player->GetRaidDifficulty())
-        return;
 
     Group* group = _player->GetGroup();
     if (group)
@@ -1648,20 +1678,28 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPacket& recvData)
 
                 if (groupGuy->GetMap()->IsRaid())
                 {
-                    TC_LOG_DEBUG("network", "WorldSession::HandleSetRaidDifficultyOpcode: %s tried to reset the instance while inside!", _player->GetGUID().ToString().c_str());
+                    TC_LOG_DEBUG("network", "WorldSession::HandleSetRaidDifficultyOpcode: %s tried to reset the instance while group member (Name: %s, %s) is inside!",
+                        _player->GetGUID().ToString().c_str(), groupGuy->GetName().c_str(), groupGuy->GetGUID().ToString().c_str());
                     return;
                 }
             }
             // the difficulty is set even if the instances can't be reset
-            //_player->SendDungeonDifficulty(true);
-            group->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, true, _player);
-            group->SetRaidDifficulty(Difficulty(mode));
+            group->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, true, setRaidDifficulty.Legacy != 0, _player);
+            if (setRaidDifficulty.Legacy)
+                group->SetLegacyRaidDifficultyID(difficultyID);
+            else
+                group->SetRaidDifficultyID(difficultyID);
         }
     }
     else
     {
-        _player->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, true);
-        _player->SetRaidDifficulty(Difficulty(mode));
+        _player->ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, true, setRaidDifficulty.Legacy != 0);
+        if (setRaidDifficulty.Legacy)
+            _player->SetLegacyRaidDifficultyID(difficultyID);
+        else
+            _player->SetRaidDifficultyID(difficultyID);
+
+        _player->SendRaidDifficulty(setRaidDifficulty.Legacy != 0);
     }
 }
 

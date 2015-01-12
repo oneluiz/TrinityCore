@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -238,7 +238,7 @@ namespace WorldPackets
             size_t GetDataSize() const
             {
                 //                                         [1..3] always empty '\0'                     '\0'                          '\0'                     '\0'                                 QuestItems counter
-                return sizeof(Type) + sizeof(DisplayID) + (Name->length() + (4 * 1)) + (IconName.size() + 1) + (CastBarCaption.size() + 1) + (UnkString.size() + 1) + sizeof(Data) + sizeof(Size) + sizeof(uint8) + (QuestItems.size() * sizeof(int32)) + sizeof(Expansion);
+                return sizeof(Type) + sizeof(DisplayID) + (Name->size() + (4 * 1)) + (IconName.size() + 1) + (CastBarCaption.size() + 1) + (UnkString.size() + 1) + sizeof(Data) + sizeof(Size) + sizeof(uint8) + (QuestItems.size() * sizeof(int32)) + sizeof(Expansion);
             }
         };
 

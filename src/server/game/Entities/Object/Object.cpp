@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -284,29 +284,15 @@ void Object::BuildOutOfRangeUpdateBlock(UpdateData* data) const
     data->AddOutOfRangeGUID(GetGUID());
 }
 
-void Object::DestroyForPlayer(Player* target, bool onDeath) const
+void Object::DestroyForPlayer(Player* target) const
 {
     ASSERT(target);
 
-    if (isType(TYPEMASK_UNIT) || isType(TYPEMASK_PLAYER))
-    {
-        if (Battleground* bg = target->GetBattleground())
-        {
-            if (bg->isArena())
-            {
-                WorldPacket data(SMSG_ARENA_UNIT_DESTROYED, 8);
-                data << GetGUID();
-                target->GetSession()->SendPacket(&data);
-            }
-        }
-    }
-
-    WorldPacket data(SMSG_DESTROY_OBJECT, 8 + 1);
-    data << GetGUID();
-    //! If the following bool is true, the client will call "void CGUnit_C::OnDeath()" for this object.
-    //! OnDeath() does for eg trigger death animation and interrupts certain spells/missiles/auras/sounds...
-    data << uint8(onDeath ? 1 : 0);
-    target->GetSession()->SendPacket(&data);
+    UpdateData updateData(target->GetMapId());
+    BuildOutOfRangeUpdateBlock(&updateData);
+    WorldPacket packet;
+    updateData.BuildPacket(&packet);
+    target->SendDirectMessage(&packet);
 }
 
 int32 Object::GetInt32Value(uint16 index) const

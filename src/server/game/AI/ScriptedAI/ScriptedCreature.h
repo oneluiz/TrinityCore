@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -275,7 +275,7 @@ struct ScriptedAI : public CreatureAI
     Difficulty GetDifficulty() const { return _difficulty; }
 
     // return true for 25 man or 25 man heroic mode
-    bool Is25ManRaid() const { return _difficulty & RAID_DIFFICULTY_MASK_25MAN; }
+    bool Is25ManRaid() const { return _difficulty == DIFFICULTY_25_N || _difficulty == DIFFICULTY_25_HC; }
 
     template<class T> inline
     const T& DUNGEON_MODE(const T& normal5, const T& heroic10) const

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -134,7 +134,7 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recvData)
         return;
     }
     // just ignore us
-    if (player->GetInstanceId() != 0 && player->GetDungeonDifficulty() != GetPlayer()->GetDungeonDifficulty())
+    if (player->GetInstanceId() != 0 && player->GetDungeonDifficultyID() != GetPlayer()->GetDungeonDifficultyID())
     {
         SendPartyResult(PARTY_OP_INVITE, memberName, ERR_IGNORING_YOU_S);
         return;
@@ -696,7 +696,7 @@ void WorldSession::HandleMinimapPingOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleRandomRollOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received MSG_RANDOM_ROLL");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_RANDOM_ROLL");
 
     uint32 minimum, maximum, roll;
     recvData >> minimum;
@@ -712,7 +712,7 @@ void WorldSession::HandleRandomRollOpcode(WorldPacket& recvData)
 
     //TC_LOG_DEBUG("misc", "ROLL: MIN: %u, MAX: %u, ROLL: %u", minimum, maximum, roll);
 
-    WorldPacket data(MSG_RANDOM_ROLL, 4+4+4+8);
+    WorldPacket data(SMSG_RANDOM_ROLL, 4+4+4+8);
     data << uint32(minimum);
     data << uint32(maximum);
     data << uint32(roll);
@@ -931,7 +931,7 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)
         recvData >> state;
 
         // everything's fine, do it
-        WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
+        WorldPacket data(SMSG_RAID_READY_CHECK_CONFIRM, 9);
         data << GetPlayer()->GetGUID();
         data << uint8(state);
         group->BroadcastReadyCheck(&data);

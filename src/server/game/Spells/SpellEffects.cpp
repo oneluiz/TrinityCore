@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -237,30 +237,30 @@ pEffect SpellEffects[TOTAL_SPELL_EFFECTS]=
     &Spell::EffectDamageFromMaxHealthPCT,                   //165 SPELL_EFFECT_DAMAGE_FROM_MAX_HEALTH_PCT
     &Spell::EffectGiveCurrency,                             //166 SPELL_EFFECT_GIVE_CURRENCY
     &Spell::EffectNULL,                                     //167 SPELL_EFFECT_167
-    &Spell::EffectNULL,                                     //168 SPELL_EFFECT_168
+    &Spell::EffectNULL,                                     //168 SPELL_EFFECT_ALLOW_CONTROL_PET
     &Spell::EffectNULL,                                     //169 SPELL_EFFECT_DESTROY_ITEM
-    &Spell::EffectNULL,                                     //170 SPELL_EFFECT_170
+    &Spell::EffectNULL,                                     //170 SPELL_EFFECT_UPDATE_ZONE_AURAS_AND_PHASES
     &Spell::EffectNULL,                                     //171 SPELL_EFFECT_171
     &Spell::EffectResurrectWithAura,                        //172 SPELL_EFFECT_RESURRECT_WITH_AURA
     &Spell::EffectUnlockGuildVaultTab,                      //173 SPELL_EFFECT_UNLOCK_GUILD_VAULT_TAB
-    &Spell::EffectNULL,                                     //174 SPELL_EFFECT_174
+    &Spell::EffectNULL,                                     //174 SPELL_EFFECT_APPLY_AURA_ON_PET
     &Spell::EffectUnused,                                   //175 SPELL_EFFECT_175  unused
-    &Spell::EffectNULL,                                     //176 SPELL_EFFECT_176
+    &Spell::EffectNULL,                                     //176 SPELL_EFFECT_SANCTUARY_2
     &Spell::EffectNULL,                                     //177 SPELL_EFFECT_177
     &Spell::EffectUnused,                                   //178 SPELL_EFFECT_178 unused
     &Spell::EffectCreateAreaTrigger,                        //179 SPELL_EFFECT_CREATE_AREATRIGGER
-    &Spell::EffectUnused,                                   //180 SPELL_EFFECT_180 unused
-    &Spell::EffectUnused,                                   //181 SPELL_EFFECT_181 unused
+    &Spell::EffectNULL,                                     //180 SPELL_EFFECT_UPDATE_AREATRIGGER
+    &Spell::EffectNULL,                                     //181 SPELL_EFFECT_REMOVE_TALENT
     &Spell::EffectNULL,                                     //182 SPELL_EFFECT_182
     &Spell::EffectNULL,                                     //183 SPELL_EFFECT_183
-    &Spell::EffectNULL,                                     //184 SPELL_EFFECT_184
+    &Spell::EffectNULL,                                     //184 SPELL_EFFECT_REPUTATION
     &Spell::EffectNULL,                                     //185 SPELL_EFFECT_185
     &Spell::EffectNULL,                                     //186 SPELL_EFFECT_186
-    &Spell::EffectNULL,                                     //187 SPELL_EFFECT_187
+    &Spell::EffectNULL,                                     //187 SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES
     &Spell::EffectNULL,                                     //188 SPELL_EFFECT_188
-    &Spell::EffectNULL,                                     //189 SPELL_EFFECT_189
+    &Spell::EffectNULL,                                     //189 SPELL_EFFECT_LOOT
     &Spell::EffectNULL,                                     //190 SPELL_EFFECT_190
-    &Spell::EffectNULL,                                     //191 SPELL_EFFECT_191
+    &Spell::EffectNULL,                                     //191 SPELL_EFFECT_TELEPORT_TO_DIGSITE
     &Spell::EffectNULL,                                     //192 SPELL_EFFECT_192
     &Spell::EffectNULL,                                     //193 SPELL_EFFECT_193
     &Spell::EffectNULL,                                     //194 SPELL_EFFECT_194
@@ -269,8 +269,8 @@ pEffect SpellEffects[TOTAL_SPELL_EFFECTS]=
     &Spell::EffectNULL,                                     //197 SPELL_EFFECT_197
     &Spell::EffectNULL,                                     //198 SPELL_EFFECT_198
     &Spell::EffectNULL,                                     //199 SPELL_EFFECT_199
-    &Spell::EffectNULL,                                     //200 SPELL_EFFECT_200
-    &Spell::EffectNULL,                                     //201 SPELL_EFFECT_201
+    &Spell::EffectNULL,                                     //200 SPELL_EFFECT_HEAL_BATTLEPET_PCT
+    &Spell::EffectNULL,                                     //201 SPELL_EFFECT_ENABLE_BATTLE_PETS
     &Spell::EffectNULL,                                     //202 SPELL_EFFECT_202
     &Spell::EffectNULL,                                     //203 SPELL_EFFECT_203
     &Spell::EffectNULL,                                     //204 SPELL_EFFECT_204
@@ -407,7 +407,7 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
             case SPELLFAMILY_GENERIC:
             {
                 // Meteor like spells (divided damage to targets)
-                if (m_spellInfo->AttributesCu & SPELL_ATTR0_CU_SHARE_DAMAGE)
+                if (m_spellInfo->HasAttribute(SPELL_ATTR0_CU_SHARE_DAMAGE))
                 {
                     uint32 count = 0;
                     for (std::list<TargetInfo>::iterator ihit= m_UniqueTargetInfo.begin(); ihit != m_UniqueTargetInfo.end(); ++ihit)
@@ -421,7 +421,7 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                 {
                     // Consumption
                     case 28865:
-                        damage = (((InstanceMap*)m_caster->GetMap())->GetDifficulty() == DIFFICULTY_NONE ? 2750 : 4250);
+                        damage = (((InstanceMap*)m_caster->GetMap())->GetDifficultyID() == DIFFICULTY_NONE ? 2750 : 4250);
                         break;
                     // percent from health with min
                     case 25599:                             // Thundercrash
@@ -747,13 +747,13 @@ void Spell::EffectTriggerSpell(SpellEffIndex /*effIndex*/)
     SpellCastTargets targets;
     if (effectHandleMode == SPELL_EFFECT_HANDLE_LAUNCH_TARGET)
     {
-        if (!spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficulty()))
+        if (!spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficultyID()))
             return;
         targets.SetUnitTarget(unitTarget);
     }
     else //if (effectHandleMode == SPELL_EFFECT_HANDLE_LAUNCH)
     {
-        if (spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficulty()) && (effectInfo->GetProvidedTargetMask() & TARGET_FLAG_UNIT_MASK))
+        if (spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficultyID()) && (effectInfo->GetProvidedTargetMask() & TARGET_FLAG_UNIT_MASK))
             return;
 
         if (spellInfo->GetExplicitTargetMask() & TARGET_FLAG_DEST_LOCATION)
@@ -802,13 +802,13 @@ void Spell::EffectTriggerMissileSpell(SpellEffIndex /*effIndex*/)
     SpellCastTargets targets;
     if (effectHandleMode == SPELL_EFFECT_HANDLE_HIT_TARGET)
     {
-        if (!spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficulty()))
+        if (!spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficultyID()))
             return;
         targets.SetUnitTarget(unitTarget);
     }
     else //if (effectHandleMode == SPELL_EFFECT_HANDLE_HIT)
     {
-        if (spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficulty()) && (effectInfo->GetProvidedTargetMask() & TARGET_FLAG_UNIT_MASK))
+        if (spellInfo->NeedsToBeTriggeredByCaster(m_spellInfo, m_caster->GetMap()->GetDifficultyID()) && (effectInfo->GetProvidedTargetMask() & TARGET_FLAG_UNIT_MASK))
             return;
 
         if (spellInfo->GetExplicitTargetMask() & TARGET_FLAG_DEST_LOCATION)
@@ -1630,7 +1630,7 @@ void Spell::EffectEnergize(SpellEffIndex /*effIndex*/)
 
     Powers power = Powers(effectInfo->MiscValue);
 
-    if (unitTarget->GetTypeId() == TYPEID_PLAYER && unitTarget->getPowerType() != power && !(m_spellInfo->AttributesEx7 & SPELL_ATTR7_CAN_RESTORE_SECONDARY_POWER))
+    if (unitTarget->GetTypeId() == TYPEID_PLAYER && unitTarget->getPowerType() != power && !m_spellInfo->HasAttribute(SPELL_ATTR7_CAN_RESTORE_SECONDARY_POWER))
         return;
 
     if (unitTarget->GetMaxPower(power) == 0)
@@ -1739,7 +1739,7 @@ void Spell::EffectEnergizePct(SpellEffIndex /*effIndex*/)
 
     Powers power = Powers(effectInfo->MiscValue);
 
-    if (unitTarget->GetTypeId() == TYPEID_PLAYER && unitTarget->getPowerType() != power && !(m_spellInfo->AttributesEx7 & SPELL_ATTR7_CAN_RESTORE_SECONDARY_POWER))
+    if (unitTarget->GetTypeId() == TYPEID_PLAYER && unitTarget->getPowerType() != power && !m_spellInfo->HasAttribute(SPELL_ATTR7_CAN_RESTORE_SECONDARY_POWER))
         return;
 
     uint32 maxPower = unitTarget->GetMaxPower(power);
@@ -2213,7 +2213,7 @@ void Spell::EffectSummonType(SpellEffIndex effIndex)
             // The spell that this effect will trigger. It has SPELL_AURA_CONTROL_VEHICLE
             uint32 spellId = VEHICLE_SPELL_RIDE_HARDCODED;
             SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(effectInfo->CalcValue());
-            if (spellInfo && spellInfo->HasAura(m_originalCaster->GetMap()->GetDifficulty(), SPELL_AURA_CONTROL_VEHICLE))
+            if (spellInfo && spellInfo->HasAura(m_originalCaster->GetMap()->GetDifficultyID(), SPELL_AURA_CONTROL_VEHICLE))
                 spellId = spellInfo->Id;
 
             // Hard coded enter vehicle spell
@@ -5604,7 +5604,7 @@ void Spell::EffectCastButtons(SpellEffIndex /*effIndex*/)
         if (!p_caster->HasSpell(spell_id) || p_caster->HasSpellCooldown(spell_id))
             continue;
 
-        if (!(spellInfo->AttributesEx9 & SPELL_ATTR9_SUMMON_PLAYER_TOTEM))
+        if (!spellInfo->HasAttribute(SPELL_ATTR9_SUMMON_PLAYER_TOTEM))
             continue;
 
         int32 cost = spellInfo->CalcPowerCost(m_caster, spellInfo->GetSchoolMask());

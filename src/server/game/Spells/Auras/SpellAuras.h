@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -27,6 +27,14 @@ class SpellInfo;
 struct SpellModifier;
 struct ProcTriggerSpell;
 struct SpellProcEntry;
+
+namespace WorldPackets
+{
+    namespace Spells
+    {
+        struct AuraInfo;
+    }
+}
 
 // forward decl
 class AuraEffect;
@@ -79,7 +87,7 @@ class AuraApplication
 
         void SetNeedClientUpdate() { _needClientUpdate = true;}
         bool IsNeedClientUpdate() const { return _needClientUpdate;}
-        void BuildUpdatePacket(ByteBuffer& data, bool remove) const;
+        void BuildUpdatePacket(WorldPackets::Spells::AuraInfo& data, bool remove) const;
         void ClientUpdate(bool remove = false);
 };
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -1173,30 +1173,30 @@ enum SpellEffectName
     SPELL_EFFECT_DAMAGE_FROM_MAX_HEALTH_PCT         = 165,
     SPELL_EFFECT_GIVE_CURRENCY                      = 166,
     SPELL_EFFECT_167                                = 167,
-    SPELL_EFFECT_168                                = 168,
+    SPELL_EFFECT_ALLOW_CONTROL_PET                  = 168, // NYI
     SPELL_EFFECT_DESTROY_ITEM                       = 169,
-    SPELL_EFFECT_170                                = 170,
+    SPELL_EFFECT_UPDATE_ZONE_AURAS_AND_PHASES       = 170, // NYI
     SPELL_EFFECT_171                                = 171, // Summons gamebject
     SPELL_EFFECT_RESURRECT_WITH_AURA                = 172,
     SPELL_EFFECT_UNLOCK_GUILD_VAULT_TAB             = 173, // Guild tab unlocked (guild perk)
-    SPELL_EFFECT_174                                = 174,
+    SPELL_EFFECT_APPLY_AURA_ON_PET                  = 174, // NYI
     SPELL_EFFECT_175                                = 175, // Unused (4.3.4)
-    SPELL_EFFECT_176                                = 176, // Some kind of sanctuary effect (Vanish)
+    SPELL_EFFECT_SANCTUARY_2                        = 176, // NYI
     SPELL_EFFECT_177                                = 177,
     SPELL_EFFECT_178                                = 178, // Unused (4.3.4)
     SPELL_EFFECT_CREATE_AREATRIGGER                 = 179,
-    SPELL_EFFECT_180                                = 180, // Unused (4.3.4)
-    SPELL_EFFECT_181                                = 181, // Unused (4.3.4)
+    SPELL_EFFECT_UPDATE_AREATRIGGER                 = 180, // NYI
+    SPELL_EFFECT_REMOVE_TALENT                      = 181, // NYI
     SPELL_EFFECT_182                                = 182,
     SPELL_EFFECT_183                                = 183,
-    SPELL_EFFECT_184                                = 184,
+    SPELL_EFFECT_REPUTATION_2                       = 184, // NYI
     SPELL_EFFECT_185                                = 185,
     SPELL_EFFECT_186                                = 186,
-    SPELL_EFFECT_187                                = 187,
+    SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES     = 187, // NYI
     SPELL_EFFECT_188                                = 188,
-    SPELL_EFFECT_189                                = 189,
+    SPELL_EFFECT_LOOT                               = 189, // NYI, lootid in MiscValue ?
     SPELL_EFFECT_190                                = 190,
-    SPELL_EFFECT_191                                = 191,
+    SPELL_EFFECT_TELEPORT_TO_DIGSITE                = 191, // NYI
     SPELL_EFFECT_192                                = 192,
     SPELL_EFFECT_193                                = 193,
     SPELL_EFFECT_194                                = 194,
@@ -1205,8 +1205,8 @@ enum SpellEffectName
     SPELL_EFFECT_197                                = 197,
     SPELL_EFFECT_198                                = 198,
     SPELL_EFFECT_199                                = 199,
-    SPELL_EFFECT_200                                = 200,
-    SPELL_EFFECT_201                                = 201,
+    SPELL_EFFECT_HEAL_BATTLEPET_PCT                 = 200, // BYI
+    SPELL_EFFECT_ENABLE_BATTLE_PETS                 = 201, // NYI
     SPELL_EFFECT_202                                = 202,
     SPELL_EFFECT_203                                = 203,
     SPELL_EFFECT_204                                = 204,
@@ -3722,23 +3722,32 @@ enum HolidayIds
     //HOLIDAY_CALL_TO_ARMS_DG        = 516
 };
 
-// QuestInfo.dbc (6.0.2.18988)
-enum QuestTypes
+enum QuestType
 {
-    QUEST_TYPE_GROUP               = 1,
-    QUEST_TYPE_CLASS               = 21,
-    QUEST_TYPE_PVP                 = 41,
-    QUEST_TYPE_RAID                = 62,
-    QUEST_TYPE_DUNGEON             = 81,
-    QUEST_TYPE_WORLD_EVENT         = 82,
-    QUEST_TYPE_LEGENDARY           = 83,
-    QUEST_TYPE_ESCORT              = 84,
-    QUEST_TYPE_HEROIC              = 85,
-    QUEST_TYPE_RAID_10             = 88,
-    QUEST_TYPE_RAID_25             = 89,
-    QUEST_TYPE_SCENARIO            = 98,
-    QUEST_TYPE_ACCOUNT             = 102,
-    QUEST_TYPE_SIDE_QUEST          = 104
+    QUEST_TYPE_AUTOCOMPLETE         = 0,
+    QUEST_TYPE_DISABLED             = 1,
+    QUEST_TYPE_NORMAL               = 2,
+    QUEST_TYPE_UNK                  = 3,
+    MAX_QUEST_TYPES                 = 4
+};
+
+// QuestInfo.dbc (6.0.2.18988)
+enum QuestInfo
+{
+    QUEST_INFO_GROUP               = 1,
+    QUEST_INFO_CLASS               = 21,
+    QUEST_INFO_PVP                 = 41,
+    QUEST_INFO_RAID                = 62,
+    QUEST_INFO_DUNGEON             = 81,
+    QUEST_INFO_WORLD_EVENT         = 82,
+    QUEST_INFO_LEGENDARY           = 83,
+    QUEST_INFO_ESCORT              = 84,
+    QUEST_INFO_HEROIC              = 85,
+    QUEST_INFO_RAID_10             = 88,
+    QUEST_INFO_RAID_25             = 89,
+    QUEST_INFO_SCENARIO            = 98,
+    QUEST_INFO_ACCOUNT             = 102,
+    QUEST_INFO_SIDE_QUEST          = 104
 };
 
 // QuestSort.dbc (6.0)
@@ -4144,15 +4153,15 @@ enum TotemCategory
 enum UnitDynFlags
 {
     UNIT_DYNFLAG_NONE                       = 0x0000,
-    UNIT_DYNFLAG_UNK                        = 0x0001,
+    UNIT_DYNFLAG_HIDE_MODEL                 = 0x0001, // Object model is not shown with this flag
     UNIT_DYNFLAG_LOOTABLE                   = 0x0002,
     UNIT_DYNFLAG_TRACK_UNIT                 = 0x0004,
-    UNIT_DYNFLAG_TAPPED                     = 0x0008,       // Lua_UnitIsTapped
-    UNIT_DYNFLAG_TAPPED_BY_PLAYER           = 0x0010,       // Lua_UnitIsTappedByPlayer
+    UNIT_DYNFLAG_TAPPED                     = 0x0008, // Lua_UnitIsTapped
+    UNIT_DYNFLAG_TAPPED_BY_PLAYER           = 0x0010, // Lua_UnitIsTappedByPlayer
     UNIT_DYNFLAG_SPECIALINFO                = 0x0020,
     UNIT_DYNFLAG_DEAD                       = 0x0040,
     UNIT_DYNFLAG_REFER_A_FRIEND             = 0x0080,
-    UNIT_DYNFLAG_TAPPED_BY_ALL_THREAT_LIST  = 0x0100        // Lua_UnitIsTappedByAllThreatList
+    UNIT_DYNFLAG_TAPPED_BY_ALL_THREAT_LIST  = 0x0100  // Lua_UnitIsTappedByAllThreatList
 };
 
 enum CorpseDynFlags

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -620,6 +620,23 @@ struct DestructibleModelDataEntry
     //uint32        HealEffectSpeed;                        // 23
 };
 
+struct DifficultyEntry
+{
+    uint32      ID;                                         // 0
+    uint32      FallbackDifficultyID;                       // 1
+    uint32      InstanceType;                               // 2
+    uint32      MinPlayers;                                 // 3
+    uint32      MaxPlayers;                                 // 4
+    //int32     OldEnumValue;                               // 5
+    uint32      Flags;                                      // 6
+    uint32      ToggleDifficultyID;                         // 7
+    //uint32    GroupSizeHealthCurveID;                     // 8
+    //uint32    GroupSizeDmgCurveID;                        // 9
+    //uint32    GroupSizeSpellPointsCurveID;                // 10
+    //char const* NameLang;                                 // 11
+    //uint32    Unk;                                        // 12
+};
+
 struct DungeonEncounterEntry
 {
     uint32      ID;                                         // 0
@@ -831,6 +848,36 @@ struct GtItemSocketCostPerLevelEntry
 struct GtNPCManaCostScalerEntry
 {
     float    ratio;
+};
+
+struct GtNpcTotalHpEntry
+{
+    float    HP;
+};
+
+struct GtNpcTotalHpExp1Entry
+{
+    float    HP;
+};
+
+struct GtNpcTotalHpExp2Entry
+{
+    float    HP;
+};
+
+struct GtNpcTotalHpExp3Entry
+{
+    float    HP;
+};
+
+struct GtNpcTotalHpExp4Entry
+{
+    float    HP;
+};
+
+struct GtNpcTotalHpExp5Entry
+{
+    float    HP;
 };
 
 struct GtChanceToSpellCritEntry
@@ -1202,7 +1249,7 @@ struct MapEntry
         return ID == 0 || ID == 1 || ID == 530 || ID == 571 || ID == 870 || ID == 1116;
     }
 
-    bool IsDynamicDifficultyMap() const { return (Flags & MAP_FLAG_DYNAMIC_DIFFICULTY) != 0; }
+    bool IsDynamicDifficultyMap() const { return (Flags & MAP_FLAG_CAN_TOGGLE_DIFFICULTY) != 0; }
 };
 
 struct MapDifficultyEntry
@@ -1213,7 +1260,7 @@ struct MapDifficultyEntry
     char*       Message_lang;                               // 3 m_message_lang (text showed when transfer to map failed)
     uint32      RaidDuration;                               // 4 m_raidDuration in secs, 0 if no fixed reset time
     uint32      MaxPlayers;                                 // 5 m_maxPlayers some heroic versions have 0 when expected same amount as in normal version
-    //uint32    Unk1;                                       // 6
+    uint32      LockID;                                     // 6
     //uint32    Unk2;                                       // 7
 };
 
@@ -2021,9 +2068,11 @@ typedef std::map<uint32, VectorArray> NameGenContainer;
 // Structures not used for casting to loaded DBC data and not required then packing
 struct MapDifficulty
 {
-    MapDifficulty() : resetTime(0), maxPlayers(0), hasErrorMessage(false) { }
-    MapDifficulty(uint32 _resetTime, uint32 _maxPlayers, bool _hasErrorMessage) : resetTime(_resetTime), maxPlayers(_maxPlayers), hasErrorMessage(_hasErrorMessage) { }
+    MapDifficulty() : DifficultyID(0), resetTime(0), maxPlayers(0), hasErrorMessage(false) { }
+    MapDifficulty(uint32 difficultyID, uint32 _resetTime, uint32 _maxPlayers, bool _hasErrorMessage)
+        : DifficultyID(difficultyID), resetTime(_resetTime), maxPlayers(_maxPlayers), hasErrorMessage(_hasErrorMessage) { }
 
+    uint32 DifficultyID;
     uint32 resetTime;
     uint32 maxPlayers;
     bool hasErrorMessage;

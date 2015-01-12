@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -90,6 +90,7 @@ DBCStorage <CurrencyTypesEntry> sCurrencyTypesStore(CurrencyTypesfmt);
 uint32 PowersByClass[MAX_CLASSES][MAX_POWERS];
 
 DBCStorage <DestructibleModelDataEntry> sDestructibleModelDataStore(DestructibleModelDatafmt);
+DBCStorage <DifficultyEntry> sDifficultyStore(DifficultyFmt);
 DBCStorage <DungeonEncounterEntry> sDungeonEncounterStore(DungeonEncounterfmt);
 DBCStorage <DurabilityQualityEntry> sDurabilityQualityStore(DurabilityQualityfmt);
 DBCStorage <DurabilityCostsEntry> sDurabilityCostsStore(DurabilityCostsfmt);
@@ -116,6 +117,12 @@ GameTable <GtChanceToSpellCritBaseEntry> sGtChanceToSpellCritBaseStore(GtChanceT
 GameTable <GtChanceToSpellCritEntry>     sGtChanceToSpellCritStore(GtChanceToSpellCritfmt);
 GameTable <GtItemSocketCostPerLevelEntry> sGtItemSocketCostPerLevelStore(GtItemSocketCostPerLevelfmt);
 GameTable <GtNPCManaCostScalerEntry>     sGtNPCManaCostScalerStore(GtNPCManaCostScalerfmt);
+GameTable <GtNpcTotalHpEntry>            sGtNpcTotalHpStore(GtNpcTotalHpfmt);
+GameTable <GtNpcTotalHpExp1Entry>        sGtNpcTotalHpExp1Store(GtNpcTotalHpExp1fmt);
+GameTable <GtNpcTotalHpExp2Entry>        sGtNpcTotalHpExp2Store(GtNpcTotalHpExp2fmt);
+GameTable <GtNpcTotalHpExp3Entry>        sGtNpcTotalHpExp3Store(GtNpcTotalHpExp3fmt);
+GameTable <GtNpcTotalHpExp4Entry>        sGtNpcTotalHpExp4Store(GtNpcTotalHpExp4fmt);
+GameTable <GtNpcTotalHpExp5Entry>        sGtNpcTotalHpExp5Store(GtNpcTotalHpExp5fmt);
 GameTable <GtOCTClassCombatRatingScalarEntry> sGtOCTClassCombatRatingScalarStore(GtOCTClassCombatRatingScalarfmt);
 GameTable <GtOCTRegenHPEntry>            sGtOCTRegenHPStore(GtOCTRegenHPfmt);
 GameTable <gtOCTHpPerStaminaEntry>       sGtOCTHpPerStaminaStore(GtOCTHpPerStaminafmt);
@@ -415,13 +422,14 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bad_dbc_files, sCriteriaTreeStore,           dbcPath, "CriteriaTree.dbc");//19342
     LoadDBC(availableDbcLocales, bad_dbc_files, sCurrencyTypesStore,          dbcPath, "CurrencyTypes.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sDestructibleModelDataStore,  dbcPath, "DestructibleModelData.dbc");//19116
+    LoadDBC(availableDbcLocales, bad_dbc_files, sDifficultyStore,             dbcPath, "Difficulty.dbc");//19342
     LoadDBC(availableDbcLocales, bad_dbc_files, sDungeonEncounterStore,       dbcPath, "DungeonEncounter.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sDurabilityCostsStore,        dbcPath, "DurabilityCosts.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sDurabilityQualityStore,      dbcPath, "DurabilityQuality.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sEmotesStore,                 dbcPath, "Emotes.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sEmotesTextStore,             dbcPath, "EmotesText.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sFactionStore,                dbcPath, "Faction.dbc");//19116
-    for (uint32 i=0; i<sFactionStore.GetNumRows(); ++i)
+    for (uint32 i = 0; i < sFactionStore.GetNumRows(); ++i)
     {
         FactionEntry const* faction = sFactionStore.LookupEntry(i);
         if (faction && faction->ParentFactionID)
@@ -491,10 +499,10 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bad_dbc_files, sMapStore,                    dbcPath, "Map.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sMapDifficultyStore,          dbcPath, "MapDifficulty.dbc");//19116
     // fill data
-    sMapDifficultyMap[MAKE_PAIR32(0, 0)] = MapDifficulty(0, 0, false);//map 0 is missingg from MapDifficulty.dbc use this till its ported to sql
+    sMapDifficultyMap[0][0] = MapDifficulty(DIFFICULTY_NONE, 0, 0, false);//map 0 is missingg from MapDifficulty.dbc use this till its ported to sql
     for (uint32 i = 0; i < sMapDifficultyStore.GetNumRows(); ++i)
         if (MapDifficultyEntry const* entry = sMapDifficultyStore.LookupEntry(i))
-            sMapDifficultyMap[MAKE_PAIR32(entry->MapID, entry->DifficultyID)] = MapDifficulty(entry->RaidDuration, entry->MaxPlayers, entry->Message_lang[0] > 0);
+            sMapDifficultyMap[entry->MapID][entry->DifficultyID] = MapDifficulty(entry->DifficultyID, entry->RaidDuration, entry->MaxPlayers, entry->Message_lang[0] > 0);
     sMapDifficultyStore.Clear();
 
     LoadDBC(availableDbcLocales, bad_dbc_files, sModifierTreeStore,           dbcPath, "ModifierTree.dbc");//19342
@@ -728,6 +736,12 @@ void LoadDBCStores(const std::string& dataPath)
     LoadGameTable(bad_dbc_files, "ChanceToSpellCrit", sGtChanceToSpellCritStore, dbcPath, "gtChanceToSpellCrit.dbc");//19342
     LoadGameTable(bad_dbc_files, "ItemSocketCostPerLevel", sGtItemSocketCostPerLevelStore, dbcPath, "gtItemSocketCostPerLevel.dbc");//19342
     LoadGameTable(bad_dbc_files, "NPCManaCostScaler", sGtNPCManaCostScalerStore, dbcPath, "gtNPCManaCostScaler.dbc");//19342
+    LoadGameTable(bad_dbc_files, "NpcTotalHp", sGtNpcTotalHpStore, dbcPath, "gtNpcTotalHp.dbc"); // 19445
+    LoadGameTable(bad_dbc_files, "NpcTotalHpExp1", sGtNpcTotalHpExp1Store, dbcPath, "gtNpcTotalHpExp1.dbc"); // 19445
+    LoadGameTable(bad_dbc_files, "NpcTotalHpExp2", sGtNpcTotalHpExp2Store, dbcPath, "gtNpcTotalHpExp2.dbc"); // 19445
+    LoadGameTable(bad_dbc_files, "NpcTotalHpExp3", sGtNpcTotalHpExp3Store, dbcPath, "gtNpcTotalHpExp3.dbc"); // 19445
+    LoadGameTable(bad_dbc_files, "NpcTotalHpExp4", sGtNpcTotalHpExp4Store, dbcPath, "gtNpcTotalHpExp4.dbc"); // 19445
+    LoadGameTable(bad_dbc_files, "NpcTotalHpExp5", sGtNpcTotalHpExp5Store, dbcPath, "gtNpcTotalHpExp5.dbc"); // 19445
     LoadGameTable(bad_dbc_files, "OCTClassCombatRatingScalar", sGtOCTClassCombatRatingScalarStore, dbcPath, "gtOCTClassCombatRatingScalar.dbc");//19342
     LoadGameTable(bad_dbc_files, "OCTHPPerStamina", sGtOCTHpPerStaminaStore, dbcPath, "gtOCTHpPerStamina.dbc");//19342
     LoadGameTable(bad_dbc_files, "RegenMPPerSpt", sGtRegenMPPerSptStore, dbcPath, "gtRegenMPPerSpt.dbc");//19342
@@ -950,35 +964,63 @@ void Map2ZoneCoordinates(float& x, float& y, uint32 zone)
     if (!maEntry)
         return;
 
-    x = (x-maEntry->LocTop)/((maEntry->LocBottom-maEntry->LocTop)/100);
-    y = (y-maEntry->LocLeft)/((maEntry->LocRight-maEntry->LocLeft)/100);    // client y coord from top to down
+    x = (x - maEntry->LocTop) / ((maEntry->LocBottom - maEntry->LocTop) / 100);
+    y = (y - maEntry->LocLeft) / ((maEntry->LocRight - maEntry->LocLeft) / 100);    // client y coord from top to down
     std::swap(x, y);                                         // client have map coords swapped
+}
+
+MapDifficulty const* GetDefaultMapDifficulty(uint32 mapID)
+{
+    auto itr = sMapDifficultyMap.find(mapID);
+    if (itr == sMapDifficultyMap.end())
+        return nullptr;
+
+    if (itr->second.empty())
+        return nullptr;
+
+    for (auto& p : itr->second)
+    {
+        DifficultyEntry const* difficulty = sDifficultyStore.LookupEntry(p.first);
+        if (!difficulty)
+            continue;
+
+        if (difficulty->Flags & DIFFICULTY_FLAG_DEFAULT)
+            return &p.second;
+    }
+
+    return &itr->second.begin()->second;
 }
 
 MapDifficulty const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
 {
-    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, difficulty));
-    return itr != sMapDifficultyMap.end() ? &itr->second : NULL;
+    auto itr = sMapDifficultyMap.find(mapId);
+    if (itr == sMapDifficultyMap.end())
+        return nullptr;
+
+    auto diffItr = itr->second.find(difficulty);
+    if (diffItr == itr->second.end())
+        return nullptr;
+
+    return &diffItr->second;
 }
 
 MapDifficulty const* GetDownscaledMapDifficultyData(uint32 mapId, Difficulty &difficulty)
 {
+    DifficultyEntry const* diffEntry = sDifficultyStore.LookupEntry(difficulty);
+    if (!diffEntry)
+        return GetDefaultMapDifficulty(mapId);
+
     uint32 tmpDiff = difficulty;
     MapDifficulty const* mapDiff = GetMapDifficultyData(mapId, Difficulty(tmpDiff));
-    if (!mapDiff)
+    while (!mapDiff)
     {
-        if (tmpDiff > DIFFICULTY_25_N) // heroic, downscale to normal
-            tmpDiff -= 2;
-        else
-            tmpDiff -= 1;   // any non-normal mode for raids like tbc (only one mode)
+        tmpDiff = diffEntry->FallbackDifficultyID;
+        diffEntry = sDifficultyStore.LookupEntry(tmpDiff);
+        if (!diffEntry)
+            return GetDefaultMapDifficulty(mapId);
 
         // pull new data
         mapDiff = GetMapDifficultyData(mapId, Difficulty(tmpDiff)); // we are 10 normal or 25 normal
-        if (!mapDiff)
-        {
-            tmpDiff -= 1;
-            mapDiff = GetMapDifficultyData(mapId, Difficulty(tmpDiff)); // 10 normal
-        }
     }
 
     difficulty = Difficulty(tmpDiff);

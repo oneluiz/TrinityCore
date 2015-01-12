@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -78,7 +78,7 @@ enum Shadowmourne
     SPELL_THIRST_QUENCHED                   = 72154,
 };
 
-uint32 const vampireAuras[3][MAX_DIFFICULTY] =
+uint32 const vampireAuras[3][4] =
 {
     {70867, 71473, 71532, 71533},
     {70879, 71525, 71530, 71531},
@@ -129,7 +129,7 @@ Position const mincharPos = {4629.3711f, 2782.6089f, 424.6390f, 0.000000f};
 bool IsVampire(Unit const* unit)
 {
     for (uint8 i = 0; i < 3; ++i)
-        if (unit->HasAura(vampireAuras[i][unit->GetMap()->GetSpawnMode()]))
+        if (unit->HasAura(vampireAuras[i][unit->GetMap()->GetSpawnMode() - DIFFICULTY_10_N]))
             return true;
     return false;
 }

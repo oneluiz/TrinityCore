@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -36,14 +36,9 @@ void WorldSession::HandleLearnTalentOpcode(WorldPackets::Talent::LearnTalent& pa
         if (_player->LearnTalent(talentId))
             anythingLearned = true;
     }
-    
+
     if (anythingLearned)
         _player->SendTalentsInfoData();
-}
-
-void WorldSession::HandleLearnPreviewTalents(WorldPacket& recvPacket)
-{
-    TC_LOG_DEBUG("network", "CMSG_LEARN_PREVIEW_TALENTS");
 }
 
 void WorldSession::HandleTalentWipeConfirmOpcode(WorldPacket& recvData)
@@ -94,7 +89,7 @@ void WorldSession::HandleUnlearnSkillOpcode(WorldPacket& recvData)
 void WorldSession::HandleSetSpecializationOpcode(WorldPackets::Talent::SetSpecialization& packet)
 {
     Player* player = GetPlayer();
-    
+
     if (packet.SpecGroupIndex >= MAX_SPECIALIZATIONS)
     {
         TC_LOG_DEBUG("network", "WORLD: HandleSetSpecializationOpcode - specialization index %u out of range", packet.SpecGroupIndex);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -29,6 +29,7 @@
 #include "Player.h"
 #include "Opcodes.h"
 #include "WorldSession.h"
+#include "ItemPackets.h"
 
 void AddItemsSetItem(Player* player, Item* item)
 {
@@ -1048,10 +1049,10 @@ void Item::SendTimeUpdate(Player* owner)
     if (!duration)
         return;
 
-    WorldPacket data(SMSG_ITEM_TIME_UPDATE, (8+4));
-    data << GetGUID();
-    data << uint32(duration);
-    owner->GetSession()->SendPacket(&data);
+    WorldPackets::Item::ItemTimeUpdate itemTimeUpdate;
+    itemTimeUpdate.ItemGuid = GetGUID();
+    itemTimeUpdate.DurationLeft = duration;
+    owner->GetSession()->SendPacket(itemTimeUpdate.Write());
 }
 
 Item* Item::CreateItem(uint32 itemEntry, uint32 count, Player const* player)

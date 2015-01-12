@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -990,7 +990,7 @@ bool Guardian::UpdateStats(Stats stat)
         if (aurEff)
         {
             SpellInfo const* spellInfo = aurEff->GetSpellInfo();                                               // Then get the SpellProto and add the dummy effect value
-            if (SpellEffectInfo const* effect = spellInfo->GetEffect(GetMap()->GetDifficulty(), EFFECT_1))
+            if (SpellEffectInfo const* effect = spellInfo->GetEffect(GetMap()->GetDifficultyID(), EFFECT_1))
                 AddPct(mod, effect->CalcValue(owner));                                                         // Ravenous Dead edits the original scale
         }
         // Glyph of the Ghoul

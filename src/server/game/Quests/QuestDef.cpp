@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -24,13 +24,13 @@
 
 Quest::Quest(Field* questRecord)
 {
-    Id = questRecord[0].GetUInt32();
-    Method = questRecord[1].GetUInt8();
+    ID = questRecord[0].GetUInt32();
+    Type = questRecord[1].GetUInt8();
     Level = questRecord[2].GetInt32();
     PackageID = questRecord[3].GetUInt32();
-    MinLevel = questRecord[4].GetUInt32();
-    ZoneOrSort = questRecord[5].GetInt16();
-    Type = questRecord[6].GetUInt16();
+    MinLevel = questRecord[4].GetInt32();
+    QuestSortID = questRecord[5].GetInt16();
+    QuestInfoID = questRecord[6].GetUInt16();
     SuggestedPlayers = questRecord[7].GetUInt8();
     NextQuestInChain = questRecord[8].GetUInt32();
     RewardXPDifficulty = questRecord[9].GetUInt32();
@@ -49,17 +49,17 @@ Quest::Quest(Field* questRecord)
 
     for (uint32 i = 0; i < QUEST_ITEM_DROP_COUNT; ++i)
     {
-        RewardItemId[i] = questRecord[22+i].GetUInt32();
-        RewardItemCount[i] = questRecord[23+i].GetUInt32();
-        ItemDrop[i] = questRecord[24+i].GetUInt32();
-        ItemDropQuantity[i] = questRecord[25+i].GetUInt32();
+        RewardItemId[i] = questRecord[22+i*4].GetUInt32();
+        RewardItemCount[i] = questRecord[23+i*4].GetUInt32();
+        ItemDrop[i] = questRecord[24+i*4].GetUInt32();
+        ItemDropQuantity[i] = questRecord[25+i*4].GetUInt32();
     }
 
     for (uint32 i = 0; i < QUEST_REWARD_CHOICES_COUNT; ++i)
     {
-        RewardChoiceItemId[i] = questRecord[38+i].GetUInt32();
-        RewardChoiceItemCount[i] = questRecord[39+i].GetUInt32();
-        RewardChoiceItemDisplayId[i] = questRecord[40+i].GetUInt32();
+        RewardChoiceItemId[i] = questRecord[38+i*3].GetUInt32();
+        RewardChoiceItemCount[i] = questRecord[39+i*3].GetUInt32();
+        RewardChoiceItemDisplayId[i] = questRecord[40+i*3].GetUInt32();
     }
 
     POIContinent = questRecord[56].GetUInt32();
@@ -78,17 +78,17 @@ Quest::Quest(Field* questRecord)
 
     for (uint32 i = 0; i < QUEST_REWARD_REPUTATIONS_COUNT; ++i)
     {
-        RewardFactionId[i] = questRecord[67+i].GetUInt32();
-        RewardFactionValue[i] = questRecord[68+i].GetInt32();
-        RewardFactionOverride[i] = questRecord[69+i].GetInt32();
+        RewardFactionId[i] = questRecord[67+i*3].GetUInt32();
+        RewardFactionValue[i] = questRecord[68+i*3].GetInt32();
+        RewardFactionOverride[i] = questRecord[69+i*3].GetInt32();
     }
 
     RewardReputationMask = questRecord[82].GetUInt32();
 
     for (uint32 i = 0; i < QUEST_REWARD_CURRENCY_COUNT; ++i)
     {
-        RewardCurrencyId[i] = questRecord[83+i].GetUInt32();
-        RewardCurrencyCount[i] = questRecord[84+i].GetUInt32();
+        RewardCurrencyId[i] = questRecord[83+i*2].GetUInt32();
+        RewardCurrencyCount[i] = questRecord[84+i*2].GetUInt32();
     }
 
     SoundAccept = questRecord[91].GetUInt32();
@@ -179,34 +179,35 @@ void Quest::LoadQuestTemplateAddon(Field* fields)
 
 void Quest::LoadQuestObjective(Field* fields)
 {
-    uint8 storageIndex = fields[3].GetUInt8();
-
-    // Allocate space
-    if (storageIndex >= Objectives.size())
-        Objectives.resize(storageIndex+1);
-
-    QuestObjective& obj = Objectives[storageIndex];
+    QuestObjective obj;
     obj.ID = fields[0].GetUInt32();
     obj.Type = fields[2].GetUInt8();
-    obj.StorageIndex = storageIndex;
+    obj.StorageIndex = fields[3].GetInt8();
     obj.ObjectID = fields[4].GetInt32();
     obj.Amount = fields[5].GetInt32();
     obj.Flags = fields[6].GetUInt32();
     obj.UnkFloat = fields[7].GetFloat();
     obj.Description = fields[8].GetString();
+
+    Objectives.push_back(obj);
 }
 
 void Quest::LoadQuestObjectiveVisualEffect(Field* fields)
 {
-    // No need to check index because checks is objective exists are done in ObjectMgr while loading quest_visual_effect
-    uint8 storageIndex = fields[3].GetUInt8();
-    QuestObjective& obj = Objectives[storageIndex];
+    uint8 objID = fields[1].GetUInt32();
 
-    uint8 effectIndex = fields[4].GetUInt8();
-    if (effectIndex >= obj.VisualEffects.size())
-        obj.VisualEffects.resize(effectIndex+1, 0);
+    for (QuestObjective& obj : Objectives)
+    {
+        if (obj.ID == objID)
+        {
+            uint8 effectIndex = fields[3].GetUInt8();
+            if (effectIndex >= obj.VisualEffects.size())
+                obj.VisualEffects.resize(effectIndex+1, 0);
 
-    obj.VisualEffects[effectIndex] = fields[5].GetInt32();
+            obj.VisualEffects[effectIndex] = fields[4].GetInt32();
+            break;
+        }
+    }
 }
 
 uint32 Quest::XPValue(uint32 playerLevel) const
@@ -240,9 +241,12 @@ uint32 Quest::XPValue(uint32 playerLevel) const
     return 0;
 }
 
-int32 Quest::GetRewMoney() const
+uint32 Quest::GetRewMoney() const
 {
-    return int32(RewardMoney * sWorld->getRate(RATE_MONEY_QUEST));
+    if (RewardMoney > 0)
+        return RewardMoney * sWorld->getRate(RATE_MONEY_QUEST);
+    else
+        return 0;
 }
 
 void Quest::BuildQuestRewards(WorldPackets::Quest::QuestRewards& rewards, Player* player) const
@@ -302,19 +306,19 @@ bool Quest::IsAutoAccept() const
 
 bool Quest::IsAutoComplete() const
 {
-    return !sWorld->getBoolConfig(CONFIG_QUEST_IGNORE_AUTO_COMPLETE) && Method == 0;
+    return !sWorld->getBoolConfig(CONFIG_QUEST_IGNORE_AUTO_COMPLETE) && Type == QUEST_TYPE_AUTOCOMPLETE;
 }
 
 bool Quest::IsRaidQuest(Difficulty difficulty) const
 {
     switch (Type)
     {
-        case QUEST_TYPE_RAID:
+        case QUEST_INFO_RAID:
             return true;
-        case QUEST_TYPE_RAID_10:
-            return !(difficulty & RAID_DIFFICULTY_MASK_25MAN);
-        case QUEST_TYPE_RAID_25:
-            return difficulty & RAID_DIFFICULTY_MASK_25MAN;
+        case QUEST_INFO_RAID_10:
+            return difficulty == DIFFICULTY_10_N || difficulty == DIFFICULTY_10_HC;
+        case QUEST_INFO_RAID_25:
+            return difficulty == DIFFICULTY_25_N || difficulty == DIFFICULTY_25_HC;
         default:
             break;
     }

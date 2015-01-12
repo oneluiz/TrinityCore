@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -225,7 +225,20 @@ enum UnitBytes0Offsets
 {
     UNIT_BYTES_0_OFFSET_RACE    = 0,
     UNIT_BYTES_0_OFFSET_CLASS   = 1,
-    UNIT_BYTES_0_OFFSET_GENDER  = 3,
+    UNIT_BYTES_0_OFFSET_GENDER  = 3
+};
+
+enum UnitBytes1Offsets
+{
+    UNIT_BYTES_1_OFFSET_STAND_STATE = 0,
+    UNIT_BYTES_1_OFFSET_VIS_FLAG    = 2,
+    UNIT_BYTES_1_OFFSET_ANIM_TIER   = 3
+};
+
+enum UnitBytes2Offsets
+{
+    UNIT_BYTES_2_OFFSET_SHEATH_STATE    = 0,
+    UNIT_BYTES_2_OFFSET_PVP_FLAG        = 1,
 };
 
 // byte flags value (UNIT_FIELD_BYTES_1, 3)
@@ -2228,6 +2241,7 @@ class Unit : public WorldObject
         explicit Unit (bool isWorldObject);
 
         void BuildValuesUpdate(uint8 updatetype, ByteBuffer* data, Player* target) const override;
+        void DestroyForPlayer(Player* target) const override;
 
         UnitAI* i_AI, *i_disabledAI;
 

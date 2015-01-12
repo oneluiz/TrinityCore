@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -596,7 +596,7 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
         // interrupting auras with AURA_INTERRUPT_FLAG_DAMAGE before checking !damage (absorbed damage breaks that type of auras)
         if (spellProto)
         {
-            if (!(spellProto->AttributesEx4 & SPELL_ATTR4_DAMAGE_DOESNT_BREAK_AURAS))
+            if (!spellProto->HasAttribute(SPELL_ATTR4_DAMAGE_DOESNT_BREAK_AURAS))
                 victim->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TAKE_DAMAGE, spellProto->Id);
         }
         else
@@ -765,7 +765,7 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
         if (damagetype != NODAMAGE && damage)
         {
             if (victim != this && victim->GetTypeId() == TYPEID_PLAYER && // does not support creature push_back
-                (!spellProto || !(spellProto->AttributesEx7 & SPELL_ATTR7_NO_PUSHBACK_ON_DAMAGE)))
+                (!spellProto || !spellProto->HasAttribute(SPELL_ATTR7_NO_PUSHBACK_ON_DAMAGE)))
             {
                 if (damagetype != DOT)
                     if (Spell* spell = victim->m_currentSpells[CURRENT_GENERIC_SPELL])
@@ -951,7 +951,7 @@ void Unit::CalculateSpellDamageTaken(SpellNonMeleeDamage* damageInfo, int32 dama
     SpellSchoolMask damageSchoolMask = SpellSchoolMask(damageInfo->schoolMask);
 
     // Spells with SPELL_ATTR4_FIXED_DAMAGE ignore resilience because their damage is based off another spell's damage.
-    if (!(spellInfo->AttributesEx4 & SPELL_ATTR4_FIXED_DAMAGE))
+    if (!spellInfo->HasAttribute(SPELL_ATTR4_FIXED_DAMAGE))
     {
         if (IsDamageReducedByArmor(damageSchoolMask, spellInfo))
             damage = CalcArmorReducedDamage(victim, damage, spellInfo, attackType);
@@ -1410,11 +1410,11 @@ bool Unit::IsDamageReducedByArmor(SpellSchoolMask schoolMask, SpellInfo const* s
     if (spellInfo)
     {
         // there are spells with no specific attribute but they have "ignores armor" in tooltip
-        if (spellInfo->AttributesCu & SPELL_ATTR0_CU_IGNORE_ARMOR)
+        if (spellInfo->HasAttribute(SPELL_ATTR0_CU_IGNORE_ARMOR))
             return false;
 
         // bleeding effects are not reduced by armor
-        if (SpellEffectInfo const* effect = spellInfo->GetEffect(GetMap()->GetDifficulty(), effIndex))
+        if (SpellEffectInfo const* effect = spellInfo->GetEffect(GetMap()->GetDifficultyID(), effIndex))
         {
             if (effect->ApplyAuraName == SPELL_AURA_PERIODIC_DAMAGE ||
                 effect->Effect == SPELL_EFFECT_SCHOOL_DAMAGE)
@@ -1493,7 +1493,7 @@ uint32 Unit::CalcSpellResistance(Unit* victim, SpellSchoolMask schoolMask, Spell
         return 0;
 
     // Ignore spells that can't be resisted
-    if (spellInfo && spellInfo->AttributesEx4 & SPELL_ATTR4_IGNORE_RESISTANCES)
+    if (spellInfo && spellInfo->HasAttribute(SPELL_ATTR4_IGNORE_RESISTANCES))
         return 0;
 
     uint8 const bossLevel = 83;
@@ -2124,7 +2124,7 @@ void Unit::SendMeleeAttackStop(Unit* victim)
 bool Unit::isSpellBlocked(Unit* victim, SpellInfo const* spellProto, WeaponAttackType /*attackType*/)
 {
     // These spells can't be blocked
-    if (spellProto && spellProto->Attributes & SPELL_ATTR0_IMPOSSIBLE_DODGE_PARRY_BLOCK)
+    if (spellProto && spellProto->HasAttribute(SPELL_ATTR0_IMPOSSIBLE_DODGE_PARRY_BLOCK))
         return false;
 
     if (victim->HasAuraType(SPELL_AURA_IGNORE_HIT_DIRECTION) || victim->HasInArc(float(M_PI), this))
@@ -2153,12 +2153,12 @@ int32 Unit::GetMechanicResistChance(SpellInfo const* spellInfo) const
         return 0;
 
     int32 resistMech = 0;
-    for (SpellEffectInfo const* effect : spellInfo->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+    for (SpellEffectInfo const* effect : spellInfo->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
     {
         if (!effect || !effect->IsEffect())
             break;
 
-        int32 effectMech = spellInfo->GetEffectMechanic(effect->EffectIndex, GetMap()->GetDifficulty());
+        int32 effectMech = spellInfo->GetEffectMechanic(effect->EffectIndex, GetMap()->GetDifficultyID());
         if (effectMech)
         {
             int32 temp = GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_MECHANIC_RESISTANCE, effectMech);
@@ -2189,7 +2189,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* victim, SpellInfo const* spellInfo
 {
     // Spells with SPELL_ATTR3_IGNORE_HIT_RESULT will additionally fully ignore
     // resist and deflect chances
-    if (spellInfo->AttributesEx3 & SPELL_ATTR3_IGNORE_HIT_RESULT)
+    if (spellInfo->HasAttribute(SPELL_ATTR3_IGNORE_HIT_RESULT))
         return SPELL_MISS_NONE;
 
     WeaponAttackType attType = BASE_ATTACK;
@@ -2213,7 +2213,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* victim, SpellInfo const* spellInfo
     // Get effects mechanic and chance
     for (uint8 eff = 0; eff < MAX_SPELL_EFFECTS; ++eff)
     {
-        int32 effect_mech = spellInfo->GetEffectMechanic(eff, GetMap()->GetDifficulty());
+        int32 effect_mech = spellInfo->GetEffectMechanic(eff, GetMap()->GetDifficultyID());
         if (effect_mech)
         {
             int32 temp = victim->GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_MECHANIC_RESISTANCE, effect_mech);
@@ -2228,10 +2228,10 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* victim, SpellInfo const* spellInfo
 
     bool canDodge = true;
     bool canParry = true;
-    bool canBlock = (spellInfo->AttributesEx3 & SPELL_ATTR3_BLOCKABLE_SPELL) != 0;
+    bool canBlock = spellInfo->HasAttribute(SPELL_ATTR3_BLOCKABLE_SPELL);
 
     // Same spells cannot be parry/dodge
-    if (spellInfo->Attributes & SPELL_ATTR0_IMPOSSIBLE_DODGE_PARRY_BLOCK)
+    if (spellInfo->HasAttribute(SPELL_ATTR0_IMPOSSIBLE_DODGE_PARRY_BLOCK))
         return SPELL_MISS_NONE;
 
     // Chance resist mechanic
@@ -2271,7 +2271,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* victim, SpellInfo const* spellInfo
         }
         else // Only deterrence as of 3.3.5
         {
-            if (spellInfo->AttributesCu & SPELL_ATTR0_CU_REQ_CASTER_BEHIND_TARGET)
+            if (spellInfo->HasAttribute(SPELL_ATTR0_CU_REQ_CASTER_BEHIND_TARGET))
                 canParry = false;
         }
     }
@@ -2362,7 +2362,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* victim, SpellInfo const* spellInfo
 SpellMissInfo Unit::MagicSpellHitResult(Unit* victim, SpellInfo const* spellInfo)
 {
     // Can`t miss on dead target (on skinning for example)
-    if ((!victim->IsAlive() && victim->GetTypeId() != TYPEID_PLAYER) || spellInfo->AttributesEx3 & SPELL_ATTR3_IGNORE_HIT_RESULT)
+    if ((!victim->IsAlive() && victim->GetTypeId() != TYPEID_PLAYER) || spellInfo->HasAttribute(SPELL_ATTR3_IGNORE_HIT_RESULT))
         return SPELL_MISS_NONE;
 
     SpellSchoolMask schoolMask = spellInfo->GetSchoolMask();
@@ -2385,7 +2385,7 @@ SpellMissInfo Unit::MagicSpellHitResult(Unit* victim, SpellInfo const* spellInfo
         modOwner->ApplySpellMod(spellInfo->Id, SPELLMOD_RESIST_MISS_CHANCE, modHitChance);
 
     // Spells with SPELL_ATTR3_IGNORE_HIT_RESULT will ignore target's avoidance effects
-    if (!(spellInfo->AttributesEx3 & SPELL_ATTR3_IGNORE_HIT_RESULT))
+    if (!spellInfo->HasAttribute(SPELL_ATTR3_IGNORE_HIT_RESULT))
     {
         // Chance hit from victim SPELL_AURA_MOD_ATTACKER_SPELL_HIT_CHANCE auras
         modHitChance += victim->GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_ATTACKER_SPELL_HIT_CHANCE, schoolMask);
@@ -2851,7 +2851,7 @@ bool Unit::IsNonMeleeSpellCast(bool withDelayed, bool skipChanneled, bool skipAu
     {
         if (!skipInstant || m_currentSpells[CURRENT_GENERIC_SPELL]->GetCastTime())
         {
-            if (!isAutoshoot || !(m_currentSpells[CURRENT_GENERIC_SPELL]->m_spellInfo->AttributesEx2 & SPELL_ATTR2_NOT_RESET_AUTO_ACTIONS))
+            if (!isAutoshoot || !(m_currentSpells[CURRENT_GENERIC_SPELL]->m_spellInfo->HasAttribute(SPELL_ATTR2_NOT_RESET_AUTO_ACTIONS)))
                 return true;
         }
     }
@@ -2859,7 +2859,7 @@ bool Unit::IsNonMeleeSpellCast(bool withDelayed, bool skipChanneled, bool skipAu
     if (!skipChanneled && m_currentSpells[CURRENT_CHANNELED_SPELL] &&
         (m_currentSpells[CURRENT_CHANNELED_SPELL]->getState() != SPELL_STATE_FINISHED))
     {
-        if (!isAutoshoot || !(m_currentSpells[CURRENT_CHANNELED_SPELL]->m_spellInfo->AttributesEx2 & SPELL_ATTR2_NOT_RESET_AUTO_ACTIONS))
+        if (!isAutoshoot || !(m_currentSpells[CURRENT_CHANNELED_SPELL]->m_spellInfo->HasAttribute(SPELL_ATTR2_NOT_RESET_AUTO_ACTIONS)))
             return true;
     }
     // autorepeat spells may be finished or delayed, but they are still considered cast
@@ -2994,7 +2994,7 @@ Aura* Unit::_TryStackingOrRefreshingExistingAura(SpellInfo const* newAura, uint3
             castItemGUID = castItem->GetGUID();
 
         // find current aura from spell and change it's stackamount, or refresh it's duration
-        if (Aura* foundAura = GetOwnedAura(newAura->Id, casterGUID, (newAura->AttributesCu & SPELL_ATTR0_CU_ENCHANT_PROC) ? castItemGUID : ObjectGuid::Empty, 0))
+        if (Aura* foundAura = GetOwnedAura(newAura->Id, casterGUID, (newAura->HasAttribute(SPELL_ATTR0_CU_ENCHANT_PROC)) ? castItemGUID : ObjectGuid::Empty, 0))
         {
             // effect masks do not match
             // extremely rare case
@@ -3107,7 +3107,7 @@ AuraApplication * Unit::_CreateAuraApplication(Aura* aura, uint32 effMask)
         AddInterruptMask(aurSpellInfo->AuraInterruptFlags);
     }
 
-    if (AuraStateType aState = aura->GetSpellInfo()->GetAuraState(GetMap()->GetDifficulty()))
+    if (AuraStateType aState = aura->GetSpellInfo()->GetAuraState(GetMap()->GetDifficultyID()))
         m_auraStateAuras.insert(AuraStateAurasMap::value_type(aState, aurApp));
 
     aura->_ApplyForTarget(this, caster, aurApp);
@@ -3138,7 +3138,7 @@ void Unit::_ApplyAura(AuraApplication * aurApp, uint32 effMask)
         return;
 
     // Update target aura state flag
-    if (AuraStateType aState = aura->GetSpellInfo()->GetAuraState(GetMap()->GetDifficulty()))
+    if (AuraStateType aState = aura->GetSpellInfo()->GetAuraState(GetMap()->GetDifficultyID()))
         ModifyAuraState(aState, true);
 
     if (aurApp->GetRemoveMode())
@@ -3193,7 +3193,7 @@ void Unit::_UnapplyAura(AuraApplicationMap::iterator &i, AuraRemoveMode removeMo
     }
 
     bool auraStateFound = false;
-    AuraStateType auraState = aura->GetSpellInfo()->GetAuraState(GetMap()->GetDifficulty());
+    AuraStateType auraState = aura->GetSpellInfo()->GetAuraState(GetMap()->GetDifficultyID());
     if (auraState)
     {
         bool canBreak = false;
@@ -3269,12 +3269,12 @@ void Unit::_RemoveNoStackAurasDueToAura(Aura* aura)
     SpellInfo const* spellProto = aura->GetSpellInfo();
 
     // passive spell special case (only non stackable with ranks)
-    if (spellProto->IsPassiveStackableWithRanks(GetMap()->GetDifficulty()))
+    if (spellProto->IsPassiveStackableWithRanks(GetMap()->GetDifficultyID()))
         return;
 
     if (!IsHighestExclusiveAura(aura))
     {
-        if (!aura->GetSpellInfo()->IsAffectingArea(GetMap()->GetDifficulty()))
+        if (!aura->GetSpellInfo()->IsAffectingArea(GetMap()->GetDifficultyID()))
         {
             Unit* caster = aura->GetCaster();
             if (caster && caster->GetTypeId() == TYPEID_PLAYER)
@@ -3866,7 +3866,7 @@ void Unit::RemoveAllAurasExceptType(AuraType type)
     for (AuraApplicationMap::iterator iter = m_appliedAuras.begin(); iter != m_appliedAuras.end();)
     {
         Aura const* aura = iter->second->GetBase();
-        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficulty(), type))
+        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficultyID(), type))
             ++iter;
         else
             _UnapplyAura(iter, AURA_REMOVE_BY_DEFAULT);
@@ -3875,7 +3875,7 @@ void Unit::RemoveAllAurasExceptType(AuraType type)
     for (AuraMap::iterator iter = m_ownedAuras.begin(); iter != m_ownedAuras.end();)
     {
         Aura* aura = iter->second;
-        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficulty(), type))
+        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficultyID(), type))
             ++iter;
         else
             RemoveOwnedAura(iter, AURA_REMOVE_BY_DEFAULT);
@@ -3887,7 +3887,7 @@ void Unit::RemoveAllAurasExceptType(AuraType type1, AuraType type2)
     for (AuraApplicationMap::iterator iter = m_appliedAuras.begin(); iter != m_appliedAuras.end();)
     {
         Aura const* aura = iter->second->GetBase();
-        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficulty(), type1) || aura->GetSpellInfo()->HasAura(GetMap()->GetDifficulty(), type2))
+        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficultyID(), type1) || aura->GetSpellInfo()->HasAura(GetMap()->GetDifficultyID(), type2))
             ++iter;
         else
             _UnapplyAura(iter, AURA_REMOVE_BY_DEFAULT);
@@ -3896,7 +3896,7 @@ void Unit::RemoveAllAurasExceptType(AuraType type1, AuraType type2)
     for (AuraMap::iterator iter = m_ownedAuras.begin(); iter != m_ownedAuras.end();)
     {
         Aura* aura = iter->second;
-        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficulty(), type1) || aura->GetSpellInfo()->HasAura(GetMap()->GetDifficulty(), type2))
+        if (aura->GetSpellInfo()->HasAura(GetMap()->GetDifficultyID(), type1) || aura->GetSpellInfo()->HasAura(GetMap()->GetDifficultyID(), type2))
             ++iter;
         else
             RemoveOwnedAura(iter, AURA_REMOVE_BY_DEFAULT);
@@ -6574,7 +6574,7 @@ bool Unit::HandleProcTriggerSpell(Unit* victim, uint32 damage, AuraEffect* trigg
     }
 
     // not allow proc extra attack spell at extra attack
-    if (m_extraAttacks && triggerEntry->HasEffect(GetMap()->GetDifficulty(), SPELL_EFFECT_ADD_EXTRA_ATTACKS))
+    if (m_extraAttacks && triggerEntry->HasEffect(GetMap()->GetDifficultyID(), SPELL_EFFECT_ADD_EXTRA_ATTACKS))
         return false;
 
     // Custom requirements (not listed in procEx) Warning! damage dealing after this
@@ -6790,7 +6790,7 @@ bool Unit::HandleProcTriggerSpell(Unit* victim, uint32 damage, AuraEffect* trigg
         return false;
 
     // extra attack should hit same target
-    if (triggerEntry->HasEffect(GetMap()->GetDifficulty(), SPELL_EFFECT_ADD_EXTRA_ATTACKS))
+    if (triggerEntry->HasEffect(GetMap()->GetDifficultyID(), SPELL_EFFECT_ADD_EXTRA_ATTACKS))
         target = victim;
 
     // try detect target manually if not set
@@ -7835,7 +7835,7 @@ bool Unit::IsMagnet() const
 Unit* Unit::GetMagicHitRedirectTarget(Unit* victim, SpellInfo const* spellInfo)
 {
     // Patch 1.2 notes: Spell Reflection no longer reflects abilities
-    if (spellInfo->Attributes & SPELL_ATTR0_ABILITY || spellInfo->AttributesEx & SPELL_ATTR1_CANT_BE_REDIRECTED || spellInfo->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
+    if (spellInfo->HasAttribute(SPELL_ATTR0_ABILITY) || spellInfo->HasAttribute(SPELL_ATTR1_CANT_BE_REDIRECTED) || spellInfo->HasAttribute(SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY))
         return victim;
 
     Unit::AuraEffectList const& magnetAuras = victim->GetAuraEffectsByType(SPELL_AURA_SPELL_MAGNET);
@@ -8090,7 +8090,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, uin
         return pdamage;
 
     // Some spells don't benefit from done mods
-    if (spellProto->AttributesEx3 & SPELL_ATTR3_NO_DONE_BONUS)
+    if (spellProto->HasAttribute(SPELL_ATTR3_NO_DONE_BONUS))
         return pdamage;
 
     // For totems get damage bonus from owner
@@ -8179,7 +8179,7 @@ float Unit::SpellDamagePctDone(Unit* victim, SpellInfo const* spellProto, Damage
         return 1.0f;
 
     // Some spells don't benefit from pct done mods
-    if (spellProto->AttributesEx6 & SPELL_ATTR6_NO_DONE_PCT_DAMAGE_MODS)
+    if (spellProto->HasAttribute(SPELL_ATTR6_NO_DONE_PCT_DAMAGE_MODS))
         return 1.0f;
 
     // For totems pct done mods are calculated when its calculation is run on the player in SpellDamageBonusDone.
@@ -8397,7 +8397,7 @@ uint32 Unit::SpellDamageBonusTaken(Unit* caster, SpellInfo const* spellProto, ui
         }
     }
         // Spells with SPELL_ATTR4_FIXED_DAMAGE should only benefit from mechanic damage mod auras.
-    if (!(spellProto->AttributesEx4 & SPELL_ATTR4_FIXED_DAMAGE))
+    if (!spellProto->HasAttribute(SPELL_ATTR4_FIXED_DAMAGE))
     {
         // get all auras from caster that allow the spell to ignore resistance (sanctified wrath)
         AuraEffectList const& IgnoreResistAuras = caster->GetAuraEffectsByType(SPELL_AURA_MOD_IGNORE_TARGET_RESIST);
@@ -8408,7 +8408,7 @@ uint32 Unit::SpellDamageBonusTaken(Unit* caster, SpellInfo const* spellProto, ui
         }
 
         // From caster spells
-        AuraEffectList const& mOwnerTaken = GetAuraEffectsByType(SPELL_AURA_MOD_DAMAGE_FROM_CASTER);
+        AuraEffectList const& mOwnerTaken = GetAuraEffectsByType(SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER);
         for (AuraEffectList::const_iterator i = mOwnerTaken.begin(); i != mOwnerTaken.end(); ++i)
             if ((*i)->GetCasterGUID() == caster->GetGUID() && (*i)->IsAffectingSpell(spellProto))
                 AddPct(TakenTotalMod, (*i)->GetAmount());
@@ -8521,7 +8521,7 @@ float Unit::GetUnitSpellCriticalChance(Unit* victim, SpellInfo const* spellProto
         return 0.0f;
 
     // not critting spell
-    if ((spellProto->AttributesEx2 & SPELL_ATTR2_CANT_CRIT))
+    if ((spellProto->HasAttribute(SPELL_ATTR2_CANT_CRIT)))
         return 0.0f;
 
     float crit_chance = 0.0f;
@@ -8572,10 +8572,13 @@ float Unit::GetUnitSpellCriticalChance(Unit* victim, SpellInfo const* spellProto
 
                     switch ((*i)->GetMiscValue())
                     {
-                         // Shatter
-                        case  911:
+                        case 911: // Shatter
                             if (victim->HasAuraState(AURA_STATE_FROZEN, spellProto, this))
-                                AddPct(crit_chance, (*i)->GetAmount()*20);
+                            {
+                                crit_chance *= 1.5f;
+                                if (AuraEffect const* eff = (*i)->GetBase()->GetEffect(EFFECT_1))
+                                    crit_chance += (*i)->GetAmount();
+                            }
                             break;
                         case 7917: // Glyph of Shadowburn
                             if (victim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, spellProto, this))
@@ -8838,7 +8841,7 @@ uint32 Unit::SpellHealingBonusDone(Unit* victim, SpellInfo const* spellProto, ui
         DoneTotal += int32(DoneAdvertisedBenefit * coeff * factorMod);
     }
 
-    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
     {
         if (!effect)
             continue;
@@ -8999,7 +9002,7 @@ uint32 Unit::SpellHealingBonusTaken(Unit* caster, SpellInfo const* spellProto, u
         if (caster->GetGUID() == (*i)->GetCasterGUID() && (*i)->IsAffectingSpell(spellProto))
             AddPct(TakenTotalMod, (*i)->GetAmount());
 
-    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
     {
         if (!effect)
             continue;
@@ -9088,7 +9091,7 @@ bool Unit::IsImmunedToDamage(SpellSchoolMask shoolMask) const
 
 bool Unit::IsImmunedToDamage(SpellInfo const* spellInfo) const
 {
-    if (spellInfo->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
+    if (spellInfo->HasAttribute(SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY))
         return false;
 
     uint32 shoolMask = spellInfo->GetSchoolMask();
@@ -9121,7 +9124,7 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo) const
         if (itr->type == spellInfo->Id)
             return true;
 
-    if (spellInfo->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
+    if (spellInfo->HasAttribute(SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY))
         return false;
 
     if (spellInfo->Dispel)
@@ -9142,7 +9145,7 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo) const
     }
 
     bool immuneToAllEffects = true;
-    for (SpellEffectInfo const* effect : spellInfo->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+    for (SpellEffectInfo const* effect : spellInfo->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
     {
         // State/effect immunities applied by aura expect full spell immunity
         // Ignore effects with mechanic, they are supposed to be checked separately
@@ -9179,11 +9182,11 @@ bool Unit::IsImmunedToSpellEffect(SpellInfo const* spellInfo, uint32 index) cons
     if (!spellInfo)
         return false;
 
-    SpellEffectInfo const* effect = spellInfo->GetEffect(GetMap()->GetDifficulty(), index);
+    SpellEffectInfo const* effect = spellInfo->GetEffect(GetMap()->GetDifficultyID(), index);
     if (!effect || !effect->IsEffect())
         return false;
 
-    if (spellInfo->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
+    if (spellInfo->HasAttribute(SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY))
         return false;
 
     // If m_immuneToEffect type contain this effect type, IMMUNE effect.
@@ -9206,7 +9209,7 @@ bool Unit::IsImmunedToSpellEffect(SpellInfo const* spellInfo, uint32 index) cons
         SpellImmuneList const& list = m_spellImmune[IMMUNITY_STATE];
         for (SpellImmuneList::const_iterator itr = list.begin(); itr != list.end(); ++itr)
             if (itr->type == aura)
-                if (!(spellInfo->AttributesEx3 & SPELL_ATTR3_IGNORE_HIT_RESULT))
+                if (!spellInfo->HasAttribute(SPELL_ATTR3_IGNORE_HIT_RESULT))
                     return true;
 
         // Check for immune to application of harmful magical effects
@@ -9267,7 +9270,7 @@ uint32 Unit::MeleeDamageBonusDone(Unit* victim, uint32 pdamage, WeaponAttackType
     {
         bool normalized = false;
         if (spellProto)
-            for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+            for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
                 if (effect && effect->Effect == SPELL_EFFECT_NORMALIZED_WEAPON_DMG)
                 {
                     normalized = true;
@@ -9281,7 +9284,7 @@ uint32 Unit::MeleeDamageBonusDone(Unit* victim, uint32 pdamage, WeaponAttackType
 
     // Some spells don't benefit from pct done mods
     if (spellProto)
-        if (!(spellProto->AttributesEx6 & SPELL_ATTR6_NO_DONE_PCT_DAMAGE_MODS))
+        if (!spellProto->HasAttribute(SPELL_ATTR6_NO_DONE_PCT_DAMAGE_MODS))
         {
             AuraEffectList const& mModDamagePercentDone = GetAuraEffectsByType(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
             for (AuraEffectList::const_iterator i = mModDamagePercentDone.begin(); i != mModDamagePercentDone.end(); ++i)
@@ -9366,7 +9369,7 @@ uint32 Unit::MeleeDamageBonusTaken(Unit* attacker, uint32 pdamage, WeaponAttackT
     if (spellProto)
     {
         // From caster spells
-        AuraEffectList const& mOwnerTaken = GetAuraEffectsByType(SPELL_AURA_MOD_DAMAGE_FROM_CASTER);
+        AuraEffectList const& mOwnerTaken = GetAuraEffectsByType(SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER);
         for (AuraEffectList::const_iterator i = mOwnerTaken.begin(); i != mOwnerTaken.end(); ++i)
             if ((*i)->GetCasterGUID() == attacker->GetGUID() && (*i)->IsAffectingSpell(spellProto))
                 AddPct(TakenTotalMod, (*i)->GetAmount());
@@ -9485,7 +9488,7 @@ void Unit::ApplySpellDispelImmunity(const SpellInfo* spellProto, DispelType type
 {
     ApplySpellImmune(spellProto->Id, IMMUNITY_DISPEL, type, apply);
 
-    if (apply && spellProto->AttributesEx & SPELL_ATTR1_DISPEL_AURAS_ON_IMMUNITY)
+    if (apply && spellProto->HasAttribute(SPELL_ATTR1_DISPEL_AURAS_ON_IMMUNITY))
     {
         // Create dispel mask by dispel type
         uint32 dispelMask = SpellInfo::GetDispelMask(type);
@@ -9873,7 +9876,7 @@ bool Unit::_IsValidAttackTarget(Unit const* target, SpellInfo const* bySpell, Wo
             return false;
 
     // can't attack invisible (ignore stealth for aoe spells) also if the area being looked at is from a spell use the dynamic object created instead of the casting unit.
-    if ((!bySpell || !(bySpell->AttributesEx6 & SPELL_ATTR6_CAN_TARGET_INVISIBLE)) && (obj ? !obj->CanSeeOrDetect(target, bySpell && bySpell->IsAffectingArea(GetMap()->GetDifficulty())) : !CanSeeOrDetect(target, bySpell && bySpell->IsAffectingArea(GetMap()->GetDifficulty()))))
+    if ((!bySpell || !bySpell->HasAttribute(SPELL_ATTR6_CAN_TARGET_INVISIBLE)) && (obj ? !obj->CanSeeOrDetect(target, bySpell && bySpell->IsAffectingArea(GetMap()->GetDifficultyID())) : !CanSeeOrDetect(target, bySpell && bySpell->IsAffectingArea(GetMap()->GetDifficultyID()))))
         return false;
 
     // can't attack dead
@@ -9881,7 +9884,7 @@ bool Unit::_IsValidAttackTarget(Unit const* target, SpellInfo const* bySpell, Wo
        return false;
 
     // can't attack untargetable
-    if ((!bySpell || !(bySpell->AttributesEx6 & SPELL_ATTR6_CAN_TARGET_UNTARGETABLE))
+    if ((!bySpell || !bySpell->HasAttribute(SPELL_ATTR6_CAN_TARGET_UNTARGETABLE))
         && target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
         return false;
 
@@ -9897,7 +9900,7 @@ bool Unit::_IsValidAttackTarget(Unit const* target, SpellInfo const* bySpell, Wo
         || (!target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE) && HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC)))
         return false;
 
-    if ((!bySpell || !(bySpell->AttributesEx8 & SPELL_ATTR8_ATTACK_IGNORE_IMMUNE_TO_PC_FLAG))
+    if ((!bySpell || !bySpell->HasAttribute(SPELL_ATTR8_ATTACK_IGNORE_IMMUNE_TO_PC_FLAG))
         && (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE) && target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC))
         // check if this is a world trigger cast - GOs are using world triggers to cast their spells, so we need to ignore their immunity flag here, this is a temp workaround, needs removal when go cast is implemented properly
         && GetEntry() != WORLD_TRIGGER)
@@ -9994,7 +9997,7 @@ bool Unit::_IsValidAssistTarget(Unit const* target, SpellInfo const* bySpell) co
             return false;
 
     // can't assist invisible
-    if ((!bySpell || !(bySpell->AttributesEx6 & SPELL_ATTR6_CAN_TARGET_INVISIBLE)) && !CanSeeOrDetect(target, bySpell && bySpell->IsAffectingArea(GetMap()->GetDifficulty())))
+    if ((!bySpell || !bySpell->HasAttribute(SPELL_ATTR6_CAN_TARGET_INVISIBLE)) && !CanSeeOrDetect(target, bySpell && bySpell->IsAffectingArea(GetMap()->GetDifficultyID())))
         return false;
 
     // can't assist dead
@@ -10002,11 +10005,11 @@ bool Unit::_IsValidAssistTarget(Unit const* target, SpellInfo const* bySpell) co
        return false;
 
     // can't assist untargetable
-    if ((!bySpell || !(bySpell->AttributesEx6 & SPELL_ATTR6_CAN_TARGET_UNTARGETABLE))
+    if ((!bySpell || !bySpell->HasAttribute(SPELL_ATTR6_CAN_TARGET_UNTARGETABLE))
         && target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
         return false;
 
-    if (!bySpell || !(bySpell->AttributesEx6 & SPELL_ATTR6_ASSIST_IGNORE_IMMUNE_FLAG))
+    if (!bySpell || !bySpell->HasAttribute(SPELL_ATTR6_ASSIST_IGNORE_IMMUNE_FLAG))
     {
         if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE))
         {
@@ -10053,7 +10056,7 @@ bool Unit::_IsValidAssistTarget(Unit const* target, SpellInfo const* bySpell) co
     // PvC case - player can assist creature only if has specific type flags
     // !target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE) &&
     else if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE)
-        && (!bySpell || !(bySpell->AttributesEx6 & SPELL_ATTR6_ASSIST_IGNORE_IMMUNE_FLAG))
+        && (!bySpell || !bySpell->HasAttribute(SPELL_ATTR6_ASSIST_IGNORE_IMMUNE_FLAG))
         && !((target->GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_PVP)))
     {
         if (Creature const* creatureTarget = target->ToCreature())
@@ -10762,7 +10765,7 @@ float Unit::ApplyEffectModifiers(SpellInfo const* spellProto, uint8 effect_index
 // function uses real base points (typically value - 1)
 int32 Unit::CalculateSpellDamage(Unit const* target, SpellInfo const* spellProto, uint8 effect_index, int32 const* basePoints /*= nullptr*/, float* variance /*= nullptr*/) const
 {
-    SpellEffectInfo const* effect = spellProto->GetEffect(GetMap()->GetDifficulty(), effect_index);
+    SpellEffectInfo const* effect = spellProto->GetEffect(GetMap()->GetDifficultyID(), effect_index);
     if (variance)
         *variance = 0.0f;
 
@@ -10793,7 +10796,7 @@ int32 Unit::ModSpellDuration(SpellInfo const* spellProto, Unit const* target, in
         return duration;
 
     // some auras are not affected by duration modifiers
-    if (spellProto->AttributesEx7 & SPELL_ATTR7_IGNORE_DURATION_MODS)
+    if (spellProto->HasAttribute(SPELL_ATTR7_IGNORE_DURATION_MODS))
         return duration;
 
     // cut duration only of negative effects
@@ -10884,17 +10887,17 @@ void Unit::ModSpellCastTime(SpellInfo const* spellInfo, int32 & castTime, Spell*
     if (!spellInfo || castTime < 0)
         return;
 
-    if (spellInfo->IsChanneled() && !(spellInfo->AttributesEx5 & SPELL_ATTR5_HASTE_AFFECT_DURATION))
+    if (spellInfo->IsChanneled() && !spellInfo->HasAttribute(SPELL_ATTR5_HASTE_AFFECT_DURATION))
         return;
 
     // called from caster
     if (Player* modOwner = GetSpellModOwner())
         modOwner->ApplySpellMod(spellInfo->Id, SPELLMOD_CASTING_TIME, castTime, spell);
 
-    if (!((spellInfo->Attributes & (SPELL_ATTR0_ABILITY | SPELL_ATTR0_TRADESPELL)) || (spellInfo->AttributesEx3 & SPELL_ATTR3_NO_DONE_BONUS)) &&
+    if (!((spellInfo->Attributes & (SPELL_ATTR0_ABILITY | SPELL_ATTR0_TRADESPELL)) || (spellInfo->HasAttribute(SPELL_ATTR3_NO_DONE_BONUS))) &&
         ((GetTypeId() == TYPEID_PLAYER && spellInfo->SpellFamilyName) || GetTypeId() == TYPEID_UNIT))
         castTime = int32(float(castTime) * GetFloatValue(UNIT_MOD_CAST_SPEED));
-    else if (spellInfo->Attributes & SPELL_ATTR0_REQ_AMMO && !(spellInfo->AttributesEx2 & SPELL_ATTR2_AUTOREPEAT_FLAG))
+    else if (spellInfo->HasAttribute(SPELL_ATTR0_REQ_AMMO) && !spellInfo->HasAttribute(SPELL_ATTR2_AUTOREPEAT_FLAG))
         castTime = int32(float(castTime) * m_modAttackSpeedPct[RANGED_ATTACK]);
     else if (spellInfo->SpellVisual[0] == 3881 && HasAura(67556)) // cooking with Chef Hat.
         castTime = 500;
@@ -11716,7 +11719,7 @@ void CharmInfo::InitPossessCreateSpells()
         {
             uint32 spellId = _unit->ToCreature()->m_spells[i];
             SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
-            if (spellInfo && !(spellInfo->Attributes & SPELL_ATTR0_CASTABLE_WHILE_DEAD))
+            if (spellInfo && !spellInfo->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD))
             {
                 if (spellInfo->IsPassive())
                     _unit->CastSpell(_unit, spellInfo, true);
@@ -11744,7 +11747,7 @@ void CharmInfo::InitCharmCreateSpells()
         uint32 spellId = _unit->ToCreature()->m_spells[x];
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
 
-        if (!spellInfo || spellInfo->Attributes & SPELL_ATTR0_CASTABLE_WHILE_DEAD)
+        if (!spellInfo || spellInfo->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD))
         {
             _charmspells[x].SetActionAndType(spellId, ACT_DISABLED);
             continue;
@@ -11965,7 +11968,7 @@ bool InitTriggerAuraData()
     isTriggerAura[SPELL_AURA_RAID_PROC_FROM_CHARGE] = true;
     isTriggerAura[SPELL_AURA_RAID_PROC_FROM_CHARGE_WITH_VALUE] = true;
     isTriggerAura[SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE] = true;
-    isTriggerAura[SPELL_AURA_MOD_DAMAGE_FROM_CASTER] = true;
+    isTriggerAura[SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER] = true;
     isTriggerAura[SPELL_AURA_MOD_SPELL_CRIT_CHANCE] = true;
     isTriggerAura[SPELL_AURA_ABILITY_IGNORE_AURASTATE] = true;
 
@@ -12128,7 +12131,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* target, uint32 procFlag, u
             continue;
 
         // Triggered spells not triggering additional spells
-        bool triggered = !(spellProto->AttributesEx3 & SPELL_ATTR3_CAN_PROC_WITH_TRIGGERED) ?
+        bool triggered = !spellProto->HasAttribute(SPELL_ATTR3_CAN_PROC_WITH_TRIGGERED) ?
             (procExtra & PROC_EX_INTERNAL_TRIGGERED && !(procFlag & PROC_FLAG_DONE_TRAP_ACTIVATION)) : false;
 
         for (AuraEffect const* aurEff : itr->second->GetBase()->GetAuraEffects())
@@ -12184,7 +12187,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* target, uint32 procFlag, u
             cooldown = i->spellProcEvent->cooldown;
 
         // Note: must SetCantProc(false) before return
-        if (spellInfo->AttributesEx3 & SPELL_ATTR3_DISABLE_PROC)
+        if (spellInfo->HasAttribute(SPELL_ATTR3_DISABLE_PROC))
             SetCantProc(true);
 
         bool handled = i->aura->CallScriptProcHandlers(aurApp, eventInfo);
@@ -12323,7 +12326,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* target, uint32 procFlag, u
                         if (procSpell && procSpell->Mechanic == uint32(triggeredByAura->GetMiscValue()))
                             takeCharges = true;
                         break;
-                    case SPELL_AURA_MOD_DAMAGE_FROM_CASTER:
+                    case SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER:
                         // Compare casters
                         if (triggeredByAura->GetCasterGUID() == target->GetGUID())
                             takeCharges = true;
@@ -12388,7 +12391,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* target, uint32 procFlag, u
 
         i->aura->CallScriptAfterProcHandlers(aurApp, eventInfo);
 
-        if (spellInfo->AttributesEx3 & SPELL_ATTR3_DISABLE_PROC)
+        if (spellInfo->HasAttribute(SPELL_ATTR3_DISABLE_PROC))
             SetCantProc(false);
     }
 
@@ -12785,7 +12788,7 @@ uint32 Unit::GetCastingTimeForBonus(SpellInfo const* spellProto, DamageEffectTyp
     bool DirectDamage = false;
     bool AreaEffect   = false;
 
-    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
     {
         if (!effect)
             continue;
@@ -12844,7 +12847,7 @@ uint32 Unit::GetCastingTimeForBonus(SpellInfo const* spellProto, DamageEffectTyp
         CastingTime /= 2;
 
     // 50% for damage and healing spells for leech spells from damage bonus and 0% from healing
-    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+    for (SpellEffectInfo const* effect : spellProto->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
     {
         if (!effect)
             continue;
@@ -12912,7 +12915,7 @@ float Unit::CalculateDefaultCoefficient(SpellInfo const* spellInfo, DamageEffect
         if (!spellInfo->IsChanneled() && DotDuration > 0)
             DotFactor = DotDuration / 15000.0f;
 
-        if (uint32 DotTicks = spellInfo->GetMaxTicks(GetMap()->GetDifficulty()))
+        if (uint32 DotTicks = spellInfo->GetMaxTicks(GetMap()->GetDifficultyID()))
             DotFactor /= DotTicks;
     }
 
@@ -13079,7 +13082,7 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit* victim, Aura* aura, SpellInfo const
     // Additional checks for triggered spells (ignore trap casts)
     if (procExtra & PROC_EX_INTERNAL_TRIGGERED && !(procFlag & PROC_FLAG_DONE_TRAP_ACTIVATION))
     {
-        if (!(spellProto->AttributesEx3 & SPELL_ATTR3_CAN_PROC_WITH_TRIGGERED))
+        if (!spellProto->HasAttribute(SPELL_ATTR3_CAN_PROC_WITH_TRIGGERED))
             return false;
     }
 
@@ -13334,7 +13337,7 @@ void Unit::Kill(Unit* victim, bool durabilityLoss)
     // call kill spell proc event (before real die and combat stop to triggering auras removed at death/combat stop)
     if (isRewardAllowed && player && player != victim)
     {
-        WorldPacket data(SMSG_PARTYKILLLOG, (8+8)); // send event PARTY_KILL
+        WorldPacket data(SMSG_PARTY_KILL_LOG, (8+8)); // send event PARTY_KILL
         data << player->GetGUID(); // player with killing blow
         data << victim->GetGUID(); // victim
 
@@ -14253,7 +14256,7 @@ Aura* Unit::AddAura(uint32 spellId, Unit* target)
     if (!spellInfo)
         return NULL;
 
-    if (!target->IsAlive() && !(spellInfo->Attributes & SPELL_ATTR0_PASSIVE) && !(spellInfo->AttributesEx2 & SPELL_ATTR2_CAN_TARGET_DEAD))
+    if (!target->IsAlive() && !spellInfo->HasAttribute(SPELL_ATTR0_PASSIVE) && !spellInfo->HasAttribute(SPELL_ATTR2_CAN_TARGET_DEAD))
         return NULL;
 
     return AddAura(spellInfo, MAX_EFFECT_MASK, target);
@@ -15012,7 +15015,7 @@ bool Unit::HandleSpellClick(Unit* clicker, int8 seatId)
         {
             uint8 i = 0;
             bool valid = false;
-            for (SpellEffectInfo const* effect : spellEntry->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+            for (SpellEffectInfo const* effect : spellEntry->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
             {
                 if (!effect)
                     continue;
@@ -15036,7 +15039,7 @@ bool Unit::HandleSpellClick(Unit* clicker, int8 seatId)
             else    // This can happen during Player::_LoadAuras
             {
                 int32 bp0[MAX_SPELL_EFFECTS];
-                for (SpellEffectInfo const* effect : spellEntry->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+                for (SpellEffectInfo const* effect : spellEntry->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
                     if (effect)
                         bp0[effect->EffectIndex] = effect->BasePoints;
 
@@ -16155,7 +16158,6 @@ bool Unit::IsSplineEnabled() const
     return movespline->Initialized() && !movespline->Finalized();
 }
 
-
 void Unit::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* target) const
 {
     if (!target)
@@ -16245,7 +16247,7 @@ void Unit::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* target)
 
                     // this also applies for transform auras
                     if (SpellInfo const* transform = sSpellMgr->GetSpellInfo(getTransForm()))
-                        for (SpellEffectInfo const* effect : transform->GetEffectsForDifficulty(GetMap()->GetDifficulty()))
+                        for (SpellEffectInfo const* effect : transform->GetEffectsForDifficulty(GetMap()->GetDifficultyID()))
                             if (effect && effect->IsAura(SPELL_AURA_TRANSFORM))
                                 if (CreatureTemplate const* transformInfo = sObjectMgr->GetCreatureTemplate(effect->MiscValue))
                                 {
@@ -16334,6 +16336,21 @@ void Unit::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* target)
     data->append(fieldBuffer);
 }
 
+void Unit::DestroyForPlayer(Player* target) const
+{
+    if (Battleground* bg = target->GetBattleground())
+    {
+        if (bg->isArena())
+        {
+            WorldPacket data(SMSG_ARENA_UNIT_DESTROYED, 8);
+            data << GetGUID();
+            target->GetSession()->SendPacket(&data);
+        }
+    }
+
+    WorldObject::DestroyForPlayer(target);
+}
+
 void Unit::BuildCooldownPacket(WorldPacket& data, uint8 flags, uint32 spellId, uint32 cooldown)
 {
     data.Initialize(SMSG_SPELL_COOLDOWN, 8 + 1 + 4 + 4);
@@ -16407,7 +16424,7 @@ bool Unit::IsHighestExclusiveAura(Aura const* aura, bool removeOtherAuraApplicat
                     {
                         if (AuraApplication* aurApp = existingAurEff->GetBase()->GetApplicationOfTarget(GetGUID()))
                         {
-                            bool hasMoreThanOneEffect = base->HasMoreThanOneEffectForType(auraType, GetMap()->GetDifficulty());
+                            bool hasMoreThanOneEffect = base->HasMoreThanOneEffectForType(auraType, GetMap()->GetDifficultyID());
                             uint32 removedAuras = m_removedAurasCount;
                             RemoveAura(aurApp);
                             if (hasMoreThanOneEffect || m_removedAurasCount > removedAuras + 1)

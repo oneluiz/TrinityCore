@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -485,7 +485,7 @@ public:
         void SpellHit(Unit* /*pAttacker*/, const SpellInfo* Spell) override
         {
             //We only care about interrupt effects and only if they are durring a spell currently being cast
-            for (SpellEffectInfo const* effect : Spell->GetEffectsForDifficulty(me->GetMap()->GetDifficulty()))
+            for (SpellEffectInfo const* effect : Spell->GetEffectsForDifficulty(me->GetMap()->GetDifficultyID()))
                 if (effect && effect->Effect == SPELL_EFFECT_INTERRUPT_CAST && me->IsNonMeleeSpellCast(false))
                 {
                     //Interrupt effect

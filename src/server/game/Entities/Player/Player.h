@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -177,17 +177,19 @@ struct SpellModifier
 
 enum PlayerCurrencyState
 {
-   PLAYERCURRENCY_UNCHANGED = 0,
-   PLAYERCURRENCY_CHANGED   = 1,
-   PLAYERCURRENCY_NEW       = 2,
-   PLAYERCURRENCY_REMOVED   = 3     //not removed just set count == 0
+    PLAYERCURRENCY_UNCHANGED = 0,
+    PLAYERCURRENCY_CHANGED = 1,
+    PLAYERCURRENCY_NEW = 2,
+    PLAYERCURRENCY_REMOVED = 3     //not removed just set count == 0
 };
 
 struct PlayerCurrency
 {
-   PlayerCurrencyState state;
-   uint32 totalCount;
-   uint32 weekCount;
+    PlayerCurrencyState state;
+    uint32 Quantity;
+    uint32 WeeklyQuantity;
+    uint32 TrackedQuantity;
+    uint8 Flags;
 };
 
 typedef std::unordered_map<uint32, PlayerTalent*> PlayerTalentMap;
@@ -379,7 +381,7 @@ struct PlayerLevelInfo
 {
     PlayerLevelInfo() { for (uint8 i=0; i < MAX_STATS; ++i) stats[i] = 0; }
 
-    uint8 stats[MAX_STATS];
+    uint16 stats[MAX_STATS];
 };
 
 typedef std::list<uint32> PlayerCreateInfoSpells;
@@ -994,12 +996,12 @@ enum ReferAFriendError
     ERR_REFER_A_FRIEND_DIFFERENT_FACTION             = 0x05,
     ERR_REFER_A_FRIEND_NOT_NOW                       = 0x06,
     ERR_REFER_A_FRIEND_GRANT_LEVEL_MAX_I             = 0x07,
-    ERR_REFER_A_FRIEND_NO_TARGET                     = 0x08,
-    ERR_REFER_A_FRIEND_NOT_IN_GROUP                  = 0x09,
-    ERR_REFER_A_FRIEND_SUMMON_LEVEL_MAX_I            = 0x0A,
-    ERR_REFER_A_FRIEND_SUMMON_COOLDOWN               = 0x0B,
-    ERR_REFER_A_FRIEND_INSUF_EXPAN_LVL               = 0x0C,
-    ERR_REFER_A_FRIEND_SUMMON_OFFLINE_S              = 0x0D
+    ERR_REFER_A_FRIEND_SUMMON_LEVEL_MAX_I            = 0x08,
+    ERR_REFER_A_FRIEND_SUMMON_COOLDOWN               = 0x09,
+    ERR_REFER_A_FRIEND_SUMMON_OFFLINE_S              = 0x0A,
+    ERR_REFER_A_FRIEND_INSUF_EXPAN_LVL               = 0x0B,
+    ERR_REFER_A_FRIEND_NOT_IN_LFG                    = 0x0C,
+    ERR_REFER_A_FRIEND_NO_XREALM                     = 0x0D
 };
 
 enum PlayerRestState
@@ -1489,7 +1491,7 @@ class Player : public Unit, public GridObject<Player>
 
           * @param  id currency entry from CurrencyTypes.dbc
           * @param  count integer value for adding/removing curent currency
-          * @param  printLog used on SMSG_UPDATE_CURRENCY
+          * @param  printLog used on SMSG_SET_CURRENCY
           * @param  ignore gain multipliers
         */
         void ModifyCurrency(uint32 id, int32 count, bool printLog = true, bool ignoreMultipliers = false);
@@ -1515,7 +1517,7 @@ class Player : public Unit, public GridObject<Player>
         void AddItemToBuyBackSlot(Item* pItem);
         Item* GetItemFromBuyBackSlot(uint32 slot);
         void RemoveItemFromBuyBackSlot(uint32 slot, bool del);
-        void SendEquipError(InventoryResult msg, Item* pItem, Item* pItem2 = NULL, uint32 itemid = 0);
+        void SendEquipError(InventoryResult msg, Item* item1 = nullptr, Item* item2 = nullptr, uint32 itemId = 0);
         void SendBuyError(BuyResult msg, Creature* creature, uint32 item, uint32 param);
         void SendSellError(SellResult msg, Creature* creature, ObjectGuid guid);
         void AddWeaponProficiency(uint32 newflag) { m_WeaponProficiency |= newflag; }
@@ -1660,8 +1662,8 @@ class Player : public Unit, public GridObject<Player>
         void UpdateForQuestWorldObjects();
         bool CanShareQuest(uint32 questId) const;
 
-        int32 GetQuestObjectiveData(Quest const* quest, uint32 objective) const;
-        void SetQuestObjectiveData(Quest const* quest, uint32 objective, int32 data);
+        int32 GetQuestObjectiveData(Quest const* quest, int8 storageIndex) const;
+        void SetQuestObjectiveData(Quest const* quest, int8 storageIndex, int32 data);
         void SendQuestComplete(Quest const* quest);
         void SendQuestReward(Quest const* quest, uint32 XP);
         void SendQuestFailed(uint32 questId, InventoryResult reason = EQUIP_ERR_OK);
@@ -1669,7 +1671,7 @@ class Player : public Unit, public GridObject<Player>
         void SendCanTakeQuestResponse(QuestFailedReason msg) const;
         void SendQuestConfirmAccept(Quest const* quest, Player* pReceiver);
         void SendPushToPartyResponse(Player* player, uint8 msg);
-        void SendQuestUpdateAddCredit(Quest const* quest, ObjectGuid guid, uint32 objective, uint16 count);
+        void SendQuestUpdateAddCredit(Quest const* quest, ObjectGuid guid, QuestObjective const& obj, uint16 count);
         void SendQuestUpdateAddPlayer(Quest const* quest, uint16 newCount, uint32 required);
 
         ObjectGuid GetDivider() const { return m_divider; }
@@ -1940,8 +1942,8 @@ class Player : public Unit, public GridObject<Player>
         uint8 getCinematic() { return m_cinematic; }
         void setCinematic(uint8 cine) { m_cinematic = cine; }
 
-        ActionButton* addActionButton(uint8 button, uint32 action, uint8 type);
-        void removeActionButton(uint8 button);
+        ActionButton* AddActionButton(uint8 button, uint32 action, uint8 type);
+        void RemoveActionButton(uint8 button);
         ActionButton const* GetActionButton(uint8 button);
         void SendInitialActionButtons() const { SendActionButtons(0); }
         void SendActionButtons(uint32 state) const;
@@ -2004,13 +2006,16 @@ class Player : public Unit, public GridObject<Player>
         uint32 GetArenaTeamIdInvited() { return m_ArenaTeamIdInvited; }
         uint32 GetRBGPersonalRating() const { return 0; }
 
-        Difficulty GetDifficulty(bool isRaid) const { return isRaid ? m_raidDifficulty : m_dungeonDifficulty; }
-        Difficulty GetDungeonDifficulty() const { return m_dungeonDifficulty; }
-        Difficulty GetRaidDifficulty() const { return m_raidDifficulty; }
-        Difficulty GetStoredRaidDifficulty() const { return m_raidMapDifficulty; } // only for use in difficulty packet after exiting to raid map
-        void SetDungeonDifficulty(Difficulty dungeon_difficulty) { m_dungeonDifficulty = dungeon_difficulty; }
-        void SetRaidDifficulty(Difficulty raid_difficulty) { m_raidDifficulty = raid_difficulty; }
-        void StoreRaidMapDifficulty() { m_raidMapDifficulty = GetMap()->GetDifficulty(); }
+        Difficulty GetDifficultyID(MapEntry const* mapEntry) const;
+        Difficulty GetDungeonDifficultyID() const { return m_dungeonDifficulty; }
+        Difficulty GetRaidDifficultyID() const { return m_raidDifficulty; }
+        Difficulty GetLegacyRaidDifficultyID() const { return m_legacyRaidDifficulty; }
+        void SetDungeonDifficultyID(Difficulty dungeon_difficulty) { m_dungeonDifficulty = dungeon_difficulty; }
+        void SetRaidDifficultyID(Difficulty raid_difficulty) { m_raidDifficulty = raid_difficulty; }
+        void SetLegacyRaidDifficultyID(Difficulty raid_difficulty) { m_legacyRaidDifficulty = raid_difficulty; }
+        static Difficulty CheckLoadedDungeonDifficultyID(Difficulty difficulty);
+        static Difficulty CheckLoadedRaidDifficultyID(Difficulty difficulty);
+        static Difficulty CheckLoadedLegacyRaidDifficultyID(Difficulty difficulty);
 
         bool UpdateSkill(uint32 skill_id, uint32 step);
         bool UpdateSkillPro(uint16 skillId, int32 chance, uint32 step);
@@ -2086,7 +2091,7 @@ class Player : public Unit, public GridObject<Player>
         WorldSession* GetSession() const { return m_session; }
 
         void BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const override;
-        void DestroyForPlayer(Player* target, bool onDeath = false) const override;
+        void DestroyForPlayer(Player* target) const override;
         void SendLogXPGain(uint32 GivenXP, Unit* victim, uint32 BonusXP, bool recruitAFriend = false, float group_rate=1.0f);
 
         // notifiers
@@ -2098,9 +2103,9 @@ class Player : public Unit, public GridObject<Player>
         void SendAutoRepeatCancel(Unit* target);
         void SendExplorationExperience(uint32 Area, uint32 Experience);
 
-        void SendDungeonDifficulty(bool IsInGroup);
-        void SendRaidDifficulty(bool IsInGroup, int32 forcedDifficulty = -1);
-        void ResetInstances(uint8 method, bool isRaid);
+        void SendDungeonDifficulty();
+        void SendRaidDifficulty(bool legacy, int32 forcedDifficulty = -1);
+        void ResetInstances(uint8 method, bool isRaid, bool isLegacy);
         void SendResetInstanceSuccess(uint32 MapId);
         void SendResetInstanceFailed(uint32 reason, uint32 MapId);
         void SendResetFailedNotify(uint32 mapid);
@@ -2466,7 +2471,7 @@ class Player : public Unit, public GridObject<Player>
         BoundInstancesMap m_boundInstances[MAX_DIFFICULTY];
         InstancePlayerBind* GetBoundInstance(uint32 mapid, Difficulty difficulty);
         BoundInstancesMap& GetBoundInstances(Difficulty difficulty) { return m_boundInstances[difficulty]; }
-        InstanceSave* GetInstanceSave(uint32 mapid, bool raid);
+        InstanceSave* GetInstanceSave(uint32 mapid);
         void UnbindInstance(uint32 mapid, Difficulty difficulty, bool unload = false);
         void UnbindInstance(BoundInstancesMap::iterator &itr, Difficulty difficulty, bool unload = false);
         InstancePlayerBind* BindToInstance(InstanceSave* save, bool permanent, bool load = false);
@@ -2730,6 +2735,7 @@ class Player : public Unit, public GridObject<Player>
         uint32 m_speakCount;
         Difficulty m_dungeonDifficulty;
         Difficulty m_raidDifficulty;
+        Difficulty m_legacyRaidDifficulty;
         Difficulty m_raidMapDifficulty;
 
         uint32 m_atLoginFlags;

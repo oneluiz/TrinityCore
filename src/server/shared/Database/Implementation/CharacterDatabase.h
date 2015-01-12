@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -334,6 +334,7 @@ enum CharacterDatabaseStatements
     CHAR_UPD_GROUP_MEMBER_FLAG,
     CHAR_UPD_GROUP_DIFFICULTY,
     CHAR_UPD_GROUP_RAID_DIFFICULTY,
+    CHAR_UPD_GROUP_LEGACY_RAID_DIFFICULTY,
     CHAR_DEL_INVALID_SPELL_SPELLS,
     CHAR_DEL_INVALID_SPELL_TALENTS,
     CHAR_UPD_DELETE_INFO,

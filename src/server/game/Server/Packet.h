@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -45,7 +45,7 @@ namespace WorldPackets
     class ServerPacket : public Packet
     {
     public:
-        ServerPacket(OpcodeServer opcode, size_t initialSize = 200);
+        ServerPacket(OpcodeServer opcode, size_t initialSize = 200) : Packet(WorldPacket(opcode, initialSize)) { }
 
         void Read() override final { ASSERT(!"Read not implemented for server packets."); }
 
@@ -59,7 +59,7 @@ namespace WorldPackets
     {
     public:
         ClientPacket(WorldPacket&& packet) : Packet(std::move(packet)) { }
-        ClientPacket(OpcodeClient expectedOpcode, WorldPacket&& packet) : Packet(std::move(packet)) { ASSERT(packet.GetOpcode() == expectedOpcode); }
+        ClientPacket(OpcodeClient expectedOpcode, WorldPacket&& packet) : Packet(std::move(packet)) { ASSERT(GetOpcode() == expectedOpcode); }
 
         WorldPacket const* Write() override final
         {

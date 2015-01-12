@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,6 +16,39 @@
  */
 
 #include "ItemPackets.h"
+
+void WorldPackets::Item::BuyBackItem::Read()
+{
+    _worldPacket >> VendorGUID;
+    _worldPacket >> Slot;
+}
+
+void WorldPackets::Item::ItemRefundInfo::Read()
+{
+    _worldPacket >> ItemGUID;
+}
+
+void WorldPackets::Item::RepairItem::Read()
+{
+    _worldPacket >> NpcGUID;
+    _worldPacket >> ItemGUID;
+    UseGuildBank = _worldPacket.ReadBit();
+}
+
+void WorldPackets::Item::SellItem::Read()
+{
+    _worldPacket >> VendorGUID;
+    _worldPacket >> ItemGUID;
+    _worldPacket >> Amount;
+}
+
+WorldPacket const* WorldPackets::Item::ItemTimeUpdate::Write()
+{
+    _worldPacket << ItemGuid;
+    _worldPacket << DurationLeft;
+
+    return &_worldPacket;
+}
 
 WorldPacket const* WorldPackets::Item::SetProficiency::Write()
 {
@@ -58,21 +91,32 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Item::ItemInstance const&
     return data;
 }
 
-WorldPacket const* WorldPackets::Item::EquipError::Write()
+ByteBuffer& WorldPackets::Item::operator>>(ByteBuffer& data, InvUpdate& invUpdate)
 {
-    _worldPacket << uint8(msg);
-    _worldPacket << itemGUID1;
-    _worldPacket << itemGUID2;
-    _worldPacket << uint8(0); // bag type subclass, used with EQUIP_ERR_EVENT_AUTOEQUIP_BIND_CONFIRM and EQUIP_ERR_ITEM_DOESNT_GO_INTO_BAG2
+    invUpdate.Items.resize(data.ReadBits(2));
+    for (size_t i = 0; i < invUpdate.Items.size(); ++i)
+    {
+        data >> invUpdate.Items[i].ContainerSlot;
+        data >> invUpdate.Items[i].Slot;
+    }
 
-    switch (msg)
+    return data;
+}
+
+WorldPacket const* WorldPackets::Item::InventoryChangeFailure::Write()
+{
+    _worldPacket << int8(BagResult);
+    _worldPacket << Item[0];
+    _worldPacket << Item[1];
+    _worldPacket << uint8(ContainerBSlot); // bag type subclass, used with EQUIP_ERR_EVENT_AUTOEQUIP_BIND_CONFIRM and EQUIP_ERR_ITEM_DOESNT_GO_INTO_BAG2
+
+    switch (BagResult)
     {
         case EQUIP_ERR_CANT_EQUIP_LEVEL_I:
         case EQUIP_ERR_PURCHASE_LEVEL_TOO_LOW:
-        {
-            _worldPacket << level;
+            _worldPacket << int32(Level);
             break;
-        }
+        /// @todo: add more cases
         default:
             break;
     }
@@ -82,42 +126,40 @@ WorldPacket const* WorldPackets::Item::EquipError::Write()
 
 void WorldPackets::Item::SplitItem::Read()
 {
-    itemCount = _worldPacket.ReadBits(2);
-    _worldPacket >> srcbag >> srcslot >> dstbag >> dstslot >> count;
+    _worldPacket >> Inv
+                 >> FromPackSlot
+                 >> FromSlot
+                 >> ToPackSlot
+                 >> ToSlot
+                 >> Quantity;
 }
 
 void WorldPackets::Item::SwapInvItem::Read()
 {
-    itemCount = _worldPacket.ReadBits(2);
-    for (uint32 i = 0; i < itemCount; ++i)
-    {
-        _worldPacket.read_skip<uint8>(); // bag
-        _worldPacket.read_skip<uint8>(); // slot
-    }
-    _worldPacket >> dstslot >> srcslot;
+    _worldPacket >> Inv
+                 >> Slot2
+                 >> Slot1;
 }
 
 void WorldPackets::Item::SwapItem::Read()
 {
-    itemCount = _worldPacket.ReadBits(2);
-    for (uint32 i = 0; i < itemCount; ++i)
-    {
-        _worldPacket.read_skip<uint8>(); // bag
-        _worldPacket.read_skip<uint8>(); // slot
-    }
-    _worldPacket >> dstbag >> srcbag >> dstslot >> srcslot;
+    _worldPacket >> Inv
+                 >> ContainerSlotB
+                 >> ContainerSlotA
+                 >> SlotB
+                 >> SlotA;
 }
 
 void WorldPackets::Item::AutoEquipItem::Read()
 {
-    itemCount = _worldPacket.ReadBits(2);
-
-    _worldPacket >> srcbag >> srcslot;
-    _worldPacket.read_skip<uint8>();
-    _worldPacket.read_skip<uint8>();
+    _worldPacket >> Inv
+                 >> PackSlot
+                 >> Slot;
 }
 
 void WorldPackets::Item::DestroyItem::Read()
 {
-    _worldPacket >> count >> bag >> slot;
+    _worldPacket >> Count
+                 >> ContainerId
+                 >> SlotNum;
 }

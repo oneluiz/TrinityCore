@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -92,14 +92,14 @@ public:
                     platformGUID = go->GetGUID();
                     break;
                 case GO_FOCUSING_IRIS_10:
-                    if (instance->GetDifficulty() == DIFFICULTY_10_N)
+                    if (instance->GetDifficultyID() == DIFFICULTY_10_N)
                     {
                         irisGUID = go->GetGUID();
                         focusingIrisPosition = go->GetPosition();
                     }
                     break;
                 case GO_FOCUSING_IRIS_25:
-                    if (instance->GetDifficulty() == DIFFICULTY_25_N)
+                    if (instance->GetDifficultyID() == DIFFICULTY_25_N)
                     {
                         irisGUID = go->GetGUID();
                         focusingIrisPosition = go->GetPosition();
@@ -110,11 +110,11 @@ public:
                     exitPortalPosition = go->GetPosition();
                     break;
                 case GO_HEART_OF_MAGIC_10:
-                    if (instance->GetDifficulty() == DIFFICULTY_10_N)
+                    if (instance->GetDifficultyID() == DIFFICULTY_10_N)
                         heartOfMagicGUID = go->GetGUID();
                     break;
                 case GO_HEART_OF_MAGIC_25:
-                    if (instance->GetDifficulty() == DIFFICULTY_25_N)
+                    if (instance->GetDifficultyID() == DIFFICULTY_25_N)
                         heartOfMagicGUID = go->GetGUID();
                     break;
             }
@@ -240,7 +240,7 @@ public:
                     PowerSparksHandling();
                     break;
                 case DATA_RESPAWN_IRIS:
-                    SpawnGameObject(instance->GetDifficulty() == DIFFICULTY_10_N ? GO_FOCUSING_IRIS_10 : GO_FOCUSING_IRIS_25, focusingIrisPosition);
+                    SpawnGameObject(instance->GetDifficultyID() == DIFFICULTY_10_N ? GO_FOCUSING_IRIS_10 : GO_FOCUSING_IRIS_25, focusingIrisPosition);
                     break;
             }
         }

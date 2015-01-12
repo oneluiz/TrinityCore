@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -140,7 +140,7 @@ Map* MapInstanced::CreateInstanceForPlayer(const uint32 mapId, Player* player)
     }
     else
     {
-        InstancePlayerBind* pBind = player->GetBoundInstance(GetId(), player->GetDifficulty(IsRaid()));
+        InstancePlayerBind* pBind = player->GetBoundInstance(GetId(), player->GetDifficultyID(GetEntry()));
         InstanceSave* pSave = pBind ? pBind->save : NULL;
 
         // the player's permanent player bind is taken into consideration first
@@ -164,7 +164,7 @@ Map* MapInstanced::CreateInstanceForPlayer(const uint32 mapId, Player* player)
             map = FindInstanceMap(newInstanceId);
             // it is possible that the save exists but the map doesn't
             if (!map)
-                map = CreateInstance(newInstanceId, pSave, pSave->GetDifficulty());
+                map = CreateInstance(newInstanceId, pSave, pSave->GetDifficultyID());
         }
         else
         {
@@ -172,7 +172,7 @@ Map* MapInstanced::CreateInstanceForPlayer(const uint32 mapId, Player* player)
             // the instance will be created for the first time
             newInstanceId = sMapMgr->GenerateInstanceId();
 
-            Difficulty diff = player->GetGroup() ? player->GetGroup()->GetDifficulty(IsRaid()) : player->GetDifficulty(IsRaid());
+            Difficulty diff = player->GetGroup() ? player->GetGroup()->GetDifficultyID(GetEntry()) : player->GetDifficultyID(GetEntry());
             //Seems it is now possible, but I do not know if it should be allowed
             //ASSERT(!FindInstanceMap(NewInstanceId));
             map = FindInstanceMap(newInstanceId);

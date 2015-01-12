@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -70,7 +70,8 @@ uint32 GetClassBySkillId(uint32 skillId);
 uint32 GetSkillIdByClass(uint32 classId);
 std::list<uint32> GetSpellsForLevels(uint32 classId, uint32 raceMask, uint32 specializationId, uint32 minLevel, uint32 maxLevel);
 
-typedef std::map<uint32/*pair32(map, diff)*/, MapDifficulty> MapDifficultyMap;
+typedef std::unordered_map<uint32, std::unordered_map<uint32, MapDifficulty>> MapDifficultyMap;
+MapDifficulty const* GetDefaultMapDifficulty(uint32 mapID);
 MapDifficulty const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty);
 MapDifficulty const* GetDownscaledMapDifficultyData(uint32 mapId, Difficulty &difficulty);
 
@@ -156,6 +157,7 @@ extern DBCStorage <CriteriaEntry>                sCriteriaStore;
 extern DBCStorage <CriteriaTreeEntry>            sCriteriaTreeStore;
 extern DBCStorage <CurrencyTypesEntry>           sCurrencyTypesStore;
 extern DBCStorage <DestructibleModelDataEntry>   sDestructibleModelDataStore;
+extern DBCStorage <DifficultyEntry>              sDifficultyStore;
 extern DBCStorage <DungeonEncounterEntry>        sDungeonEncounterStore;
 extern DBCStorage <DurabilityCostsEntry>         sDurabilityCostsStore;
 extern DBCStorage <DurabilityQualityEntry>       sDurabilityQualityStore;
@@ -176,6 +178,12 @@ extern GameTable <GtChanceToSpellCritBaseEntry> sGtChanceToSpellCritBaseStore;
 extern GameTable <GtChanceToSpellCritEntry>     sGtChanceToSpellCritStore;
 extern GameTable <GtItemSocketCostPerLevelEntry> sGtItemSocketCostPerLevelStore;
 extern GameTable <GtNPCManaCostScalerEntry>     sGtNPCManaCostScalerStore;
+extern GameTable <GtNpcTotalHpEntry>            sGtNpcTotalHpStore;
+extern GameTable <GtNpcTotalHpExp1Entry>        sGtNpcTotalHpExp1Store;
+extern GameTable <GtNpcTotalHpExp2Entry>        sGtNpcTotalHpExp2Store;
+extern GameTable <GtNpcTotalHpExp3Entry>        sGtNpcTotalHpExp3Store;
+extern GameTable <GtNpcTotalHpExp4Entry>        sGtNpcTotalHpExp4Store;
+extern GameTable <GtNpcTotalHpExp5Entry>        sGtNpcTotalHpExp5Store;
 extern GameTable <GtOCTClassCombatRatingScalarEntry> sGtOCTClassCombatRatingScalarStore;
 extern GameTable <gtOCTHpPerStaminaEntry>       sGtOCTHpPerStaminaStore;
 extern GameTable <GtRegenMPPerSptEntry>         sGtRegenMPPerSptStore;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -94,14 +94,14 @@ namespace WorldPackets
             void Read() override;
 
             ObjectGuid QuestGiver;
-            int32 QuestID;
+            int32 QuestID = 0;
         };
-        
+
         struct QuestInfoChoiceItem
         {
-            int32 ItemID;
-            int32 Quantity;
-            int32 DisplayID;
+            int32 ItemID = 0;
+            int32 Quantity = 0;
+            int32 DisplayID = 0;
         };
 
         struct QuestInfo
@@ -124,8 +124,8 @@ namespace WorldPackets
             int32 RewardHonor               = 0;
             float RewardKillHonor           = 0.0f;
             int32 StartItem                 = 0;
-            int32 Flags                     = 0;
-            int32 FlagsEx                   = 0;
+            uint32 Flags                    = 0;
+            uint32 FlagsEx                  = 0;
             int32 POIContinent              = 0;
             float POIx                      = 0.0f;
             float POIy                      = 0.0f;
@@ -344,6 +344,66 @@ namespace WorldPackets
             bool DisplayPopup = false;
             bool StartCheat = false;
             bool AutoLaunched = false;
+        };
+
+        struct QuestObjectiveCollect
+        {
+            QuestObjectiveCollect(int32 objectID = 0, int32 amount = 0) : ObjectID(objectID), Amount(amount) { }
+            int32 ObjectID;
+            int32 Amount;
+        };
+
+        struct QuestCurrency
+        {
+            QuestCurrency(int32 currencyID = 0, int32 amount = 0) : CurrencyID(currencyID), Amount(amount) { }
+            int32 CurrencyID;
+            int32 Amount;
+        };
+
+        class QuestGiverRequestItems final : public ServerPacket
+        {
+        public:
+            QuestGiverRequestItems() : ServerPacket(SMSG_QUESTGIVER_REQUEST_ITEMS, 300) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid QuestGiverGUID;
+            int32 QuestGiverCreatureID  = 0;
+            int32 QuestID               = 0;
+            int32 CompEmoteDelay        = 0;
+            int32 CompEmoteType         = 0;
+            bool AutoLaunched           = false;
+            int32 SuggestPartyMembers   = 0;
+            int32 MoneyToGet            = 0;
+            std::vector<QuestObjectiveCollect> Collect;
+            std::vector<QuestCurrency> Currency;
+            int32 StatusFlags           = 0;
+            uint32 QuestFlags[2]        = {};
+            std::string QuestTitle;
+            std::string CompletionText;
+        };
+
+        class QuestGiverRequestReward final : public ClientPacket
+        {
+        public:
+            QuestGiverRequestReward(WorldPacket&& packet) : ClientPacket(CMSG_QUESTGIVER_REQUEST_REWARD, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid QuestGiverGUID;
+            int32 QuestID = 0;
+        };
+
+        class QuestGiverQueryQuest final : public ClientPacket
+        {
+        public:
+            QuestGiverQueryQuest(WorldPacket&& packet) : ClientPacket(CMSG_QUESTGIVER_QUERY_QUEST, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid QuestGiverGUID;
+            int32 QuestID = 0;
+            bool RespondToGiver = false;
         };
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -52,6 +52,7 @@ char const Criteriafmt[] = "niiiiiiiixii";
 char const CriteriaTreefmt[] = "niliixxx";
 char const CurrencyTypesfmt[] = "nixxxxxiiixx";
 char const DestructibleModelDatafmt[] = "nixxxixxxxixxxxixxxxxxxx";
+char const DifficultyFmt[] = "niiiixiixxxxx";
 char const DungeonEncounterfmt[] = "niiixsxxx";
 char const DurabilityCostsfmt[] = "niiiiiiiiiiiiiiiiiiiiiiiiiiiii";
 char const DurabilityQualityfmt[] = "nf";
@@ -73,6 +74,12 @@ char const GtChanceToSpellCritBasefmt[] = "xf";
 char const GtChanceToSpellCritfmt[] = "xf";
 char const GtItemSocketCostPerLevelfmt[] = "xf";
 char const GtNPCManaCostScalerfmt[] = "xf";
+char const GtNpcTotalHpfmt[] = "xf";
+char const GtNpcTotalHpExp1fmt[] = "xf";
+char const GtNpcTotalHpExp2fmt[] = "xf";
+char const GtNpcTotalHpExp3fmt[] = "xf";
+char const GtNpcTotalHpExp4fmt[] = "xf";
+char const GtNpcTotalHpExp5fmt[] = "xf";
 char const GtOCTClassCombatRatingScalarfmt[] = "df";
 char const GtOCTRegenHPfmt[] = "f";
 //char const GtOCTRegenMPfmt[] = "f";
@@ -106,7 +113,7 @@ char const LockEntryfmt[] = "niiiiiiiiiiiiiiiiiiiiiiiixxxxxxxx";
 char const PhaseEntryfmt[] = "ni";
 char const MailTemplateEntryfmt[] = "nxs";
 char const MapEntryfmt[] = "nxiixxsixxixiffxiiiixx";
-char const MapDifficultyEntryfmt[] = "diisiixx";
+char const MapDifficultyEntryfmt[] = "diisiiix";
 char const MinorTalentEntryfmt[] = "niii";
 char const MovieEntryfmt[] = "nxxxx";
 char const ModifierTreefmt[] = "niiiiii";

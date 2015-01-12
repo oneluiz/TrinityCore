@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -467,7 +467,7 @@ void ObjectMgr::LoadCreatureTemplate(Field* fields)
 
     creatureTemplate.Entry = entry;
 
-    for (uint8 i = 0; i < MAX_DIFFICULTY - 1; ++i)
+    for (uint8 i = 0; i < MAX_CREATURE_DIFFICULTIES; ++i)
         creatureTemplate.DifficultyEntry[i] = fields[1 + i].GetUInt32();
 
     for (uint8 i = 0; i < MAX_KILL_CREDIT; ++i)
@@ -626,7 +626,7 @@ void ObjectMgr::CheckCreatureTemplate(CreatureTemplate const* cInfo)
         return;
 
     bool ok = true;                                     // bool to allow continue outside this loop
-    for (uint32 diff = 0; diff < MAX_DIFFICULTY - 1 && ok; ++diff)
+    for (uint32 diff = 0; diff < MAX_CREATURE_DIFFICULTIES && ok; ++diff)
     {
         if (!cInfo->DifficultyEntry[diff])
             continue;
@@ -641,7 +641,7 @@ void ObjectMgr::CheckCreatureTemplate(CreatureTemplate const* cInfo)
         }
 
         bool ok2 = true;
-        for (uint32 diff2 = 0; diff2 < MAX_DIFFICULTY - 1 && ok2; ++diff2)
+        for (uint32 diff2 = 0; diff2 < MAX_CREATURE_DIFFICULTIES && ok2; ++diff2)
         {
             ok2 = false;
             if (_difficultyEntries[diff2].find(cInfo->Entry) != _difficultyEntries[diff2].end())
@@ -1660,11 +1660,10 @@ void ObjectMgr::LoadCreatures()
 
     // Build single time for check spawnmask
     std::map<uint32, uint32> spawnMasks;
-    for (uint32 i = 0; i < sMapStore.GetNumRows(); ++i)
-        if (sMapStore.LookupEntry(i))
-            for (int k = 0; k < MAX_DIFFICULTY; ++k)
-                if (GetMapDifficultyData(i, Difficulty(k)))
-                    spawnMasks[i] |= (1 << k);
+    for (auto& mapDifficultyPair : sMapDifficultyMap)
+        for (auto& difficultyPair : mapDifficultyPair.second)
+            spawnMasks[mapDifficultyPair.first] |= (1 << difficultyPair.first);
+
 
     _creatureDataStore.rehash(result->GetRowCount());
 
@@ -1697,7 +1696,7 @@ void ObjectMgr::LoadCreatures()
         data.curhealth      = fields[12].GetUInt32();
         data.curmana        = fields[13].GetUInt32();
         data.movementType   = fields[14].GetUInt8();
-        data.spawnMask      = fields[15].GetUInt8();
+        data.spawnMask      = fields[15].GetUInt32();
         data.phaseMask      = fields[16].GetUInt32();
         int16 gameEvent     = fields[17].GetInt8();
         uint32 PoolId       = fields[18].GetUInt32();
@@ -1719,7 +1718,7 @@ void ObjectMgr::LoadCreatures()
             TC_LOG_ERROR("sql.sql", "Table `creature` has creature (GUID: " UI64FMTD ") that have wrong spawn mask %u including unsupported difficulty modes for map (Id: %u).", guid, data.spawnMask, data.mapid);
 
         bool ok = true;
-        for (uint32 diff = 0; diff < MAX_DIFFICULTY - 1 && ok; ++diff)
+        for (uint32 diff = 0; diff < MAX_CREATURE_DIFFICULTIES && ok; ++diff)
         {
             if (_difficultyEntries[diff].find(data.id) != _difficultyEntries[diff].end())
             {
@@ -1813,7 +1812,7 @@ void ObjectMgr::LoadCreatures()
 
 void ObjectMgr::AddCreatureToGrid(ObjectGuid::LowType guid, CreatureData const* data)
 {
-    uint8 mask = data->spawnMask;
+    uint32 mask = data->spawnMask;
     for (uint8 i = 0; mask != 0; i++, mask >>= 1)
     {
         if (mask & 1)
@@ -1827,7 +1826,7 @@ void ObjectMgr::AddCreatureToGrid(ObjectGuid::LowType guid, CreatureData const* 
 
 void ObjectMgr::RemoveCreatureFromGrid(ObjectGuid::LowType guid, CreatureData const* data)
 {
-    uint8 mask = data->spawnMask;
+    uint32 mask = data->spawnMask;
     for (uint8 i = 0; mask != 0; i++, mask >>= 1)
     {
         if (mask & 1)
@@ -1994,11 +1993,9 @@ void ObjectMgr::LoadGameobjects()
 
     // build single time for check spawnmask
     std::map<uint32, uint32> spawnMasks;
-    for (uint32 i = 0; i < sMapStore.GetNumRows(); ++i)
-        if (sMapStore.LookupEntry(i))
-            for (int k = 0; k < MAX_DIFFICULTY; ++k)
-                if (GetMapDifficultyData(i, Difficulty(k)))
-                    spawnMasks[i] |= (1 << k);
+    for (auto& mapDifficultyPair : sMapDifficultyMap)
+        for (auto& difficultyPair : mapDifficultyPair.second)
+            spawnMasks[mapDifficultyPair.first] |= (1 << difficultyPair.first);
 
     _gameObjectDataStore.rehash(result->GetRowCount());
 
@@ -2075,7 +2072,7 @@ void ObjectMgr::LoadGameobjects()
         }
         data.go_state       = GOState(go_state);
 
-        data.spawnMask      = fields[14].GetUInt8();
+        data.spawnMask      = fields[14].GetUInt32();
 
         if (!IsTransportMap(data.mapid) && data.spawnMask & ~spawnMasks[data.mapid])
             TC_LOG_ERROR("sql.sql", "Table `gameobject` has gameobject (GUID: " UI64FMTD " Entry: %u) that has wrong spawn mask %u including unsupported difficulty modes for map (Id: %u), skip", guid, data.id, data.spawnMask, data.mapid);
@@ -2147,7 +2144,7 @@ void ObjectMgr::LoadGameobjects()
 
 void ObjectMgr::AddGameobjectToGrid(ObjectGuid::LowType guid, GameObjectData const* data)
 {
-    uint8 mask = data->spawnMask;
+    uint32 mask = data->spawnMask;
     for (uint8 i = 0; mask != 0; i++, mask >>= 1)
     {
         if (mask & 1)
@@ -2161,7 +2158,7 @@ void ObjectMgr::AddGameobjectToGrid(ObjectGuid::LowType guid, GameObjectData con
 
 void ObjectMgr::RemoveGameobjectFromGrid(ObjectGuid::LowType guid, GameObjectData const* data)
 {
-    uint8 mask = data->spawnMask;
+    uint32 mask = data->spawnMask;
     for (uint8 i = 0; mask != 0; i++, mask >>= 1)
     {
         if (mask & 1)
@@ -3225,7 +3222,7 @@ void ObjectMgr::LoadPlayerInfo()
 
                 PlayerLevelInfo& levelInfo = info->levelInfo[current_level - 1];
                 for (int i = 0; i < MAX_STATS; i++)
-                    levelInfo.stats[i] = fields[i + 3].GetUInt8();
+                    levelInfo.stats[i] = fields[i + 3].GetUInt16();
             }
 
             ++count;
@@ -3629,9 +3626,9 @@ void ObjectMgr::LoadQuests()
     }
 
     // Load `quest_visual_effect` join table with quest_objectives because visual effects are based on objective ID (core stores objectives by their index in quest)
-    //                                   0     1     2          3               4        5
-    result = WorldDatabase.Query("SELECT v.ID, o.ID, o.QuestID, o.StorageIndex, v.Index, v.VisualEffect FROM quest_visual_effect AS v LEFT JOIN quest_objectives AS o ON v.ID = o.ID ORDER BY v.Index DESC");
-    
+    //                                   0     1     2          3        4
+    result = WorldDatabase.Query("SELECT v.ID, o.ID, o.QuestID, v.Index, v.VisualEffect FROM quest_visual_effect AS v LEFT JOIN quest_objectives AS o ON v.ID = o.ID ORDER BY v.Index DESC");
+
     if (!result)
     {
         TC_LOG_ERROR("server.loading", ">> Loaded 0 quest visual effects. DB table `quest_visual_effect` is empty.");
@@ -3679,8 +3676,8 @@ void ObjectMgr::LoadQuests()
 
         // additional quest integrity checks (GO, creature_template and item_template must be loaded already)
 
-        if (qinfo->GetQuestMethod() >= 3)
-            TC_LOG_ERROR("sql.sql", "Quest %u has `Method` = %u, expected values are 0, 1 or 2.", qinfo->GetQuestId(), qinfo->GetQuestMethod());
+        if (qinfo->GetQuestType() >= MAX_QUEST_TYPES)
+            TC_LOG_ERROR("sql.sql", "Quest %u has `Method` = %u, expected values are 0, 1 or 2.", qinfo->GetQuestId(), qinfo->GetQuestType());
 
         if (qinfo->SpecialFlags & ~QUEST_SPECIAL_FLAGS_DB_ALLOWED)
         {
@@ -3699,7 +3696,7 @@ void ObjectMgr::LoadQuests()
         {
             if (!(qinfo->SpecialFlags & QUEST_SPECIAL_FLAGS_REPEATABLE))
             {
-                TC_LOG_ERROR("sql.sql", "Daily Quest %u not marked as repeatable in `SpecialFlags`, added.", qinfo->GetQuestId());
+                TC_LOG_DEBUG("sql.sql", "Daily Quest %u not marked as repeatable in `SpecialFlags`, added.", qinfo->GetQuestId());
                 qinfo->SpecialFlags |= QUEST_SPECIAL_FLAGS_REPEATABLE;
             }
         }
@@ -3708,7 +3705,7 @@ void ObjectMgr::LoadQuests()
         {
             if (!(qinfo->SpecialFlags & QUEST_SPECIAL_FLAGS_REPEATABLE))
             {
-                TC_LOG_ERROR("sql.sql", "Weekly Quest %u not marked as repeatable in `SpecialFlags`, added.", qinfo->GetQuestId());
+                TC_LOG_DEBUG("sql.sql", "Weekly Quest %u not marked as repeatable in `SpecialFlags`, added.", qinfo->GetQuestId());
                 qinfo->SpecialFlags |= QUEST_SPECIAL_FLAGS_REPEATABLE;
             }
         }
@@ -3717,7 +3714,7 @@ void ObjectMgr::LoadQuests()
         {
             if (!(qinfo->SpecialFlags & QUEST_SPECIAL_FLAGS_REPEATABLE))
             {
-                TC_LOG_ERROR("sql.sql", "Monthly quest %u not marked as repeatable in `SpecialFlags`, added.", qinfo->GetQuestId());
+                TC_LOG_DEBUG("sql.sql", "Monthly quest %u not marked as repeatable in `SpecialFlags`, added.", qinfo->GetQuestId());
                 qinfo->SpecialFlags |= QUEST_SPECIAL_FLAGS_REPEATABLE;
             }
         }
@@ -3743,32 +3740,32 @@ void ObjectMgr::LoadQuests()
         }
 
         // client quest log visual (area case)
-        if (qinfo->ZoneOrSort > 0)
+        if (qinfo->QuestSortID > 0)
         {
-            if (!GetAreaEntryByAreaID(qinfo->ZoneOrSort))
+            if (!GetAreaEntryByAreaID(qinfo->QuestSortID))
             {
-                TC_LOG_ERROR("sql.sql", "Quest %u has `ZoneOrSort` = %u (zone case) but zone with this id does not exist.",
-                    qinfo->GetQuestId(), qinfo->ZoneOrSort);
+                TC_LOG_ERROR("sql.sql", "Quest %u has `QuestSortID` = %u (zone case) but zone with this id does not exist.",
+                    qinfo->GetQuestId(), qinfo->QuestSortID);
                 // no changes, quest not dependent from this value but can have problems at client
             }
         }
         // client quest log visual (sort case)
-        if (qinfo->ZoneOrSort < 0)
+        if (qinfo->QuestSortID < 0)
         {
-            QuestSortEntry const* qSort = sQuestSortStore.LookupEntry(-int32(qinfo->ZoneOrSort));
+            QuestSortEntry const* qSort = sQuestSortStore.LookupEntry(-int32(qinfo->QuestSortID));
             if (!qSort)
             {
-                TC_LOG_ERROR("sql.sql", "Quest %u has `ZoneOrSort` = %i (sort case) but quest sort with this id does not exist.",
-                    qinfo->GetQuestId(), qinfo->ZoneOrSort);
+                TC_LOG_ERROR("sql.sql", "Quest %u has `QuestSortID` = %i (sort case) but quest sort with this id does not exist.",
+                    qinfo->GetQuestId(), qinfo->QuestSortID);
                 // no changes, quest not dependent from this value but can have problems at client (note some may be 0, we must allow this so no check)
             }
             //check for proper RequiredSkillId value (skill case)
-            if (uint32 skill_id = SkillByQuestSort(-int32(qinfo->ZoneOrSort)))
+            if (uint32 skill_id = SkillByQuestSort(-int32(qinfo->QuestSortID)))
             {
                 if (qinfo->RequiredSkillId != skill_id)
                 {
-                    TC_LOG_ERROR("sql.sql", "Quest %u has `ZoneOrSort` = %i but `RequiredSkillId` does not have a corresponding value (%d).",
-                        qinfo->GetQuestId(), qinfo->ZoneOrSort, skill_id);
+                    TC_LOG_ERROR("sql.sql", "Quest %u has `QuestSortID` = %i but `RequiredSkillId` does not have a corresponding value (%d).",
+                        qinfo->GetQuestId(), qinfo->QuestSortID, skill_id);
                     //override, and force proper value here?
                 }
             }
@@ -3902,22 +3899,24 @@ void ObjectMgr::LoadQuests()
             }
         }
 
-        for (uint32 j = 0; j < qinfo->Objectives.size(); ++j)
+        for (QuestObjective const& obj : qinfo->GetObjectives())
         {
-            QuestObjective& obj = qinfo->Objectives[j];
-
-            if (!obj.ObjectID)
+            // Check storage index for objectives which store data
+            if (obj.StorageIndex < 0)
             {
-                TC_LOG_ERROR("sql.sql", "Quest %u objective %u has `ObjectID` = 0, quest can't be done.", qinfo->GetQuestId(), j);
-                // no changes, quest can't be done for this requirement
-                continue;
-            }
-
-            if (!obj.Amount)
-            {
-                TC_LOG_ERROR("sql.sql", "Quest %u objective %u has `Amount` = 0, quest can't be done.", qinfo->GetQuestId(), j);
-                // no changes, quest can't be done for this requirement
-                continue;
+                switch (obj.Type)
+                {
+                    case QUEST_OBJECTIVE_MONSTER:
+                    case QUEST_OBJECTIVE_ITEM:
+                    case QUEST_OBJECTIVE_GAMEOBJECT:
+                    case QUEST_OBJECTIVE_TALKTO:
+                    case QUEST_OBJECTIVE_PLAYERKILLS:
+                    case QUEST_OBJECTIVE_AREATRIGGER:
+                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has invalid StorageIndex = %d for objective type %u", qinfo->GetQuestId(), obj.ID, obj.StorageIndex, obj.Type);
+                        break;
+                    default:
+                        break;
+                }
             }
 
             switch (obj.Type)
@@ -3925,48 +3924,43 @@ void ObjectMgr::LoadQuests()
                 case QUEST_OBJECTIVE_ITEM:
                     qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER);
                     if (!sObjectMgr->GetItemTemplate(obj.ObjectID))
-                    {
                         TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing item entry %u, quest can't be done.",
-                            qinfo->GetQuestId(), j, obj.ObjectID);
-                        obj.Amount = 0; // prevent incorrect work of quest
-                    }
+                            qinfo->GetQuestId(), obj.ID, obj.ObjectID);
                     break;
                 case QUEST_OBJECTIVE_MONSTER:
-                    qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_KILL | QUEST_SPECIAL_FLAGS_CAST | QUEST_SPECIAL_FLAGS_SPEAKTO);
+                    qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_KILL | QUEST_SPECIAL_FLAGS_CAST);
                     if (!sObjectMgr->GetCreatureTemplate(obj.ObjectID))
-                    {
                         TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing creature entry %u, quest can't be done.",
-                            qinfo->GetQuestId(), j, uint32(obj.ObjectID));
-                        obj.Amount = 0; // quest can't be done for this requirement
-                    }
+                            qinfo->GetQuestId(), obj.ID, uint32(obj.ObjectID));
                     break;
                 case QUEST_OBJECTIVE_GAMEOBJECT:
-                    qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_KILL | QUEST_SPECIAL_FLAGS_CAST | QUEST_SPECIAL_FLAGS_SPEAKTO);
+                    qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_KILL | QUEST_SPECIAL_FLAGS_CAST);
                     if (!sObjectMgr->GetGameObjectTemplate(obj.ObjectID))
-                    {
                         TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing gameobject entry %u, quest can't be done.",
-                            qinfo->GetQuestId(), j, uint32(obj.ObjectID));
-                        obj.Amount = 0; // quest can't be done for this requirement
-                    }
+                            qinfo->GetQuestId(), obj.ID, uint32(obj.ObjectID));
+                    break;
+                case QUEST_OBJECTIVE_TALKTO:
+                    // Need checks (is it creature only?)
+                    qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_CAST | QUEST_SPECIAL_FLAGS_SPEAKTO);
                     break;
                 case QUEST_OBJECTIVE_MIN_REPUTATION:
                 case QUEST_OBJECTIVE_MAX_REPUTATION:
                     if (!sFactionStore.LookupEntry(obj.ObjectID))
-                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing faction id %u", qinfo->GetQuestId(), j, obj.ObjectID);
+                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing faction id %u", qinfo->GetQuestId(), obj.ID, obj.ObjectID);
                     break;
                 case QUEST_OBJECTIVE_PLAYERKILLS:
                     qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAGS_PLAYER_KILL);
                     if (obj.Amount <= 0)
-                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has invalid player kills count %d", qinfo->GetQuestId(), j, obj.Amount);
+                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has invalid player kills count %d", qinfo->GetQuestId(), obj.ID, obj.Amount);
                     break;
                 case QUEST_OBJECTIVE_CURRENCY:
                     if (!sCurrencyTypesStore.LookupEntry(obj.ObjectID))
-                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing currency %u", qinfo->GetQuestId(), j, obj.ObjectID);
+                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has non existing currency %u", qinfo->GetQuestId(), obj.ID, obj.ObjectID);
                     if (obj.Amount <= 0)
-                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has invalid currency amount %d", qinfo->GetQuestId(), j, obj.Amount);
+                        TC_LOG_ERROR("sql.sql", "Quest %u objective %u has invalid currency amount %d", qinfo->GetQuestId(), obj.ID, obj.Amount);
                     break;
                 default:
-                    TC_LOG_ERROR("sql.sql", "Quest %u objective %u has unknown type %u", qinfo->GetQuestId(), j, obj.Type);
+                    TC_LOG_ERROR("sql.sql", "Quest %u objective %u has unhandled type %u", qinfo->GetQuestId(), obj.ID, obj.Type);
             }
         }
 
@@ -3977,7 +3971,7 @@ void ObjectMgr::LoadQuests()
             {
                 if (!sObjectMgr->GetItemTemplate(id))
                 {
-                    TC_LOG_ERROR("sql.sql", "Quest %u has `RequiredSourceItemId%d` = %u but item with entry %u does not exist, quest can't be done.",
+                    TC_LOG_ERROR("sql.sql", "Quest %u has `ItemDrop%d` = %u but item with entry %u does not exist, quest can't be done.",
                         qinfo->GetQuestId(), j+1, id, id);
                     // no changes, quest can't be done for this requirement
                 }
@@ -3986,7 +3980,7 @@ void ObjectMgr::LoadQuests()
             {
                 if (qinfo->ItemDropQuantity[j]>0)
                 {
-                    TC_LOG_ERROR("sql.sql", "Quest %u has `RequiredSourceItemId%d` = 0 but `RequiredSourceItemCount%d` = %u.",
+                    TC_LOG_ERROR("sql.sql", "Quest %u has `ItemDrop%d` = 0 but `ItemDropQuantity%d` = %u.",
                         qinfo->GetQuestId(), j+1, j+1, qinfo->ItemDropQuantity[j]);
                     // no changes, quest ignore this data
                 }
@@ -8371,7 +8365,7 @@ void ObjectMgr::LoadCreatureClassLevelStats()
 {
     uint32 oldMSTime = getMSTime();
     //                                               0      1      2        3        4        5        6         7      8          9          10           11                 12           13           14           15           16           16
-    QueryResult result = WorldDatabase.Query("SELECT level, class, basehp0, basehp1, basehp2, basehp3, basehp4, basehp5, basemana, basearmor, attackpower, rangedattackpower, damage_base, damage_exp1, damage_exp2, damage_exp3, damage_exp4, damage_exp5 FROM creature_classlevelstats");
+    QueryResult result = WorldDatabase.Query("SELECT level, class, basemana, basearmor, attackpower, rangedattackpower, damage_base, damage_exp1, damage_exp2, damage_exp3, damage_exp4, damage_exp5 FROM creature_classlevelstats");
 
     if (!result)
     {
@@ -8390,19 +8384,25 @@ void ObjectMgr::LoadCreatureClassLevelStats()
         if (!Class || ((1 << (Class - 1)) & CLASSMASK_ALL_CREATURES) == 0)
             TC_LOG_ERROR("sql.sql", "Creature base stats for level %u has invalid class %u", Level, Class);
 
+        GtNpcTotalHpEntry const* HpExp0 = sGtNpcTotalHpStore.EvaluateTable(Level - 1, Class - 1);
+        GtNpcTotalHpExp1Entry const* HpExp1 = sGtNpcTotalHpExp1Store.EvaluateTable(Level - 1, Class - 1);
+        GtNpcTotalHpExp2Entry const* HpExp2 = sGtNpcTotalHpExp2Store.EvaluateTable(Level - 1, Class - 1);
+        GtNpcTotalHpExp3Entry const* HpExp3 = sGtNpcTotalHpExp3Store.EvaluateTable(Level - 1, Class - 1);
+        GtNpcTotalHpExp4Entry const* HpExp4 = sGtNpcTotalHpExp4Store.EvaluateTable(Level - 1, Class - 1);
+        GtNpcTotalHpExp5Entry const* HpExp5 = sGtNpcTotalHpExp5Store.EvaluateTable(Level - 1, Class - 1);
+
         CreatureBaseStats stats;
+
+        stats.BaseHealth[0] = uint32(HpExp0->HP);
+        stats.BaseHealth[1] = uint32(HpExp1->HP);
+        stats.BaseHealth[2] = uint32(HpExp2->HP);
+        stats.BaseHealth[3] = uint32(HpExp3->HP);
+        stats.BaseHealth[4] = uint32(HpExp4->HP);
+        stats.BaseHealth[5] = uint32(HpExp5->HP);
 
         for (uint8 i = 0; i < MAX_EXPANSIONS; ++i)
         {
-            stats.BaseHealth[i] = fields[2 + i].GetUInt32();
-
-            if (stats.BaseHealth[i] == 0)
-            {
-                TC_LOG_ERROR("sql.sql", "Creature base stats for class %u, level %u has invalid zero base HP[%u] - set to 1", Class, Level, i);
-                stats.BaseHealth[i] = 1;
-            }
-
-            stats.BaseDamage[i] = fields[12 + i].GetFloat();
+            stats.BaseDamage[i] = fields[6 + i].GetFloat();
             if (stats.BaseDamage[i] < 0.0f)
             {
                 TC_LOG_ERROR("sql.sql", "Creature base stats for class %u, level %u has invalid negative base damage[%u] - set to 0.0", Class, Level, i);
@@ -8410,11 +8410,11 @@ void ObjectMgr::LoadCreatureClassLevelStats()
             }
         }
 
-        stats.BaseMana = fields[8].GetUInt32();
-        stats.BaseArmor = fields[9].GetUInt32();
+        stats.BaseMana = fields[2].GetUInt32();
+        stats.BaseArmor = fields[3].GetUInt32();
 
-        stats.AttackPower = fields[10].GetUInt16();
-        stats.RangedAttackPower = fields[11].GetUInt16();
+        stats.AttackPower = fields[4].GetUInt16();
+        stats.RangedAttackPower = fields[5].GetUInt16();
 
         _creatureBaseStatsStore[MAKE_PAIR16(Level, Class)] = stats;
 

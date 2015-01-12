@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -452,7 +452,7 @@ class spell_ulduar_cancel_stone_grip : public SpellScriptLoader
                 if (!target || !target->GetVehicle())
                     return;
 
-                switch (target->GetMap()->GetDifficulty())
+                switch (target->GetMap()->GetDifficultyID())
                 {
                     case DIFFICULTY_10_N:
                         target->RemoveAura(GetSpellInfo()->GetEffect(EFFECT_0)->CalcValue());
@@ -534,7 +534,7 @@ class spell_ulduar_stone_grip_absorb : public SpellScriptLoader
                 if (!GetOwner()->ToCreature())
                     return;
 
-                uint32 rubbleStalkerEntry = (GetOwner()->GetMap()->GetDifficulty() == DIFFICULTY_NORMAL ? 33809 : 33942);
+                uint32 rubbleStalkerEntry = (GetOwner()->GetMap()->GetDifficultyID() == DIFFICULTY_NORMAL ? 33809 : 33942);
                 Creature* rubbleStalker = GetOwner()->FindNearestCreature(rubbleStalkerEntry, 200.0f, true);
                 if (rubbleStalker)
                     rubbleStalker->CastSpell(rubbleStalker, SPELL_STONE_GRIP_CANCEL, true);

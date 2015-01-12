@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -373,4 +373,56 @@ WorldPacket const* WorldPackets::Quest::QuestGiverQuestDetails::Write()
     _worldPacket.WriteString(PortraitGiverName);
 
     return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Quest::QuestGiverRequestItems::Write()
+{
+    _worldPacket << QuestGiverGUID;
+    _worldPacket << QuestGiverCreatureID;
+    _worldPacket << QuestID;
+    _worldPacket << CompEmoteDelay;
+    _worldPacket << CompEmoteType;
+    _worldPacket << QuestFlags[0];
+    _worldPacket << QuestFlags[1];
+    _worldPacket << SuggestPartyMembers;
+    _worldPacket << MoneyToGet;
+    _worldPacket << int32(Collect.size());
+    _worldPacket << int32(Currency.size());
+    _worldPacket << StatusFlags;
+
+    for (QuestObjectiveCollect const& obj : Collect)
+    {
+        _worldPacket << obj.ObjectID;
+        _worldPacket << obj.Amount;
+    }
+
+    for (QuestCurrency const& cur : Currency)
+    {
+        _worldPacket << cur.CurrencyID;
+        _worldPacket << cur.Amount;
+    }
+
+    _worldPacket.WriteBit(AutoLaunched);
+    _worldPacket.FlushBits();
+
+    _worldPacket.WriteBits(QuestTitle.size(), 9);
+    _worldPacket.WriteBits(CompletionText.size(), 12);
+
+    _worldPacket.WriteString(QuestTitle);
+    _worldPacket.WriteString(CompletionText);
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Quest::QuestGiverRequestReward::Read()
+{
+    _worldPacket >> QuestGiverGUID;
+    _worldPacket >> QuestID;
+}
+
+void WorldPackets::Quest::QuestGiverQueryQuest::Read()
+{
+    _worldPacket >> QuestGiverGUID;
+    _worldPacket >> QuestID;
+    RespondToGiver = _worldPacket.ReadBit();
 }

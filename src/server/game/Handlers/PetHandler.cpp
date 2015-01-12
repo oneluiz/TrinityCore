@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -94,7 +94,7 @@ void WorldSession::HandlePetAction(WorldPacket& recvData)
         SpellInfo const* spell = (flag == ACT_ENABLED || flag == ACT_PASSIVE) ? sSpellMgr->GetSpellInfo(spellid) : NULL;
         if (!spell)
             return;
-        if (!(spell->Attributes & SPELL_ATTR0_CASTABLE_WHILE_DEAD))
+        if (!spell->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD))
             return;
     }
 
@@ -862,32 +862,4 @@ void WorldSession::HandlePetLearnTalent(WorldPacket& recvData)
 
     _player->LearnPetTalent(guid, talentId, requestedRank);
     _player->SendTalentsInfoData(true);*/
-}
-
-void WorldSession::HandleLearnPreviewTalentsPet(WorldPacket& recvData)
-{
-    /* TODO: 6.x remove pet talents (add pet specializations)
-    TC_LOG_DEBUG("network", "CMSG_LEARN_PREVIEW_TALENTS_PET");
-
-    ObjectGuid guid;
-    recvData >> guid;
-
-    uint32 talentsCount;
-    recvData >> talentsCount;
-
-    uint32 talentId, talentRank;
-
-    // Client has max 19 talents, rounded up : 25
-    uint32 const MaxTalentsCount = 25;
-
-    for (uint32 i = 0; i < talentsCount && i < MaxTalentsCount; ++i)
-    {
-        recvData >> talentId >> talentRank;
-
-        _player->LearnPetTalent(guid, talentId, talentRank);
-    }
-
-    _player->SendTalentsInfoData(true);
-
-    recvData.rfinish();*/
 }

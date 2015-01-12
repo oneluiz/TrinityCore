@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -447,7 +447,7 @@ int32 SpellEffectInfo::CalcValue(Unit const* caster /*= nullptr*/, int32 const* 
         else if (caster)
             level = caster->getLevel();
 
-        if (!(_spellInfo->AttributesEx11 & SPELL_ATTR11_UNK2) && _spellInfo->AttributesEx10 & SPELL_ATTR10_UNK12)
+        if (!_spellInfo->HasAttribute(SPELL_ATTR11_UNK2) && _spellInfo->HasAttribute(SPELL_ATTR10_UNK12))
             level = _spellInfo->BaseLevel;
 
         if (_spellInfo->Scaling.MaxScalingLevel && _spellInfo->Scaling.MaxScalingLevel > level)
@@ -461,7 +461,7 @@ int32 SpellEffectInfo::CalcValue(Unit const* caster /*= nullptr*/, int32 const* 
 
             if (!_spellInfo->Scaling.ScalesFromItemLevel)
             {
-                if (!(_spellInfo->AttributesEx11 & SPELL_ATTR11_UNK2))
+                if (!_spellInfo->HasAttribute(SPELL_ATTR11_UNK2))
                 {
                     if (GtSpellScalingEntry const* gtScaling = sGtSpellScalingStore.EvaluateTable(level - 1, (_spellInfo->Scaling.Class > 0 ? _spellInfo->Scaling.Class - 1 : MAX_CLASSES - 1)))
                         value = gtScaling->value;
@@ -545,7 +545,7 @@ int32 SpellEffectInfo::CalcValue(Unit const* caster /*= nullptr*/, int32 const* 
         // amount multiplication based on caster's level
         if (!caster->IsControlledByPlayer() &&
             _spellInfo->SpellLevel && _spellInfo->SpellLevel != caster->getLevel() &&
-            !basePointsPerLevel && (_spellInfo->Attributes & SPELL_ATTR0_LEVEL_DAMAGE_CALCULATION))
+            !basePointsPerLevel && (_spellInfo->HasAttribute(SPELL_ATTR0_LEVEL_DAMAGE_CALCULATION)))
         {
             bool canEffectScale = false;
             switch (Effect)
@@ -1485,11 +1485,11 @@ bool SpellInfo::CanDispelAura(SpellInfo const* aura) const
         return true;
 
     // These auras (like Divine Shield) can't be dispelled
-    if (aura->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
+    if (aura->HasAttribute(SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY))
         return false;
 
     // These auras (Cyclone for example) are not dispelable
-    if (aura->AttributesEx & SPELL_ATTR1_UNAFFECTED_BY_SCHOOL_IMMUNE)
+    if (aura->HasAttribute(SPELL_ATTR1_UNAFFECTED_BY_SCHOOL_IMMUNE))
         return false;
 
     return true;
@@ -1739,7 +1739,7 @@ SpellCastResult SpellInfo::CheckLocation(uint32 map_id, uint32 zone_id, uint32 a
     // aura limitations
     if (player)
     {
-        for (SpellEffectInfo const* effect : GetEffectsForDifficulty(player->GetMap()->GetDifficulty()))
+        for (SpellEffectInfo const* effect : GetEffectsForDifficulty(player->GetMap()->GetDifficultyID()))
         {
             if (!effect || !effect->IsAura())
                 continue;
@@ -1910,7 +1910,7 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
         return SPELL_FAILED_TARGET_AURASTATE;
 
     if (unitTarget->HasAuraType(SPELL_AURA_PREVENT_RESURRECTION))
-    if (HasEffect(caster->GetMap()->GetDifficulty(), SPELL_EFFECT_SELF_RESURRECT) || HasEffect(caster->GetMap()->GetDifficulty(), SPELL_EFFECT_RESURRECT) || HasEffect(caster->GetMap()->GetDifficulty(), SPELL_EFFECT_RESURRECT_NEW))
+    if (HasEffect(caster->GetMap()->GetDifficultyID(), SPELL_EFFECT_SELF_RESURRECT) || HasEffect(caster->GetMap()->GetDifficultyID(), SPELL_EFFECT_RESURRECT) || HasEffect(caster->GetMap()->GetDifficultyID(), SPELL_EFFECT_RESURRECT_NEW))
             return SPELL_FAILED_TARGET_CANNOT_BE_RESURRECTED;
 
     return SPELL_CAST_OK;
@@ -1961,7 +1961,7 @@ SpellCastResult SpellInfo::CheckVehicle(Unit const* caster) const
     if (vehicle)
     {
         uint16 checkMask = 0;
-        for (SpellEffectInfo const* effect : GetEffectsForDifficulty(caster->GetMap()->GetDifficulty()))
+        for (SpellEffectInfo const* effect : GetEffectsForDifficulty(caster->GetMap()->GetDifficultyID()))
         {
             if (effect && effect->ApplyAuraName == SPELL_AURA_MOD_SHAPESHIFT)
             {
@@ -1972,7 +1972,7 @@ SpellCastResult SpellInfo::CheckVehicle(Unit const* caster) const
             }
         }
 
-        if (HasAura(caster->GetMap()->GetDifficulty(), SPELL_AURA_MOUNTED))
+        if (HasAura(caster->GetMap()->GetDifficultyID(), SPELL_AURA_MOUNTED))
             checkMask |= VEHICLE_SEAT_FLAG_CAN_CAST_MOUNT_SPELL;
 
         if (!checkMask)
@@ -1986,7 +1986,7 @@ SpellCastResult SpellInfo::CheckVehicle(Unit const* caster) const
         // Can only summon uncontrolled minions/guardians when on controlled vehicle
         if (vehicleSeat->Flags & (VEHICLE_SEAT_FLAG_CAN_CONTROL | VEHICLE_SEAT_FLAG_UNK2))
         {
-            for (SpellEffectInfo const* effect : GetEffectsForDifficulty(caster->GetMap()->GetDifficulty()))
+            for (SpellEffectInfo const* effect : GetEffectsForDifficulty(caster->GetMap()->GetDifficultyID()))
             {
                 if (!effect || effect->Effect != SPELL_EFFECT_SUMMON)
                     continue;
@@ -3076,7 +3076,7 @@ SpellCooldownsEntry const* SpellInfo::GetSpellCooldowns() const
 void SpellInfo::_UnloadImplicitTargetConditionLists()
 {
     // find the same instances of ConditionList and delete them.
-    for (uint32 d = 0; d < DIFFICULTY_MAX; ++d)
+    for (uint32 d = 0; d < MAX_DIFFICULTY; ++d)
     {
         for (uint32 i = 0; i < _effects.size(); ++i)
         {

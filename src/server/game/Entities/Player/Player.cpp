@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -790,8 +790,9 @@ Player::Player(WorldSession* session): Unit(true)
     m_HomebindTimer = 0;
     m_InstanceValid = true;
     m_dungeonDifficulty = DIFFICULTY_NORMAL;
-    m_raidDifficulty = DIFFICULTY_10_N;
-    m_raidMapDifficulty = DIFFICULTY_10_N;
+    m_raidDifficulty = DIFFICULTY_NORMAL_RAID;
+    m_legacyRaidDifficulty = DIFFICULTY_10_N;
+    m_raidMapDifficulty = DIFFICULTY_NORMAL_RAID;
 
     m_lastPotionId = 0;
     _talentMgr = new PlayerTalentInfo();
@@ -1127,9 +1128,16 @@ bool Player::Create(ObjectGuid::LowType guidlow, WorldPackets::Character::Charac
     LearnDefaultSkills();
     LearnCustomSpells();
 
-    // original action bar
+    // Original action bar. Do not use Player::AddActionButton because we do not have skill spells loaded at this time
+    // but checks will still be performed later when loading character from db in Player::_LoadActions
     for (PlayerCreateInfoActions::const_iterator action_itr = info->action.begin(); action_itr != info->action.end(); ++action_itr)
-        addActionButton(action_itr->button, action_itr->action, action_itr->type);
+    {
+        // create new button
+        ActionButton& ab = m_actionButtons[action_itr->button];
+
+        // set data
+        ab.SetActionAndType(action_itr->action, ActionButtonType(action_itr->type));
+    }
 
     // original items
     if (CharStartOutfitEntry const* oEntry = GetCharStartOutfitEntry(createInfo->Race, createInfo->Class, createInfo->Sex))
@@ -3719,9 +3727,9 @@ bool Player::IsNeedCastPassiveSpellAtLearn(SpellInfo const* spellInfo) const
     // talent dependent passives activated at form apply have proper stance data
     ShapeshiftForm form = GetShapeshiftForm();
     bool need_cast = (!spellInfo->Stances || (form && (spellInfo->Stances & (1 << (form - 1)))) ||
-        (!form && (spellInfo->AttributesEx2 & SPELL_ATTR2_NOT_NEED_SHAPESHIFT)));
+        (!form && (spellInfo->HasAttribute(SPELL_ATTR2_NOT_NEED_SHAPESHIFT))));
 
-    if (spellInfo->AttributesEx8 & SPELL_ATTR8_MASTERY_SPECIALIZATION)
+    if (spellInfo->HasAttribute(SPELL_ATTR8_MASTERY_SPECIALIZATION))
         need_cast &= IsCurrentSpecMasterySpell(spellInfo);
 
     //Check CasterAuraStates
@@ -4270,9 +4278,9 @@ void Player::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
     Unit::BuildCreateUpdateBlockForPlayer(data, target);
 }
 
-void Player::DestroyForPlayer(Player* target, bool onDeath) const
+void Player::DestroyForPlayer(Player* target) const
 {
-    Unit::DestroyForPlayer(target, onDeath);
+    Unit::DestroyForPlayer(target);
 
     for (uint8 i = 0; i < INVENTORY_SLOT_BAG_END; ++i)
     {
@@ -6349,7 +6357,7 @@ bool Player::IsActionButtonDataValid(uint8 button, uint32 action, uint8 type)
     return true;
 }
 
-ActionButton* Player::addActionButton(uint8 button, uint32 action, uint8 type)
+ActionButton* Player::AddActionButton(uint8 button, uint32 action, uint8 type)
 {
     if (!IsActionButtonDataValid(button, action, type))
         return NULL;
@@ -6364,7 +6372,7 @@ ActionButton* Player::addActionButton(uint8 button, uint32 action, uint8 type)
     return &ab;
 }
 
-void Player::removeActionButton(uint8 button)
+void Player::RemoveActionButton(uint8 button)
 {
     ActionButtonList::iterator buttonItr = m_actionButtons.find(button);
     if (buttonItr == m_actionButtons.end() || buttonItr->second.uState == ACTIONBUTTON_DELETED)
@@ -6461,16 +6469,16 @@ void Player::SendDirectMessage(WorldPacket const* data) const
 
 void Player::SendCinematicStart(uint32 CinematicSequenceId)
 {
-    WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4);
-    data << uint32(CinematicSequenceId);
-    SendDirectMessage(&data);
+    WorldPackets::Misc::TriggerCinematic packet;
+    packet.CinematicID = CinematicSequenceId;
+    SendDirectMessage(packet.Write());
 }
 
 void Player::SendMovieStart(uint32 MovieId)
 {
-    WorldPacket data(SMSG_TRIGGER_MOVIE, 4);
-    data << uint32(MovieId);
-    SendDirectMessage(&data);
+    WorldPackets::Misc::TriggerMovie packet;
+    packet.MovieID = MovieId;
+    SendDirectMessage(packet.Write());
 }
 
 void Player::CheckAreaExploreAndOutdoor()
@@ -6689,7 +6697,7 @@ void Player::RewardReputation(Unit* victim, float rate)
         // support for: Championing - http://www.wowwiki.com/Championing
         Map const* map = GetMap();
         if (map && map->IsNonRaidDungeon())
-            if (LFGDungeonEntry const* dungeon = GetLFGDungeon(map->GetId(), map->GetDifficulty()))
+            if (LFGDungeonEntry const* dungeon = GetLFGDungeon(map->GetId(), map->GetDifficultyID()))
                 if (dungeon->TargetLevel == 80)
                     ChampioningFaction = GetChampioningFaction();
     }
@@ -6966,8 +6974,10 @@ void Player::_LoadCurrency(PreparedQueryResult result)
 
         PlayerCurrency cur;
         cur.state = PLAYERCURRENCY_UNCHANGED;
-        cur.weekCount = fields[1].GetUInt32();
-        cur.totalCount = fields[2].GetUInt32();
+        cur.Quantity = fields[1].GetUInt32();
+        cur.WeeklyQuantity = fields[2].GetUInt32();
+        cur.TrackedQuantity = fields[3].GetUInt32();
+        cur.Flags = fields[4].GetUInt8();
 
         _currencyStorage.insert(PlayerCurrenciesMap::value_type(currencyID, cur));
 
@@ -6989,16 +6999,20 @@ void Player::_SaveCurrency(SQLTransaction& trans)
                 stmt = CharacterDatabase.GetPreparedStatement(CHAR_REP_PLAYER_CURRENCY);
                 stmt->setUInt64(0, GetGUID().GetCounter());
                 stmt->setUInt16(1, itr->first);
-                stmt->setUInt32(2, itr->second.weekCount);
-                stmt->setUInt32(3, itr->second.totalCount);
+                stmt->setUInt32(2, itr->second.Quantity);
+                stmt->setUInt32(3, itr->second.WeeklyQuantity);
+                stmt->setUInt32(4, itr->second.TrackedQuantity);
+                stmt->setUInt8(5, itr->second.Flags);
                 trans->Append(stmt);
                 break;
             case PLAYERCURRENCY_CHANGED:
                 stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_PLAYER_CURRENCY);
-                stmt->setUInt32(0, itr->second.weekCount);
-                stmt->setUInt32(1, itr->second.totalCount);
-                stmt->setUInt64(2, GetGUID().GetCounter());
-                stmt->setUInt16(3, itr->first);
+                stmt->setUInt32(0, itr->second.Quantity);
+                stmt->setUInt32(1, itr->second.WeeklyQuantity);
+                stmt->setUInt32(2, itr->second.TrackedQuantity);
+                stmt->setUInt8(3, itr->second.Flags);
+                stmt->setUInt64(4, GetGUID().GetCounter());
+                stmt->setUInt16(5, itr->first);
                 trans->Append(stmt);
                 break;
             default:
@@ -7015,47 +7029,29 @@ void Player::SendNewCurrency(uint32 id) const
     if (itr == _currencyStorage.end())
         return;
 
-    ByteBuffer currencyData;
-    WorldPacket packet(SMSG_INIT_CURRENCY, 4 + (5*4 + 1));
-    packet.WriteBits(1, 23);
-
     CurrencyTypesEntry const* entry = sCurrencyTypesStore.LookupEntry(id);
     if (!entry) // should never happen
         return;
 
-    uint32 precision = (entry->Flags & CURRENCY_FLAG_HIGH_PRECISION) ? CURRENCY_PRECISION : 1;
-    uint32 weekCount = itr->second.weekCount / precision;
-    uint32 weekCap = GetCurrencyWeekCap(entry) / precision;
+    WorldPackets::Misc::SetupCurrency packet;
+    WorldPackets::Misc::SetupCurrency::Record record;
+    record.Type = entry->ID;
+    record.Quantity = itr->second.Quantity;
+    record.WeeklyQuantity.Set(itr->second.WeeklyQuantity);
+    record.MaxWeeklyQuantity.Set(GetCurrencyWeekCap(entry) / ((entry->Flags & CURRENCY_FLAG_HIGH_PRECISION) ? CURRENCY_PRECISION : 1));
+    record.TrackedQuantity.Set(itr->second.TrackedQuantity);
+    record.Flags = itr->second.Flags;
 
-    packet.WriteBit(weekCount);
-    packet.WriteBits(0, 4); // some flags
-    packet.WriteBit(weekCap);
-    packet.WriteBit(0);     // season total earned
+    packet.Data.push_back(record);
 
-    currencyData << uint32(itr->second.totalCount / precision);
-    if (weekCap)
-        currencyData << uint32(weekCap);
-
-    //if (seasonTotal)
-    //    currencyData << uint32(seasonTotal / precision);
-
-    currencyData << uint32(entry->ID);
-    if (weekCount)
-        currencyData << uint32(weekCount);
-
-    packet.FlushBits();
-    packet.append(currencyData);
-    GetSession()->SendPacket(&packet);
+    GetSession()->SendPacket(packet.Write());
 }
 
 void Player::SendCurrencies() const
 {
-    ByteBuffer currencyData;
-    WorldPacket packet(SMSG_INIT_CURRENCY, 4 + _currencyStorage.size()*(5*4 + 1));
-    size_t count_pos = packet.bitwpos();
-    packet.WriteBits(_currencyStorage.size(), 23);
+    WorldPackets::Misc::SetupCurrency packet;
+    packet.Data.reserve(_currencyStorage.size());
 
-    size_t count = 0;
     for (PlayerCurrenciesMap::const_iterator itr = _currencyStorage.begin(); itr != _currencyStorage.end(); ++itr)
     {
         CurrencyTypesEntry const* entry = sCurrencyTypesStore.LookupEntry(itr->first);
@@ -7064,33 +7060,18 @@ void Player::SendCurrencies() const
         if (!entry || entry->CategoryID == CURRENCY_CATEGORY_META_CONQUEST)
             continue;
 
-        uint32 precision = (entry->Flags & CURRENCY_FLAG_HIGH_PRECISION) ? CURRENCY_PRECISION : 1;
-        uint32 weekCount = itr->second.weekCount / precision;
-        uint32 weekCap = GetCurrencyWeekCap(entry) / precision;
+        WorldPackets::Misc::SetupCurrency::Record record;
+        record.Type = entry->ID;
+        record.Quantity = itr->second.Quantity;
+        record.WeeklyQuantity.Set(itr->second.WeeklyQuantity);
+        record.MaxWeeklyQuantity.Set(GetCurrencyWeekCap(entry) / ((entry->Flags & CURRENCY_FLAG_HIGH_PRECISION) ? CURRENCY_PRECISION : 1));
+        record.TrackedQuantity.Set(itr->second.TrackedQuantity);
+        record.Flags = itr->second.Flags;
 
-        packet.WriteBit(weekCount);
-        packet.WriteBits(0, 4); // some flags
-        packet.WriteBit(weekCap);
-        packet.WriteBit(0);     // season total earned
-
-        currencyData << uint32(itr->second.totalCount / precision);
-        if (weekCap)
-            currencyData << uint32(weekCap);
-
-        //if (seasonTotal)
-        //    currencyData << uint32(seasonTotal / precision);
-
-        currencyData << uint32(entry->ID);
-        if (weekCount)
-            currencyData << uint32(weekCount);
-
-        ++count;
+        packet.Data.push_back(record);
     }
 
-    packet.FlushBits();
-    packet.append(currencyData);
-    packet.PutBits(count_pos, count, 23);
-    GetSession()->SendPacket(&packet);
+    GetSession()->SendPacket(packet.Write());
 }
 
 void Player::SendPvpRewards() const
@@ -7115,7 +7096,7 @@ uint32 Player::GetCurrency(uint32 id, bool usePrecision) const
     CurrencyTypesEntry const* currency = sCurrencyTypesStore.LookupEntry(id);
     uint32 precision = (usePrecision && currency->Flags & CURRENCY_FLAG_HIGH_PRECISION) ? CURRENCY_PRECISION : 1;
 
-    return itr->second.totalCount / precision;
+    return itr->second.Quantity / precision;
 }
 
 uint32 Player::GetCurrencyOnWeek(uint32 id, bool usePrecision) const
@@ -7127,13 +7108,13 @@ uint32 Player::GetCurrencyOnWeek(uint32 id, bool usePrecision) const
     CurrencyTypesEntry const* currency = sCurrencyTypesStore.LookupEntry(id);
     uint32 precision = (usePrecision && currency->Flags & CURRENCY_FLAG_HIGH_PRECISION) ? CURRENCY_PRECISION : 1;
 
-    return itr->second.weekCount / precision;
+    return itr->second.WeeklyQuantity / precision;
 }
 
 bool Player::HasCurrency(uint32 id, uint32 count) const
 {
     PlayerCurrenciesMap::const_iterator itr = _currencyStorage.find(id);
-    return itr != _currencyStorage.end() && itr->second.totalCount >= count;
+    return itr != _currencyStorage.end() && itr->second.Quantity >= count;
 }
 
 void Player::ModifyCurrency(uint32 id, int32 count, bool printLog/* = true*/, bool ignoreMultipliers/* = false*/)
@@ -7147,23 +7128,27 @@ void Player::ModifyCurrency(uint32 id, int32 count, bool printLog/* = true*/, bo
     if (!ignoreMultipliers)
         count *= GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_CURRENCY_GAIN, id);
 
-    int32 precision = currency->Flags & CURRENCY_FLAG_HIGH_PRECISION ? CURRENCY_PRECISION : 1;
     uint32 oldTotalCount = 0;
     uint32 oldWeekCount = 0;
+    uint32 oldTrackedCount = 0;
+
     PlayerCurrenciesMap::iterator itr = _currencyStorage.find(id);
     if (itr == _currencyStorage.end())
     {
         PlayerCurrency cur;
         cur.state = PLAYERCURRENCY_NEW;
-        cur.totalCount = 0;
-        cur.weekCount = 0;
+        cur.Quantity = 0;
+        cur.WeeklyQuantity = 0;
+        cur.TrackedQuantity = 0;
+        cur.Flags = 0;
         _currencyStorage[id] = cur;
         itr = _currencyStorage.find(id);
     }
     else
     {
-        oldTotalCount = itr->second.totalCount;
-        oldWeekCount = itr->second.weekCount;
+        oldTotalCount = itr->second.Quantity;
+        oldWeekCount = itr->second.WeeklyQuantity;
+        oldTrackedCount = itr->second.TrackedQuantity;
     }
 
     // count can't be more then weekCap if used (weekCap > 0)
@@ -7175,6 +7160,10 @@ void Player::ModifyCurrency(uint32 id, int32 count, bool printLog/* = true*/, bo
     uint32 totalCap = GetCurrencyTotalCap(currency);
     if (totalCap && count > int32(totalCap))
         count = totalCap;
+
+    int32 newTrackedCount = int32(oldTrackedCount) + (count > 0 ? count : 0);
+    if (newTrackedCount < 0)
+        newTrackedCount = 0;
 
     int32 newTotalCount = int32(oldTotalCount) + count;
     if (newTotalCount < 0)
@@ -7204,8 +7193,9 @@ void Player::ModifyCurrency(uint32 id, int32 count, bool printLog/* = true*/, bo
         if (itr->second.state != PLAYERCURRENCY_NEW)
             itr->second.state = PLAYERCURRENCY_CHANGED;
 
-        itr->second.totalCount = newTotalCount;
-        itr->second.weekCount = newWeekCount;
+        itr->second.Quantity = newTotalCount;
+        itr->second.WeeklyQuantity = newWeekCount;
+        itr->second.TrackedQuantity = newTrackedCount;
 
         if (count > 0)
             UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CURRENCY, id, count);
@@ -7217,20 +7207,15 @@ void Player::ModifyCurrency(uint32 id, int32 count, bool printLog/* = true*/, bo
             return;
         }
 
-        WorldPacket packet(SMSG_UPDATE_CURRENCY, 12);
+        WorldPackets::Misc::SetCurrency packet;
+        packet.Type = id;
+        packet.Quantity = newTotalCount;
+        packet.SuppressChatLog = !printLog;
+        packet.WeeklyQuantity.Set(newWeekCount);
+        packet.TrackedQuantity.Set(newTrackedCount);
+        packet.Flags = itr->second.Flags;
 
-        packet.WriteBit(weekCap != 0);
-        packet.WriteBit(0); // hasSeasonCount
-        packet.WriteBit(!printLog); // print in log
-
-        // if hasSeasonCount packet << uint32(seasontotalearned); TODO: save this in character DB and use it
-
-        packet << uint32(newTotalCount / precision);
-        packet << uint32(id);
-        if (weekCap)
-            packet << uint32(newWeekCount / precision);
-
-        GetSession()->SendPacket(&packet);
+        GetSession()->SendPacket(packet.Write());
     }
 }
 
@@ -7241,8 +7226,10 @@ void Player::SetCurrency(uint32 id, uint32 count, bool /*printLog*/ /*= true*/)
     {
         PlayerCurrency cur;
         cur.state = PLAYERCURRENCY_NEW;
-        cur.totalCount = count;
-        cur.weekCount = 0;
+        cur.Quantity = count;
+        cur.WeeklyQuantity = 0;
+        cur.TrackedQuantity = 0;
+        cur.Flags = 0;
         _currencyStorage[id] = cur;
     }
 }
@@ -7273,7 +7260,7 @@ void Player::ResetCurrencyWeekCap()
 
     for (PlayerCurrenciesMap::iterator itr = _currencyStorage.begin(); itr != _currencyStorage.end(); ++itr)
     {
-        itr->second.weekCount = 0;
+        itr->second.WeeklyQuantity = 0;
         itr->second.state = PLAYERCURRENCY_CHANGED;
     }
 
@@ -11572,7 +11559,7 @@ InventoryResult Player::CanRollForItemInLFG(ItemTemplate const* proto, WorldObje
 
     // check if looted object is inside the lfg dungeon
     Map const* map = lootedObject->GetMap();
-    if (!sLFGMgr->inLfgDungeonMap(GetGroup()->GetGUID(), map->GetId(), map->GetDifficulty()))
+    if (!sLFGMgr->inLfgDungeonMap(GetGroup()->GetGUID(), map->GetId(), map->GetDifficultyID()))
         return EQUIP_ERR_OK;
 
     if (!proto)
@@ -13030,18 +13017,30 @@ void Player::RemoveItemFromBuyBackSlot(uint32 slot, bool del)
     }
 }
 
-void Player::SendEquipError(InventoryResult msg, Item* pItem, Item* pItem2, uint32 itemid)
+void Player::SendEquipError(InventoryResult msg, Item* item1 /*= nullptr*/, Item* item2 /*= nullptr*/, uint32 itemId /*= 0*/)
 {
     TC_LOG_DEBUG("network", "WORLD: Sent SMSG_INVENTORY_CHANGE_FAILURE (%u)", msg);
 
-    WorldPackets::Item::EquipError error;
-    error.msg = msg;
-    error.itemGUID1 = pItem ? pItem->GetGUID() : ObjectGuid::Empty;
-    error.itemGUID2 = pItem2 ? pItem2->GetGUID() : ObjectGuid::Empty;
+    WorldPackets::Item::InventoryChangeFailure failure;
+    failure.BagResult = msg;
 
-    error.level = uint32(pItem ? pItem->GetRequiredLevel() : 0);
+    if (item1)
+    {
+        failure.Item[0] = item1->GetGUID();
+        failure.Level = uint32(item1->GetRequiredLevel());
+    }
 
-    GetSession()->SendPacket(error.Write());
+    if (item2)
+        failure.Item[1] = item2->GetGUID();
+
+    /// @todo: fill remaining values:
+    /// ContainerBSlot
+    /// SrcContainer
+    /// DstContainer
+    /// SrcSlot
+    /// LimitCategory
+
+    SendDirectMessage(failure.Write());
 }
 
 void Player::SendBuyError(BuyResult msg, Creature* creature, uint32 item, uint32 /*param*/)
@@ -14316,7 +14315,7 @@ bool Player::CanSeeStartQuest(Quest const* quest)
         SatisfyQuestPrevChain(quest, false) && SatisfyQuestDay(quest, false) && SatisfyQuestWeek(quest, false) &&
         SatisfyQuestMonth(quest, false) && SatisfyQuestSeasonal(quest, false))
     {
-        return getLevel() + sWorld->getIntConfig(CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF) >= quest->GetMinLevel();
+        return int32(getLevel() + sWorld->getIntConfig(CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF)) >= quest->GetMinLevel();
     }
 
     return false;
@@ -14382,17 +14381,16 @@ bool Player::CanCompleteQuest(uint32 quest_id)
 
         if (q_status.Status == QUEST_STATUS_INCOMPLETE)
         {
-            for (uint32 i = 0; i < qInfo->Objectives.size(); ++i)
+            for (QuestObjective const& obj : qInfo->GetObjectives())
             {
-                QuestObjective const& obj = qInfo->Objectives[i];
-
                 switch (obj.Type)
                 {
                     case QUEST_OBJECTIVE_MONSTER:
                     case QUEST_OBJECTIVE_ITEM:
                     case QUEST_OBJECTIVE_GAMEOBJECT:
                     case QUEST_OBJECTIVE_PLAYERKILLS:
-                        if (q_status.ObjectiveData[i] < obj.Amount)
+                    case QUEST_OBJECTIVE_TALKTO:
+                        if (GetQuestObjectiveData(qInfo, obj.StorageIndex) < obj.Amount)
                             return false;
                         break;
                     case QUEST_OBJECTIVE_MIN_REPUTATION:
@@ -14408,7 +14406,7 @@ bool Player::CanCompleteQuest(uint32 quest_id)
                             return false;
                         break;
                     case QUEST_OBJECTIVE_AREATRIGGER:
-                        if (!q_status.ObjectiveData[i])
+                        if (!GetQuestObjectiveData(qInfo, obj.StorageIndex))
                             return false;
                         break;
                     default:
@@ -14435,8 +14433,8 @@ bool Player::CanCompleteRepeatableQuest(Quest const* quest)
         return false;
 
     if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
-        for (uint8 i = 0; i < quest->Objectives.size(); i++)
-            if (quest->Objectives[i].Type == QUEST_OBJECTIVE_ITEM && quest->Objectives[i].Amount && !HasItemCount(quest->Objectives[i].ObjectID, quest->Objectives[i].Amount))
+        for (QuestObjective const& obj : quest->GetObjectives())
+            if (obj.Type == QUEST_OBJECTIVE_ITEM && !HasItemCount(obj.ObjectID, obj.Amount))
                 return false;
 
     if (!CanRewardQuest(quest, false))
@@ -14462,21 +14460,21 @@ bool Player::CanRewardQuest(Quest const* quest, bool msg)
     // prevent receive reward with quest items in bank
     if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
     {
-        for (uint8 i = 0; i < quest->Objectives.size(); i++)
+        for (QuestObjective const& obj : quest->GetObjectives())
         {
-            if (quest->Objectives[i].Type != QUEST_OBJECTIVE_ITEM)
+            if (obj.Type != QUEST_OBJECTIVE_ITEM)
                 continue;
 
-            if (GetItemCount(quest->Objectives[i].ObjectID) < uint32(quest->Objectives[i].Amount))
+            if (GetItemCount(obj.ObjectID) < uint32(obj.Amount))
             {
                 if (msg)
-                    SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL, quest->Objectives[i].ObjectID);
+                    SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL, obj.ObjectID);
                 return false;
             }
         }
     }
 
-    for (QuestObjective const& obj : quest->Objectives)
+    for (QuestObjective const& obj : quest->GetObjectives())
     {
         switch (obj.Type)
         {
@@ -14518,7 +14516,7 @@ void Player::AddQuestAndCheckCompletion(Quest const* quest, Object* questGiver)
 
             // destroy not required for quest finish quest starting item
             bool destroyItem = true;
-            for (QuestObjective const& obj : quest->Objectives)
+            for (QuestObjective const& obj : quest->GetObjectives())
             {
                 if (obj.Type == QUEST_OBJECTIVE_ITEM && uint32(obj.ObjectID) == item->GetEntry() && item->GetTemplate()->GetMaxCount() > 0)
                 {
@@ -14594,13 +14592,18 @@ void Player::AddQuest(Quest const* quest, Object* questGiver)
 
     // check for repeatable quests status reset
     questStatusData.Status = QUEST_STATUS_INCOMPLETE;
-    
-    questStatusData.ObjectiveData.resize(quest->Objectives.size(), 0);
+
+    int32 maxStorageIndex = 0;
+    for (QuestObjective const& obj : quest->GetObjectives())
+        if (obj.StorageIndex > maxStorageIndex)
+            maxStorageIndex = obj.StorageIndex;
+
+    questStatusData.ObjectiveData.resize(maxStorageIndex+1, 0);
 
     GiveQuestSourceItem(quest);
     AdjustQuestReqItemCount(quest);
 
-    for (QuestObjective const& obj : quest->Objectives)
+    for (QuestObjective const& obj : quest->GetObjectives())
         if (obj.Type == QUEST_OBJECTIVE_MIN_REPUTATION || obj.Type == QUEST_OBJECTIVE_MAX_REPUTATION)
             if (FactionEntry const* factionEntry = sFactionStore.LookupEntry(obj.ObjectID))
                 GetReputationMgr().SetVisible(factionEntry);
@@ -14718,7 +14721,7 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
 
     uint32 quest_id = quest->GetQuestId();
 
-    for (QuestObjective const& obj : quest->Objectives)
+    for (QuestObjective const& obj : quest->GetObjectives())
     {
         switch (obj.Type)
         {
@@ -14929,7 +14932,7 @@ void Player::FailQuest(uint32 questId)
             SendQuestFailed(questId);
 
         // Destroy quest items on quest failure.
-        for (QuestObjective const& obj : quest->Objectives)
+        for (QuestObjective const& obj : quest->GetObjectives())
             if (obj.Type == QUEST_OBJECTIVE_ITEM)
                 DestroyItemCount(obj.ObjectID, obj.Amount, true, true);
         // Destroy items received during the quest.
@@ -15425,7 +15428,7 @@ bool Player::TakeQuestSourceItem(uint32 questId, bool msg)
             ASSERT(item);
             bool destroyItem = true;
             if (item->GetStartQuest() == questId)
-                for (QuestObjective const& obj : quest->Objectives)
+                for (QuestObjective const& obj : quest->GetObjectives())
                     if (obj.Type == QUEST_OBJECTIVE_ITEM && srcItemId == uint32(obj.ObjectID))
                         destroyItem = false;
 
@@ -15658,9 +15661,9 @@ uint16 Player::GetReqKillOrCastCurrentCount(uint32 quest_id, int32 entry)
     if (!qInfo)
         return 0;
 
-    for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
-        if (qInfo->Objectives[j].ObjectID == entry)
-            return GetQuestObjectiveData(qInfo, j);
+    for (QuestObjective const& obj : qInfo->GetObjectives())
+        if (obj.ObjectID == entry)
+            return GetQuestObjectiveData(qInfo, obj.StorageIndex);
 
     return 0;
 }
@@ -15669,14 +15672,14 @@ void Player::AdjustQuestReqItemCount(Quest const* quest)
 {
     if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
     {
-        for (uint8 i = 0; i < quest->Objectives.size(); ++i)
+        for (QuestObjective const& obj : quest->GetObjectives())
         {
-            if (quest->Objectives[i].Type != QUEST_OBJECTIVE_ITEM)
+            if (obj.Type != QUEST_OBJECTIVE_ITEM)
                 continue;
 
-            uint32 reqItemCount = quest->Objectives[i].Amount;
-            uint32 curItemCount = GetItemCount(quest->Objectives[i].ObjectID, true);
-            SetQuestObjectiveData(quest, i, std::min(curItemCount, reqItemCount));
+            uint32 reqItemCount = obj.Amount;
+            uint32 curItemCount = GetItemCount(obj.ObjectID, true);
+            SetQuestObjectiveData(quest, obj.StorageIndex, std::min(curItemCount, reqItemCount));
         }
     }
 }
@@ -15765,7 +15768,7 @@ void Player::AreaExploredOrEventHappens(uint32 questId)
             /** @todo
             This function was previously used for area triggers but now those are a part of quest objective system
             Currently this function is used to complete quests with no objectives (needs verifying) so probably rename it?
-            
+
             QuestStatusData& q_status = m_QuestStatus[questId];
 
             if (!q_status.Explored)
@@ -15814,20 +15817,20 @@ void Player::ItemAddedQuestCheck(uint32 entry, uint32 count)
         if (!qInfo || !qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
             continue;
 
-        for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+        for (QuestObjective const& obj : qInfo->GetObjectives())
         {
-            if (qInfo->Objectives[j].Type != QUEST_OBJECTIVE_ITEM)
+            if (obj.Type != QUEST_OBJECTIVE_ITEM)
                 continue;
 
-            uint32 reqItem = qInfo->Objectives[j].ObjectID;
+            uint32 reqItem = obj.ObjectID;
             if (reqItem == entry)
             {
-                uint32 reqItemCount = qInfo->Objectives[j].Amount;
-                uint32 curItemCount = GetQuestObjectiveData(qInfo, j);
+                uint32 reqItemCount = obj.Amount;
+                uint32 curItemCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
                 if (curItemCount < reqItemCount)
                 {
                     uint32 newItemCount = std::min<uint32>(curItemCount + count, reqItemCount);
-                    SetQuestObjectiveData(qInfo, j, newItemCount);
+                    SetQuestObjectiveData(qInfo, obj.StorageIndex, newItemCount);
 
                     //SendQuestUpdateAddItem(qInfo, j, additemcount);
                     // FIXME: verify if there's any packet sent updating item
@@ -15858,16 +15861,16 @@ void Player::ItemRemovedQuestCheck(uint32 entry, uint32 count)
         if (!qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
             continue;
 
-        for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+        for (QuestObjective const& obj : qInfo->GetObjectives())
         {
-            if (qInfo->Objectives[j].Type != QUEST_OBJECTIVE_ITEM)
+            if (obj.Type != QUEST_OBJECTIVE_ITEM)
                 continue;
 
-            uint32 reqItem = qInfo->Objectives[j].ObjectID;
+            uint32 reqItem = obj.ObjectID;
             if (reqItem == entry)
             {
-                uint32 reqItemCount = qInfo->Objectives[j].Amount;
-                uint16 curItemCount = GetQuestObjectiveData(qInfo, j);
+                uint32 reqItemCount = obj.Amount;
+                uint16 curItemCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
 
                 if (curItemCount >= reqItemCount) // we may have more than what the status shows
                     curItemCount = GetItemCount(entry, false);
@@ -15876,7 +15879,7 @@ void Player::ItemRemovedQuestCheck(uint32 entry, uint32 count)
 
                 if (newItemCount < reqItemCount)
                 {
-                    SetQuestObjectiveData(qInfo, j, newItemCount);
+                    SetQuestObjectiveData(qInfo, obj.StorageIndex, newItemCount);
                     IncompleteQuest(questid);
                 }
                 return;
@@ -15922,27 +15925,28 @@ void Player::KilledMonsterCredit(uint32 entry, ObjectGuid guid /*= ObjectGuid::E
         Quest const* qInfo = sObjectMgr->GetQuestTemplate(questid);
         if (!qInfo)
             continue;
+
         // just if !ingroup || !noraidgroup || raidgroup
         QuestStatusData& q_status = m_QuestStatus[questid];
-        if (q_status.Status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->IsAllowedInRaid(GetMap()->GetDifficulty())))
+        if (q_status.Status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->IsAllowedInRaid(GetMap()->GetDifficultyID())))
         {
             if (qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_KILL) /*&& !qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_CAST)*/)
             {
-                for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+                for (QuestObjective const& obj : qInfo->GetObjectives())
                 {
-                    if (qInfo->Objectives[j].Type != QUEST_OBJECTIVE_MONSTER)
+                    if (obj.Type != QUEST_OBJECTIVE_MONSTER)
                         continue;
 
-                    uint32 reqkill = qInfo->Objectives[j].ObjectID;
+                    uint32 reqkill = obj.ObjectID;
 
                     if (reqkill == real_entry)
                     {
-                        uint32 reqKillCount = qInfo->Objectives[j].Amount;
-                        uint16 curKillCount = GetQuestObjectiveData(qInfo, j);
+                        uint32 reqKillCount = obj.Amount;
+                        uint16 curKillCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
                         if (curKillCount < reqKillCount)
                         {
-                            SetQuestObjectiveData(qInfo, j, curKillCount + addKillCount);
-                            SendQuestUpdateAddCredit(qInfo, guid, j, curKillCount + addKillCount);
+                            SetQuestObjectiveData(qInfo, obj.StorageIndex, curKillCount + addKillCount);
+                            SendQuestUpdateAddCredit(qInfo, guid, obj, curKillCount + addKillCount);
                         }
 
                         if (CanCompleteQuest(questid))
@@ -15977,18 +15981,18 @@ void Player::KilledPlayerCredit()
 
         // just if !ingroup || !noraidgroup || raidgroup
         QuestStatusData& q_status = m_QuestStatus[questid];
-        if (q_status.Status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->IsAllowedInRaid(GetMap()->GetDifficulty())))
+        if (q_status.Status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->IsAllowedInRaid(GetMap()->GetDifficultyID())))
         {
-            for (uint32 i = 0; i < qInfo->Objectives.size(); ++i)
+            for (QuestObjective const& obj : qInfo->GetObjectives())
             {
-                if (qInfo->Objectives[i].Type != QUEST_OBJECTIVE_PLAYERKILLS)
+                if (obj.Type != QUEST_OBJECTIVE_PLAYERKILLS)
                     continue;
 
-                uint32 curKillCount = GetQuestObjectiveData(qInfo, i);
-                if (curKillCount < uint32(qInfo->Objectives[i].Amount))
+                uint32 curKillCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
+                if (curKillCount < uint32(obj.Amount))
                 {
-                    SetQuestObjectiveData(qInfo, i, curKillCount + addKillCount);
-                    SendQuestUpdateAddPlayer(qInfo, curKillCount + addKillCount, qInfo->Objectives[i].Amount);
+                    SetQuestObjectiveData(qInfo, obj.StorageIndex, curKillCount + addKillCount);
+                    SendQuestUpdateAddPlayer(qInfo, curKillCount + addKillCount, obj.Amount);
                 }
 
                 if (CanCompleteQuest(questid))
@@ -16020,23 +16024,23 @@ void Player::KillCreditGO(uint32 entry, ObjectGuid guid)
         {
             if (qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_CAST) /*&& !qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_KILL)*/)
             {
-                for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+                for (QuestObjective const& obj : qInfo->GetObjectives())
                 {
-                    if (qInfo->Objectives[j].Type != QUEST_OBJECTIVE_GAMEOBJECT)
+                    if (obj.Type != QUEST_OBJECTIVE_GAMEOBJECT)
                         continue;
 
-                    uint32 reqTarget = qInfo->Objectives[j].ObjectID;
+                    uint32 reqTarget = obj.ObjectID;
 
                     // other not this creature/GO related objectives
                     if (reqTarget != entry)
                         continue;
 
-                    uint32 reqCastCount = qInfo->Objectives[j].Amount;
-                    uint32 curCastCount = GetQuestObjectiveData(qInfo, j);
+                    uint32 reqCastCount = obj.Amount;
+                    uint32 curCastCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
                     if (curCastCount < reqCastCount)
                     {
-                        SetQuestObjectiveData(qInfo, j, curCastCount + addCastCount);
-                        SendQuestUpdateAddCredit(qInfo, guid, j, curCastCount + addCastCount);
+                        SetQuestObjectiveData(qInfo, obj.StorageIndex, curCastCount + addCastCount);
+                        SendQuestUpdateAddCredit(qInfo, guid, obj, curCastCount + addCastCount);
                     }
 
                     if (CanCompleteQuest(questid))
@@ -16069,21 +16073,21 @@ void Player::TalkedToCreature(uint32 entry, ObjectGuid guid)
         {
             if (qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_KILL | QUEST_SPECIAL_FLAGS_CAST | QUEST_SPECIAL_FLAGS_SPEAKTO))
             {
-                for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+                for (QuestObjective const& obj : qInfo->GetObjectives())
                 {
-                    if (qInfo->Objectives[j].Type != QUEST_OBJECTIVE_TALKTO)
+                    if (obj.Type != QUEST_OBJECTIVE_TALKTO)
                         continue;
 
-                    uint32 reqTarget = qInfo->Objectives[j].ObjectID;
+                    uint32 reqTarget = obj.ObjectID;
 
                     if (reqTarget == entry)
                     {
-                        uint32 reqTalkCount = qInfo->Objectives[j].Amount;
-                        uint32 curTalkCount = GetQuestObjectiveData(qInfo, j);
+                        uint32 reqTalkCount = obj.Amount;
+                        uint32 curTalkCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
                         if (curTalkCount < reqTalkCount)
                         {
-                            SetQuestObjectiveData(qInfo, j, curTalkCount + addTalkCount);
-                            SendQuestUpdateAddCredit(qInfo, guid, j, curTalkCount + addTalkCount);
+                            SetQuestObjectiveData(qInfo, obj.StorageIndex, curTalkCount + addTalkCount);
+                            SendQuestUpdateAddCredit(qInfo, guid, obj, curTalkCount + addTalkCount);
                         }
 
                         if (CanCompleteQuest(questid))
@@ -16144,7 +16148,7 @@ void Player::ReputationChanged(FactionEntry const* factionEntry)
             {
                 QuestStatusData& q_status = m_QuestStatus[questid];
 
-                for (QuestObjective const& obj : qInfo->Objectives)
+                for (QuestObjective const& obj : qInfo->GetObjectives())
                 {
                     if (uint32(obj.ObjectID) != factionEntry->ID)
                         continue;
@@ -16204,15 +16208,15 @@ bool Player::HasQuestForItem(uint32 itemid) const
                 continue;
 
             // hide quest if player is in raid-group and quest is no raid quest
-            if (GetGroup() && GetGroup()->isRaidGroup() && !qInfo->IsAllowedInRaid(GetMap()->GetDifficulty()))
+            if (GetGroup() && GetGroup()->isRaidGroup() && !qInfo->IsAllowedInRaid(GetMap()->GetDifficultyID()))
                 if (!InBattleground()) //there are two ways.. we can make every bg-quest a raidquest, or add this code here.. i don't know if this can be exploited by other quests, but i think all other quests depend on a specific area.. but keep this in mind, if something strange happens later
                     continue;
 
             // There should be no mixed ReqItem/ReqSource drop
             // This part for ReqItem drop
-            for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+            for (QuestObjective const& obj : qInfo->GetObjectives())
             {
-                if (qInfo->Objectives[j].Type == QUEST_OBJECTIVE_ITEM && itemid == uint32(qInfo->Objectives[j].ObjectID) && q_status.ObjectiveData[j] < qInfo->Objectives[j].Amount)
+                if (obj.Type == QUEST_OBJECTIVE_ITEM && itemid == uint32(obj.ObjectID) && GetQuestObjectiveData(qInfo, obj.StorageIndex) < obj.Amount)
                     return true;
             }
             // This part - for ReqSource
@@ -16241,8 +16245,11 @@ bool Player::HasQuestForItem(uint32 itemid) const
     return false;
 }
 
-int32 Player::GetQuestObjectiveData(Quest const* quest, uint32 objective) const
+int32 Player::GetQuestObjectiveData(Quest const* quest, int8 storageIndex) const
 {
+    if (storageIndex < 0)
+        TC_LOG_ERROR("entities.player.quest", "GetQuestObjectiveData: called for quest %u with invalid StorageIndex %d (objective data is not tracked)", quest->GetQuestId(), storageIndex);
+
     auto itr = m_QuestStatus.find(quest->GetQuestId());
 
     if (itr == m_QuestStatus.end())
@@ -16253,17 +16260,20 @@ int32 Player::GetQuestObjectiveData(Quest const* quest, uint32 objective) const
 
     QuestStatusData const& status = itr->second;
 
-    if (objective >= status.ObjectiveData.size())
+    if (uint8(storageIndex) >= status.ObjectiveData.size())
     {
-        TC_LOG_ERROR("entities.player.quest", "GetQuestObjectiveData: player %s (%s) quest %u out of range objective index %u", GetName().c_str(), GetGUID().ToString().c_str(), quest->GetQuestId(), objective);
+        TC_LOG_ERROR("entities.player.quest", "GetQuestObjectiveData: player %s (%s) quest %u out of range StorageIndex %u", GetName().c_str(), GetGUID().ToString().c_str(), quest->GetQuestId(), storageIndex);
         return 0;
     }
 
-    return status.ObjectiveData[objective];
+    return status.ObjectiveData[storageIndex];
 }
 
-void Player::SetQuestObjectiveData(Quest const* quest, uint32 objective, int32 data)
+void Player::SetQuestObjectiveData(Quest const* quest, int8 storageIndex, int32 data)
 {
+    if (storageIndex < 0)
+        TC_LOG_ERROR("entities.player.quest", "SetQuestObjectiveData: called for quest %u with invalid StorageIndex %d (objective data is not tracked)", quest->GetQuestId(), storageIndex);
+
     auto itr = m_QuestStatus.find(quest->GetQuestId());
 
     if (itr == m_QuestStatus.end())
@@ -16274,18 +16284,18 @@ void Player::SetQuestObjectiveData(Quest const* quest, uint32 objective, int32 d
 
     QuestStatusData& status = itr->second;
 
-    if (objective >= status.ObjectiveData.size())
+    if (uint8(storageIndex) >= status.ObjectiveData.size())
     {
-        TC_LOG_ERROR("entities.player.quest", "SetQuestObjectiveData: player %s (%s) quest %u out of range objective index %u", GetName().c_str(), GetGUID().ToString().c_str(), quest->GetQuestId(), objective);
+        TC_LOG_ERROR("entities.player.quest", "SetQuestObjectiveData: player %s (%s) quest %u out of range StorageIndex %u", GetName().c_str(), GetGUID().ToString().c_str(), quest->GetQuestId(), storageIndex);
         return;
     }
 
     // No change
-    if (status.ObjectiveData[objective] == data)
+    if (status.ObjectiveData[storageIndex] == data)
         return;
 
     // Set data
-    status.ObjectiveData[objective] = data;
+    status.ObjectiveData[storageIndex] = data;
 
     // Add to save
     m_QuestStatusSave[quest->GetQuestId()] = QUEST_DEFAULT_SAVE_TYPE;
@@ -16293,7 +16303,7 @@ void Player::SetQuestObjectiveData(Quest const* quest, uint32 objective, int32 d
     // Update quest fields
     uint16 log_slot = FindQuestSlot(quest->GetQuestId());
     if (log_slot < MAX_QUEST_LOG_SIZE)
-        SetQuestSlotCounter(log_slot, objective, status.ObjectiveData[objective]);
+        SetQuestSlotCounter(log_slot, storageIndex, status.ObjectiveData[storageIndex]);
 }
 
 void Player::SendQuestComplete(Quest const* quest)
@@ -16328,14 +16338,14 @@ void Player::SendQuestReward(Quest const* quest, uint32 XP)
     }
 
     WorldPackets::Quest::QuestGiverQuestComplete packet;
-    
+
     packet.QuestID = questId;
     packet.MoneyReward = moneyReward;
     packet.XPReward = xp;
     packet.SkillLineIDReward = quest->GetRewardSkillId();
     packet.NumSkillUpsReward = quest->GetRewardSkillPoints();
     packet.TalentReward = quest->GetBonusTalents();
-    
+
     // @todo fix these 3
     packet.UseQuestReward = true;
     packet.LaunchGossip = true;
@@ -16408,15 +16418,15 @@ void Player::SendPushToPartyResponse(Player* player, uint8 msg)
     }
 }
 
-void Player::SendQuestUpdateAddCredit(Quest const* quest, ObjectGuid guid, uint32 objective, uint16 count)
+void Player::SendQuestUpdateAddCredit(Quest const* quest, ObjectGuid guid, QuestObjective const& obj, uint16 count)
 {
     WorldPackets::Quest::QuestUpdateAddCredit packet;
     packet.VictimGUID = guid;
     packet.QuestID = quest->GetQuestId();
-    packet.ObjectID = quest->Objectives[objective].ObjectID;
+    packet.ObjectID = obj.ObjectID;
     packet.Count = count;
-    packet.Required = quest->Objectives[objective].Amount;
-    packet.ObjectiveType = quest->Objectives[objective].Type;
+    packet.Required = obj.Amount;
+    packet.ObjectiveType = obj.Type;
     GetSession()->SendPacket(packet.Write());
 }
 
@@ -16636,13 +16646,13 @@ bool Player::LoadFromDB(ObjectGuid guid, SQLQueryHolder *holder)
      // 12          13          14          15   16           17        18        19         20         21          22           23                 24
     //"position_x, position_y, position_z, map, orientation, taximask, cinematic, totaltime, leveltime, rest_bonus, logout_time, is_logout_resting, resettalents_cost, "
     // 25                 26          27       28       29       30       31         32           33            34        35    36      37                 38         39
-    //"resettalents_time, talentTree, trans_x, trans_y, trans_z, trans_o, transguid, extra_flags, stable_slots, at_login, zone, online, death_expire_time, taxi_path, instance_mode_mask, "
+    //"resettalents_time, talentTree, trans_x, trans_y, trans_z, trans_o, transguid, extra_flags, stable_slots, at_login, zone, online, death_expire_time, taxi_path, dungeonDifficulty, "
     //    40           41          42              43           44            45
     //"totalKills, todayKills, yesterdayKills, chosenTitle, watchedFaction, drunk, "
     // 46      47      48      49      50      51      52           53         54          55             56
     //"health, power1, power2, power3, power4, power5, instance_id, speccount, activespec, exploredZones, equipmentCache, "
-    // 57           58          59
-    //"knownTitles, actionBars, grantableLevels FROM characters WHERE guid = '%u'", guid);
+    // 57           58          59               60              61
+    //"knownTitles, actionBars, grantableLevels, raidDifficulty, legacyRaidDifficulty FROM characters WHERE guid = '%u'", guid);
     PreparedQueryResult result = holder->GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_FROM);
     if (!result)
     {
@@ -16768,14 +16778,9 @@ bool Player::LoadFromDB(ObjectGuid guid, SQLQueryHolder *holder)
     uint32 mapId = fields[15].GetUInt16();
     uint32 instanceId = fields[52].GetUInt32();
 
-    uint32 dungeonDiff = fields[39].GetUInt8() & 0x0F;
-    if (dungeonDiff >= MAX_DUNGEON_DIFFICULTY)
-        dungeonDiff = DIFFICULTY_NORMAL;
-    uint32 raidDiff = (fields[39].GetUInt8() >> 4) & 0x0F;
-    if (raidDiff >= MAX_RAID_DIFFICULTY)
-        raidDiff = DIFFICULTY_10_N;
-    SetDungeonDifficulty(Difficulty(dungeonDiff));          // may be changed in _LoadGroup
-    SetRaidDifficulty(Difficulty(raidDiff));                // may be changed in _LoadGroup
+    SetDungeonDifficultyID(CheckLoadedDungeonDifficultyID(Difficulty(fields[39].GetUInt8())));
+    SetRaidDifficultyID(CheckLoadedRaidDifficultyID(Difficulty(fields[60].GetUInt8())));
+    SetLegacyRaidDifficultyID(CheckLoadedLegacyRaidDifficultyID(Difficulty(fields[61].GetUInt8())));
 
     std::string taxi_nodes = fields[38].GetString();
 
@@ -16970,7 +16975,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SQLQueryHolder *holder)
 
         // fix crash (because of if (Map* map = _FindMap(instanceId)) in MapInstanced::CreateInstance)
         if (instanceId)
-            if (InstanceSave* save = GetInstanceSave(mapId, mapEntry->IsRaid()))
+            if (InstanceSave* save = GetInstanceSave(mapId))
                 if (save->GetInstanceId() != instanceId)
                     instanceId = 0;
     }
@@ -17033,7 +17038,6 @@ bool Player::LoadFromDB(ObjectGuid guid, SQLQueryHolder *holder)
     }
 
     SetMap(map);
-    StoreRaidMapDifficulty();
 
     // randomize first save time in range [CONFIG_INTERVAL_SAVE] around [CONFIG_INTERVAL_SAVE]
     // this must help in case next save after mass player load after server startup
@@ -17432,7 +17436,7 @@ void Player::_LoadActions(PreparedQueryResult result)
             uint32 action = fields[1].GetUInt32();
             uint8 type = fields[2].GetUInt8();
 
-            if (ActionButton* ab = addActionButton(button, action, type))
+            if (ActionButton* ab = AddActionButton(button, action, type))
                 ab->uState = ACTIONBUTTON_UNCHANGED;
             else
             {
@@ -18061,7 +18065,12 @@ void Player::_LoadQuestStatus(PreparedQueryResult result)
                 }
 
                 // Resize quest objective data to proper size
-                questStatusData.ObjectiveData.resize(quest->GetObjectives().size());
+                int32 maxStorageIndex = 0;
+                for (QuestObjective const& obj : quest->GetObjectives())
+                    if (obj.StorageIndex > maxStorageIndex)
+                        maxStorageIndex = obj.StorageIndex;
+
+                questStatusData.ObjectiveData.resize(maxStorageIndex+1);
 
                 TC_LOG_DEBUG("entities.player.loading", "Quest status is {%u} for quest {%u} for player (%s)", questStatusData.Status, quest_id, GetGUID().ToString().c_str());
             }
@@ -18286,8 +18295,9 @@ void Player::_LoadGroup(PreparedQueryResult result)
             if (getLevel() >= LEVELREQUIREMENT_HEROIC)
             {
                 // the group leader may change the instance difficulty while the player is offline
-                SetDungeonDifficulty(group->GetDungeonDifficulty());
-                SetRaidDifficulty(group->GetRaidDifficulty());
+                SetDungeonDifficultyID(group->GetDungeonDifficultyID());
+                SetRaidDifficultyID(group->GetRaidDifficultyID());
+                SetLegacyRaidDifficultyID(group->GetLegacyRaidDifficultyID());
             }
         }
     }
@@ -18384,9 +18394,10 @@ InstancePlayerBind* Player::GetBoundInstance(uint32 mapid, Difficulty difficulty
         return NULL;
 }
 
-InstanceSave* Player::GetInstanceSave(uint32 mapid, bool raid)
+InstanceSave* Player::GetInstanceSave(uint32 mapid)
 {
-    InstancePlayerBind* pBind = GetBoundInstance(mapid, GetDifficulty(raid));
+    MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
+    InstancePlayerBind* pBind = GetBoundInstance(mapid, GetDifficultyID(mapEntry));
     InstanceSave* pSave = pBind ? pBind->save : NULL;
     if (!pBind || !pBind->perm)
         if (Group* group = GetGroup())
@@ -18428,7 +18439,7 @@ InstancePlayerBind* Player::BindToInstance(InstanceSave* save, bool permanent, b
 {
     if (save)
     {
-        InstancePlayerBind& bind = m_boundInstances[save->GetDifficulty()][save->GetMapId()];
+        InstancePlayerBind& bind = m_boundInstances[save->GetDifficultyID()][save->GetMapId()];
         if (!load)
         {
             if (bind.save)
@@ -18471,8 +18482,8 @@ InstancePlayerBind* Player::BindToInstance(InstanceSave* save, bool permanent, b
         bind.save = save;
         bind.perm = permanent;
         if (!load)
-            TC_LOG_DEBUG("maps", "Player::BindToInstance: %s(%s) is now bound to map %d, instance %d, difficulty %d", GetName().c_str(), GetGUID().ToString().c_str(), save->GetMapId(), save->GetInstanceId(), save->GetDifficulty());
-        sScriptMgr->OnPlayerBindToInstance(this, save->GetDifficulty(), save->GetMapId(), permanent);
+            TC_LOG_DEBUG("maps", "Player::BindToInstance: %s(%s) is now bound to map %d, instance %d, difficulty %d", GetName().c_str(), GetGUID().ToString().c_str(), save->GetMapId(), save->GetInstanceId(), save->GetDifficultyID());
+        sScriptMgr->OnPlayerBindToInstance(this, save->GetDifficultyID(), save->GetMapId(), permanent);
         return &bind;
     }
 
@@ -18517,14 +18528,14 @@ void Player::SendRaidInfo()
             if (itr->second.perm)
             {
                 InstanceSave* save = itr->second.save;
-                bool isHeroic = save->GetDifficulty() == DIFFICULTY_10_HC || save->GetDifficulty() == DIFFICULTY_25_HC;
+                bool isHeroic = save->GetDifficultyID() == DIFFICULTY_10_HC || save->GetDifficultyID() == DIFFICULTY_25_HC;
                 uint32 completedEncounters = 0;
                 if (Map* map = sMapMgr->FindMap(save->GetMapId(), save->GetInstanceId()))
                     if (InstanceScript* instanceScript = ((InstanceMap*)map)->GetInstanceScript())
                         completedEncounters = instanceScript->GetCompletedEncounterMask();
 
                 data << uint32(save->GetMapId());           // map id
-                data << uint32(save->GetDifficulty());      // difficulty
+                data << uint32(save->GetDifficultyID());      // difficulty
                 data << uint32(isHeroic);                   // heroic
                 data << uint64(save->GetInstanceId());      // instance id
                 data << uint8(1);                           // expired = 0
@@ -18592,7 +18603,7 @@ void Player::ConvertInstancesToGroup(Player* player, Group* group, bool switchLe
     {
         for (BoundInstancesMap::iterator itr = player->m_boundInstances[i].begin(); itr != player->m_boundInstances[i].end();)
         {
-            if (!switchLeader || !group->GetBoundInstance(itr->second.save->GetDifficulty(), itr->first))
+            if (!switchLeader || !group->GetBoundInstance(itr->second.save->GetDifficultyID(), itr->first))
                 group->BindToInstance(itr->second.save, itr->second.perm, false);
 
             // permanent binds are not removed
@@ -18658,7 +18669,7 @@ bool Player::Satisfy(AccessRequirement const* ar, uint32 target_map, bool report
             if (!leader || !leader->HasAchieved(ar->achievement))
                 missingAchievement = ar->achievement;
 
-        Difficulty target_difficulty = GetDifficulty(mapEntry->IsRaid());
+        Difficulty target_difficulty = GetDifficultyID(mapEntry);
         MapDifficulty const* mapDiff = GetDownscaledMapDifficultyData(target_map, target_difficulty);
         if (LevelMin || LevelMax || missingItem || missingQuest || missingAchievement)
         {
@@ -18824,7 +18835,6 @@ void Player::SaveToDB(bool create /*=false*/)
         stmt->setUInt32(index++, GetUInt32Value(PLAYER_FLAGS));
         stmt->setUInt16(index++, (uint16)GetMapId());
         stmt->setUInt32(index++, (uint32)GetInstanceId());
-        stmt->setUInt8(index++, (uint8(GetDungeonDifficulty()) | uint8(GetRaidDifficulty()) << 4));
         stmt->setFloat(index++, finiteAlways(GetPositionX()));
         stmt->setFloat(index++, finiteAlways(GetPositionY()));
         stmt->setFloat(index++, finiteAlways(GetPositionZ()));
@@ -18945,7 +18955,9 @@ void Player::SaveToDB(bool create /*=false*/)
         {
             stmt->setUInt16(index++, (uint16)GetMapId());
             stmt->setUInt32(index++, (uint32)GetInstanceId());
-            stmt->setUInt8(index++, (uint8(GetDungeonDifficulty()) | uint8(GetRaidDifficulty()) << 4));
+            stmt->setUInt8(index++, uint8(GetDungeonDifficultyID()));
+            stmt->setUInt8(index++, uint8(GetRaidDifficultyID()));
+            stmt->setUInt8(index++, uint8(GetLegacyRaidDifficultyID()));
             stmt->setFloat(index++, finiteAlways(GetPositionX()));
             stmt->setFloat(index++, finiteAlways(GetPositionY()));
             stmt->setFloat(index++, finiteAlways(GetPositionZ()));
@@ -18955,7 +18967,9 @@ void Player::SaveToDB(bool create /*=false*/)
         {
             stmt->setUInt16(index++, (uint16)GetTeleportDest().GetMapId());
             stmt->setUInt32(index++, (uint32)0);
-            stmt->setUInt8(index++, (uint8(GetDungeonDifficulty()) | uint8(GetRaidDifficulty()) << 4));
+            stmt->setUInt8(index++, uint8(GetDungeonDifficultyID()));
+            stmt->setUInt8(index++, uint8(GetRaidDifficultyID()));
+            stmt->setUInt8(index++, uint8(GetLegacyRaidDifficultyID()));
             stmt->setFloat(index++, finiteAlways(GetTeleportDest().GetPositionX()));
             stmt->setFloat(index++, finiteAlways(GetTeleportDest().GetPositionY()));
             stmt->setFloat(index++, finiteAlways(GetTeleportDest().GetPositionZ()));
@@ -19949,24 +19963,19 @@ void Player::SendExplorationExperience(uint32 Area, uint32 Experience)
     GetSession()->SendPacket(&data);
 }
 
-void Player::SendDungeonDifficulty(bool IsInGroup)
+void Player::SendDungeonDifficulty()
 {
-    uint8 val = 0x00000001;
-    WorldPacket data(MSG_SET_DUNGEON_DIFFICULTY, 12);
-    data << (uint32)GetDungeonDifficulty();
-    data << uint32(val);
-    data << uint32(IsInGroup);
-    GetSession()->SendPacket(&data);
+    WorldPackets::Misc::DungeonDifficultySet dungeonDifficultySet;
+    dungeonDifficultySet.DifficultyID = GetDungeonDifficultyID();
+    GetSession()->SendPacket(dungeonDifficultySet.Write());
 }
 
-void Player::SendRaidDifficulty(bool IsInGroup, int32 forcedDifficulty)
+void Player::SendRaidDifficulty(bool legacy, int32 forcedDifficulty /*= -1*/)
 {
-    uint8 val = 0x00000001;
-    WorldPacket data(MSG_SET_RAID_DIFFICULTY, 12);
-    data << uint32(forcedDifficulty == -1 ? GetRaidDifficulty() : forcedDifficulty);
-    data << uint32(val);
-    data << uint32(IsInGroup);
-    GetSession()->SendPacket(&data);
+    WorldPackets::Misc::RaidDifficultySet raidDifficultySet;
+    raidDifficultySet.DifficultyID = forcedDifficulty == -1 ? (legacy ? GetLegacyRaidDifficultyID() : GetRaidDifficultyID()) : forcedDifficulty;
+    raidDifficultySet.Legacy = legacy;
+    GetSession()->SendPacket(raidDifficultySet.Write());
 }
 
 void Player::SendResetFailedNotify(uint32 /*mapid*/)
@@ -19976,12 +19985,19 @@ void Player::SendResetFailedNotify(uint32 /*mapid*/)
 }
 
 /// Reset all solo instances and optionally send a message on success for each
-void Player::ResetInstances(uint8 method, bool isRaid)
+void Player::ResetInstances(uint8 method, bool isRaid, bool isLegacy)
 {
     // method can be INSTANCE_RESET_ALL, INSTANCE_RESET_CHANGE_DIFFICULTY, INSTANCE_RESET_GROUP_JOIN
 
     // we assume that when the difficulty changes, all instances that can be reset will be
-    Difficulty diff = GetDifficulty(isRaid);
+    Difficulty diff = GetDungeonDifficultyID();
+    if (isRaid)
+    {
+        if (!isLegacy)
+            diff = GetRaidDifficultyID();
+        else
+            diff = GetLegacyRaidDifficultyID();
+    }
 
     for (BoundInstancesMap::iterator itr = m_boundInstances[diff].begin(); itr != m_boundInstances[diff].end();)
     {
@@ -21927,7 +21943,7 @@ void Player::AddSpellAndCategoryCooldowns(SpellInfo const* spellInfo, uint32 ite
         if (rec > 0)
             ApplySpellMod(spellInfo->Id, SPELLMOD_COOLDOWN, rec, spell);
 
-        if (catrec > 0 && !(spellInfo->AttributesEx6 & SPELL_ATTR6_IGNORE_CATEGORY_COOLDOWN_MODS))
+        if (catrec > 0 && !spellInfo->HasAttribute(SPELL_ATTR6_IGNORE_CATEGORY_COOLDOWN_MODS))
             ApplySpellMod(spellInfo->Id, SPELLMOD_COOLDOWN, catrec, spell);
 
         if (int32 cooldownMod = GetTotalAuraModifier(SPELL_AURA_MOD_COOLDOWN))
@@ -22832,7 +22848,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
     m_reputationMgr->SendInitialReputations();
     /// SMSG_SET_FORCED_REACTIONS
     m_reputationMgr->SendForceReactions();
-    /// SMSG_INIT_CURRENCY
+    /// SMSG_SETUP_CURRENCY
     SendCurrencies();
     /// SMSG_EQUIPMENT_SET_LIST
     SendEquipmentSetList();
@@ -22853,11 +22869,11 @@ void Player::SendInitialPacketsBeforeAddToMap()
     WorldPackets::Misc::WorldServerInfo worldServerInfo;
     worldServerInfo.IneligibleForLootMask.Clear();     /// @todo
     worldServerInfo.WeeklyReset = sWorld->GetNextWeeklyQuestsResetTime() - WEEK;
-    worldServerInfo.InstanceGroupSize.Clear();         /// @todo
+    worldServerInfo.InstanceGroupSize.Set(GetMap()->GetMapDifficulty()->maxPlayers);
     worldServerInfo.IsTournamentRealm = 0;             /// @todo
     worldServerInfo.RestrictedAccountMaxLevel.Clear(); /// @todo
     worldServerInfo.RestrictedAccountMaxMoney.Clear(); /// @todo
-    worldServerInfo.DifficultyID = GetMap()->GetDifficulty();
+    worldServerInfo.DifficultyID = GetMap()->GetDifficultyID();
     SendDirectMessage(worldServerInfo.Write());
 
     // SMSG_TALENTS_INFO x 2 for pet (unspent points and talents in separate packets...)
@@ -22911,17 +22927,13 @@ void Player::SendInitialPacketsAfterAddToMap()
     SendEnchantmentDurations();                             // must be after add to map
     SendItemDurations();                                    // must be after add to map
 
-    // raid downscaling - send difficulty to player
     if (GetMap()->IsRaid())
     {
-        if (GetMap()->GetDifficulty() != GetRaidDifficulty())
-        {
-            StoreRaidMapDifficulty();
-            SendRaidDifficulty(GetGroup() != NULL, GetStoredRaidDifficulty());
-        }
+        DifficultyEntry const* difficulty = sDifficultyStore.LookupEntry(GetMap()->GetDifficultyID());
+        SendRaidDifficulty((difficulty->Flags & DIFFICULTY_FLAG_LEGACY) != 0, GetMap()->GetDifficultyID());
     }
-    else if (GetRaidDifficulty() != GetStoredRaidDifficulty())
-        SendRaidDifficulty(GetGroup() != NULL);
+    else if (GetMap()->IsNonRaidDungeon())
+        SendDungeonDifficulty();
 }
 
 void Player::SendUpdateToOutOfRangeGroupMembers()
@@ -23307,16 +23319,20 @@ void Player::SendAurasForTarget(Unit* target)
 
     Unit::VisibleAuraMap const* visibleAuras = target->GetVisibleAuras();
 
-    WorldPackets::Spells::SendAuraUpdate update;
-    update.Init(true, target->GetGUID(), visibleAuras->size());
+    WorldPackets::Spells::AuraUpdate update;
+    update.UpdateAll = true;
+    update.UnitGUID = target->GetGUID();
+    update.Auras.reserve(visibleAuras->size());
 
     for (Unit::VisibleAuraMap::const_iterator itr = visibleAuras->begin(); itr != visibleAuras->end(); ++itr)
     {
-        AuraApplication * auraApp = itr->second;
-        update.BuildUpdatePacket(auraApp, false, target->getLevel()); // TODO 6.x should be caster's level
+        AuraApplication* auraApp = itr->second;
+        WorldPackets::Spells::AuraInfo auraInfo;
+        auraApp->BuildUpdatePacket(auraInfo, false);
+        update.Auras.push_back(auraInfo);
     }
 
-    GetSession()->SendPacket(const_cast<WorldPacket*>(update.Write()));
+    GetSession()->SendPacket(update.Write());
 }
 
 void Player::SetDailyQuestStatus(uint32 quest_id)
@@ -23585,15 +23601,15 @@ bool Player::HasQuestForGO(int32 GOId) const
             if (!qInfo)
                 continue;
 
-            if (GetGroup() && GetGroup()->isRaidGroup() && !qInfo->IsAllowedInRaid(GetMap()->GetDifficulty()))
+            if (GetGroup() && GetGroup()->isRaidGroup() && !qInfo->IsAllowedInRaid(GetMap()->GetDifficultyID()))
                 continue;
 
-            for (uint32 j = 0; j < qInfo->Objectives.size(); ++j)
+            for (QuestObjective const& obj : qInfo->GetObjectives())
             {
-                if (qInfo->Objectives[j].Type != QUEST_OBJECTIVE_GAMEOBJECT) //skip non GO case
+                if (obj.Type != QUEST_OBJECTIVE_GAMEOBJECT) //skip non GO case
                     continue;
 
-                if (GOId == qInfo->Objectives[j].ObjectID && qs.ObjectiveData[j] < qInfo->Objectives[j].Amount)
+                if (GOId == obj.ObjectID && GetQuestObjectiveData(qInfo, obj.StorageIndex) < obj.Amount)
                     return true;
             }
         }
@@ -23797,7 +23813,7 @@ bool Player::HasItemFitToSpellRequirements(SpellInfo const* spellInfo, Item cons
 bool Player::CanNoReagentCast(SpellInfo const* spellInfo) const
 {
     // don't take reagents for spells with SPELL_ATTR5_NO_REAGENT_WHILE_PREP
-    if (spellInfo->AttributesEx5 & SPELL_ATTR5_NO_REAGENT_WHILE_PREP &&
+    if (spellInfo->HasAttribute(SPELL_ATTR5_NO_REAGENT_WHILE_PREP) &&
         HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREPARATION))
         return true;
 
@@ -24305,7 +24321,7 @@ bool Player::inRandomLfgDungeon()
     if (sLFGMgr->selectedRandomLfgDungeon(GetGUID()))
     {
         Map const* map = GetMap();
-        return sLFGMgr->inLfgDungeonMap(GetGUID(), map->GetId(), map->GetDifficulty());
+        return sLFGMgr->inLfgDungeonMap(GetGUID(), map->GetId(), map->GetDifficultyID());
     }
 
     return false;
@@ -24990,6 +25006,7 @@ void Player::_LoadSkills(PreparedQueryResult result)
 
     uint32 count = 0;
     uint8 professionCount = 0;
+    std::unordered_map<uint32, uint32> loadedSkillValues;
     if (result)
     {
         do
@@ -25066,8 +25083,7 @@ void Player::_LoadSkills(PreparedQueryResult result)
             SetUInt16Value(PLAYER_SKILL_LINEID + SKILL_PERM_BONUS_OFFSET + field, offset, 0);
 
             mSkillStatus.insert(SkillStatusMap::value_type(skill, SkillStatusData(count, SKILL_UNCHANGED)));
-
-            LearnSkillRewardedSpells(skill, value);
+            loadedSkillValues[skill] = value;
 
             ++count;
 
@@ -25079,6 +25095,10 @@ void Player::_LoadSkills(PreparedQueryResult result)
         }
         while (result->NextRow());
     }
+
+    // Learn skill rewarded spells after all skills have been loaded to prevent learning a skill from them before its loaded with proper value from DB
+    for (auto& skill : loadedSkillValues)
+        LearnSkillRewardedSpells(skill.first, skill.second);
 
     if (HasSkill(SKILL_FIST_WEAPONS))
         SetSkill(SKILL_FIST_WEAPONS, 0, GetSkillValue(SKILL_UNARMED), GetMaxSkillValueForLevel());
@@ -27051,4 +27071,65 @@ uint32 Player::CalculateTalentsPoints() const
 {
     // 1 talent point for every 15 levels
     return getLevel() >= 100 ? 7 : uint32(floor(getLevel() / 15.f));
+}
+
+Difficulty Player::GetDifficultyID(MapEntry const* mapEntry) const
+{
+    if (!mapEntry->IsRaid())
+        return m_dungeonDifficulty;
+
+    MapDifficulty const* defaultDifficulty = GetDefaultMapDifficulty(mapEntry->ID);
+    if (!defaultDifficulty)
+        return m_legacyRaidDifficulty;
+
+    DifficultyEntry const* difficulty = sDifficultyStore.LookupEntry(defaultDifficulty->DifficultyID);
+    if (!difficulty || difficulty->Flags & DIFFICULTY_FLAG_LEGACY)
+        return m_legacyRaidDifficulty;
+
+    return m_raidDifficulty;
+}
+
+Difficulty Player::CheckLoadedDungeonDifficultyID(Difficulty difficulty)
+{
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(difficulty);
+    if (!difficultyEntry)
+        return DIFFICULTY_NORMAL;
+
+    if (difficultyEntry->InstanceType != MAP_INSTANCE)
+        return DIFFICULTY_NORMAL;
+
+    if (!(difficultyEntry->Flags & DIFFICULTY_FLAG_CAN_SELECT))
+        return DIFFICULTY_NORMAL;
+
+    return difficulty;
+}
+
+Difficulty Player::CheckLoadedRaidDifficultyID(Difficulty difficulty)
+{
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(difficulty);
+    if (!difficultyEntry)
+        return DIFFICULTY_NORMAL_RAID;
+
+    if (difficultyEntry->InstanceType != MAP_INSTANCE)
+        return DIFFICULTY_NORMAL_RAID;
+
+    if (!(difficultyEntry->Flags & DIFFICULTY_FLAG_CAN_SELECT) || (difficultyEntry->Flags & DIFFICULTY_FLAG_LEGACY))
+        return DIFFICULTY_NORMAL_RAID;
+
+    return difficulty;
+}
+
+Difficulty Player::CheckLoadedLegacyRaidDifficultyID(Difficulty difficulty)
+{
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(difficulty);
+    if (!difficultyEntry)
+        return DIFFICULTY_10_N;
+
+    if (difficultyEntry->InstanceType != MAP_INSTANCE)
+        return DIFFICULTY_10_N;
+
+    if (!(difficultyEntry->Flags & DIFFICULTY_FLAG_CAN_SELECT) || !(difficultyEntry->Flags & DIFFICULTY_FLAG_LEGACY))
+        return DIFFICULTY_10_N;
+
+    return difficulty;
 }

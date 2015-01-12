@@ -408,7 +408,7 @@ DROP TABLE IF EXISTS `character_achievement_progress`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `character_achievement_progress` (
   `guid` bigint(20) unsigned NOT NULL,
-  `criteria` smallint(5) unsigned NOT NULL,
+  `criteria` int(10) unsigned NOT NULL,
   `counter` bigint(20) unsigned NOT NULL,
   `date` int(10) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`guid`,`criteria`)
@@ -636,11 +636,13 @@ DROP TABLE IF EXISTS `character_currency`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `character_currency` (
-  `guid` bigint(20) unsigned NOT NULL DEFAULT '0',
-  `currency` smallint(5) unsigned NOT NULL,
-  `total_count` int(10) unsigned NOT NULL,
-  `week_count` int(10) unsigned NOT NULL,
-  PRIMARY KEY (`guid`,`currency`)
+  `CharacterGuid` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `Currency` smallint(5) unsigned NOT NULL,
+  `Quantity` int(10) unsigned NOT NULL,
+  `WeeklyQuantity` int(10) unsigned NOT NULL,
+  `TrackedQuantity` int(10) unsigned NOT NULL,
+  `Flags` tinyint(3) unsigned NOT NULL,
+  PRIMARY KEY (`CharacterGuid`,`Currency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -1361,7 +1363,9 @@ CREATE TABLE `characters` (
   `position_z` float NOT NULL DEFAULT '0',
   `map` smallint(5) unsigned NOT NULL DEFAULT '0' COMMENT 'Map Identifier',
   `instance_id` int(10) unsigned NOT NULL DEFAULT '0',
-  `instance_mode_mask` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `dungeonDifficulty` tinyint(3) unsigned NOT NULL DEFAULT '1',
+  `raidDifficulty` tinyint(3) unsigned NOT NULL DEFAULT '14',
+  `legacyRaidDifficulty` tinyint(3) unsigned NOT NULL DEFAULT '3',
   `orientation` float NOT NULL DEFAULT '0',
   `taximask` text NOT NULL,
   `online` tinyint(3) unsigned NOT NULL DEFAULT '0',
@@ -1729,8 +1733,9 @@ CREATE TABLE `groups` (
   `icon7` binary(16) NOT NULL,
   `icon8` binary(16) NOT NULL,
   `groupType` tinyint(3) unsigned NOT NULL,
-  `difficulty` tinyint(3) unsigned NOT NULL DEFAULT '0',
-  `raiddifficulty` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `difficulty` tinyint(3) unsigned NOT NULL DEFAULT '1',
+  `raidDifficulty` tinyint(3) unsigned NOT NULL DEFAULT '14',
+  `legacyRaidDifficulty` tinyint(3) unsigned NOT NULL DEFAULT '3',
   `masterLooterGuid` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`guid`),
   KEY `leaderGuid` (`leaderGuid`)
@@ -1816,7 +1821,7 @@ DROP TABLE IF EXISTS `guild_achievement_progress`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `guild_achievement_progress` (
   `guildId` bigint(20) unsigned NOT NULL,
-  `criteria` smallint(5) unsigned NOT NULL,
+  `criteria` int(10) unsigned NOT NULL,
   `counter` bigint(20) unsigned NOT NULL,
   `date` int(10) unsigned NOT NULL DEFAULT '0',
   `completedGuid` bigint(20) unsigned NOT NULL DEFAULT '0',

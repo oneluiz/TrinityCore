@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -61,8 +61,8 @@ void LFGMgr::_LoadFromDB(Field* fields, ObjectGuid guid)
 
     SetLeader(guid, ObjectGuid::Create<HighGuid::Player>(fields[0].GetUInt64()));
 
-    uint32 dungeon = fields[17].GetUInt32();
-    uint8 state = fields[18].GetUInt8();
+    uint32 dungeon = fields[18].GetUInt32();
+    uint8 state = fields[19].GetUInt8();
 
     if (!dungeon || !state)
         return;
@@ -924,7 +924,7 @@ void LFGMgr::MakeNewGroup(LfgProposal const& proposal)
     }
 
     ASSERT(grp);
-    grp->SetDungeonDifficulty(Difficulty(dungeon->difficulty));
+    grp->SetDungeonDifficultyID(Difficulty(dungeon->difficulty));
     ObjectGuid gguid = grp->GetGUID();
     SetDungeon(gguid, dungeon->Entry());
     SetState(gguid, LFG_STATE_DUNGEON);
