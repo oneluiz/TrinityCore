@@ -75,6 +75,16 @@ class RBACData;
 
 namespace WorldPackets
 {
+    namespace AuctionHouse
+    {
+        class AuctionHelloRequest;
+    }
+
+    namespace BlackMarket
+    {
+        class BlackMarketOpen;
+    }
+
     namespace Character
     {
         struct CharacterCreateInfo;
@@ -167,6 +177,9 @@ namespace WorldPackets
     namespace Loot
     {
         class LootUnit;
+        class AutoStoreLootItem;
+        class LootRelease;
+        class LootMoney;
     }
 
     namespace Misc
@@ -178,6 +191,11 @@ namespace WorldPackets
         class TutorialSetFlag;
         class SetDungeonDifficulty;
         class SetRaidDifficulty;
+        class PortGraveyard;
+        class ReclaimCorpse;
+        class RepopRequest;
+        class RequestCemeteryList;
+        class ResurrectResponse;
     }
 
     namespace Movement
@@ -200,6 +218,8 @@ namespace WorldPackets
         class QueryNPCText;
         class DBQueryBulk;
         class QueryGameObject;
+        class QueryCorpseLocationFromClient;
+        class QueryCorpseTransport;
     }
 
     namespace Quest
@@ -500,7 +520,7 @@ class WorldSession
         void SendPetNameQuery(ObjectGuid guid, uint32 petnumber);
         void SendStablePet(ObjectGuid guid);
         void SendStablePetCallback(PreparedQueryResult result, ObjectGuid guid);
-        void SendStableResult(uint8 guid);
+        void SendPetStableResult(uint8 guid);
         bool CheckStableMaster(ObjectGuid guid);
 
         // Account Data
@@ -541,6 +561,9 @@ class WorldSession
         void SendAuctionBidderNotification(uint32 location, uint32 auctionId, ObjectGuid bidder, uint32 bidSum, uint32 diff, uint32 item_template);
         void SendAuctionOwnerNotification(AuctionEntry* auction);
         void SendAuctionRemovedNotification(uint32 auctionId, uint32 itemEntry, int32 randomPropertyId);
+
+        // Black Market
+        void SendBlackMarketOpenResult(ObjectGuid guid, Creature* auctioneer);
 
         //Item Enchantment
         void SendEnchantmentLog(ObjectGuid target, ObjectGuid caster, uint32 itemId, uint32 enchantId);
@@ -648,8 +671,8 @@ class WorldSession
         void HandleLookingForGroup(WorldPacket& recvPacket);
 
         // cemetery/graveyard related
-        void HandleReturnToGraveyard(WorldPacket& recvPacket);
-        void HandleRequestCemeteryList(WorldPacket& recvPacket);
+        void HandlePortGraveyard(WorldPackets::Misc::PortGraveyard& packet);
+        void HandleRequestCemeteryList(WorldPackets::Misc::RequestCemeteryList& packet);
 
         // new inspect
         void HandleInspectOpcode(WorldPacket& recvPacket);
@@ -679,11 +702,11 @@ class WorldSession
         void HandleSetCollisionHeightAck(WorldPacket& recvPacket);
 
         void HandlePingOpcode(WorldPacket& recvPacket);
-        void HandleRepopRequestOpcode(WorldPacket& recvPacket);
-        void HandleAutostoreLootItemOpcode(WorldPacket& recvPacket);
-        void HandleLootMoneyOpcode(WorldPacket& recvPacket);
+        void HandleRepopRequest(WorldPackets::Misc::RepopRequest& packet);
+        void HandleAutostoreLootItemOpcode(WorldPackets::Loot::AutoStoreLootItem& packet);
+        void HandleLootMoneyOpcode(WorldPackets::Loot::LootMoney& packet);
         void HandleLootOpcode(WorldPackets::Loot::LootUnit& packet);
-        void HandleLootReleaseOpcode(WorldPacket& recvPacket);
+        void HandleLootReleaseOpcode(WorldPackets::Loot::LootRelease& packet);
         void HandleLootMasterGiveOpcode(WorldPacket& recvPacket);
         void HandleWhoOpcode(WorldPacket& recvPacket);
         void HandleLogoutRequestOpcode(WorldPackets::Character::LogoutRequest& logoutRequest);
@@ -713,7 +736,7 @@ class WorldSession
         void HandleAddIgnoreOpcodeCallBack(PreparedQueryResult result);
         void HandleDelIgnoreOpcode(WorldPacket& recvPacket);
         void HandleSetContactNotesOpcode(WorldPacket& recvPacket);
-        void HandleBugOpcode(WorldPacket& recvPacket);
+        void HandleBugReportOpcode(WorldPacket& recvPacket);
 
         void HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& packet);
 
@@ -757,7 +780,6 @@ class WorldSession
         //void HandleGroupCancelOpcode(WorldPacket& recvPacket);
         void HandleGroupInviteResponseOpcode(WorldPacket& recvPacket);
         void HandleGroupUninviteOpcode(WorldPacket& recvPacket);
-        void HandleGroupUninviteGuidOpcode(WorldPacket& recvPacket);
         void HandleGroupSetLeaderOpcode(WorldPacket& recvPacket);
         void HandleGroupSetRolesOpcode(WorldPacket& recvData);
         void HandleGroupDisbandOpcode(WorldPacket& recvPacket);
@@ -767,7 +789,6 @@ class WorldSession
         void HandleRequestPartyMemberStatsOpcode(WorldPacket& recvData);
         void HandleRaidTargetUpdateOpcode(WorldPacket& recvData);
         void HandleRaidReadyCheckOpcode(WorldPacket& recvData);
-        void HandleRaidReadyCheckFinishedOpcode(WorldPacket& recvData);
         void HandleGroupRaidConvertOpcode(WorldPacket& recvData);
         void HandleGroupRequestJoinUpdates(WorldPacket& recvData);
         void HandleGroupChangeSubGroupOpcode(WorldPacket& recvData);
@@ -868,7 +889,7 @@ class WorldSession
         void HandleSetTradeItemOpcode(WorldPacket& recvPacket);
         void HandleUnacceptTradeOpcode(WorldPacket& recvPacket);
 
-        void HandleAuctionHelloOpcode(WorldPacket& recvPacket);
+        void HandleAuctionHelloOpcode(WorldPackets::AuctionHouse::AuctionHelloRequest& packet);
         void HandleAuctionListItems(WorldPacket& recvData);
         void HandleAuctionListBidderItems(WorldPacket& recvData);
         void HandleAuctionSellItem(WorldPacket& recvData);
@@ -876,6 +897,9 @@ class WorldSession
         void HandleAuctionListOwnerItems(WorldPacket& recvData);
         void HandleAuctionPlaceBid(WorldPacket& recvData);
         void HandleAuctionListPendingSales(WorldPacket& recvData);
+
+        // Black Market
+        void HandleBlackMarketOpen(WorldPackets::BlackMarket::BlackMarketOpen& packet);
 
         void HandleGetMailList(WorldPacket& recvData);
         void HandleSendMail(WorldPacket& recvData);
@@ -920,7 +944,7 @@ class WorldSession
         void HandleCancelAutoRepeatSpellOpcode(WorldPacket& recvPacket);
 
         void HandleLearnTalentOpcode(WorldPackets::Talent::LearnTalent& packet);
-        void HandleTalentWipeConfirmOpcode(WorldPacket& recvPacket);
+        void HandleConfirmRespecWipeOpcode(WorldPacket& recvPacket);
         void HandleUnlearnSkillOpcode(WorldPacket& recvPacket);
         void HandleSetSpecializationOpcode(WorldPackets::Talent::SetSpecialization& packet);
 
@@ -961,10 +985,10 @@ class WorldSession
         void HandleUnregisterAddonPrefixesOpcode(WorldPacket& recvPacket);
         void HandleAddonRegisteredPrefixesOpcode(WorldPacket& recvPacket);
 
-        void HandleReclaimCorpseOpcode(WorldPacket& recvPacket);
-        void HandleCorpseQueryOpcode(WorldPacket& recvPacket);
-        void HandleCorpseMapPositionQuery(WorldPacket& recvPacket);
-        void HandleResurrectResponseOpcode(WorldPacket& recvPacket);
+        void HandleReclaimCorpse(WorldPackets::Misc::ReclaimCorpse& packet);
+        void HandleQueryCorpseLocation(WorldPackets::Query::QueryCorpseLocationFromClient& packet);
+        void HandleQueryCorpseTransport(WorldPackets::Query::QueryCorpseTransport& packet);
+        void HandleResurrectResponse(WorldPackets::Misc::ResurrectResponse& packet);
         void HandleSummonResponseOpcode(WorldPacket& recvData);
 
         void HandleJoinChannel(WorldPackets::Channel::JoinChannel& packet);
@@ -1165,7 +1189,6 @@ class WorldSession
         void HandleEquipmentSetDelete(WorldPacket& recvData);
         void HandleEquipmentSetUse(WorldPacket& recvData);
         void HandleWorldStateUITimerUpdate(WorldPacket& recvData);
-        void HandleQueryQuestsCompleted(WorldPacket& recvData);
         void HandleQuestNPCQuery(WorldPacket& recvData);
         void HandleQuestPOIQuery(WorldPacket& recvData);
         void HandleEjectPassenger(WorldPacket& data);

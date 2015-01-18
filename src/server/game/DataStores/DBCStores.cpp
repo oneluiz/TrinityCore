@@ -124,6 +124,7 @@ GameTable <GtNpcTotalHpExp3Entry>        sGtNpcTotalHpExp3Store(GtNpcTotalHpExp3
 GameTable <GtNpcTotalHpExp4Entry>        sGtNpcTotalHpExp4Store(GtNpcTotalHpExp4fmt);
 GameTable <GtNpcTotalHpExp5Entry>        sGtNpcTotalHpExp5Store(GtNpcTotalHpExp5fmt);
 GameTable <GtOCTClassCombatRatingScalarEntry> sGtOCTClassCombatRatingScalarStore(GtOCTClassCombatRatingScalarfmt);
+GameTable <GtOCTLevelExperienceEntry>    sGtOCTLevelExperienceStore(GtOCTLevelExperiencefmt);
 GameTable <GtOCTRegenHPEntry>            sGtOCTRegenHPStore(GtOCTRegenHPfmt);
 GameTable <gtOCTHpPerStaminaEntry>       sGtOCTHpPerStaminaStore(GtOCTHpPerStaminafmt);
 GameTable <GtRegenMPPerSptEntry>         sGtRegenMPPerSptStore(GtRegenMPPerSptfmt);
@@ -183,6 +184,7 @@ DBCStorage <PowerDisplayEntry> sPowerDisplayStore(PowerDisplayfmt);
 DBCStorage <PvPDifficultyEntry> sPvPDifficultyStore(PvPDifficultyfmt);
 
 DBCStorage <QuestSortEntry> sQuestSortStore(QuestSortEntryfmt);
+DBCStorage <QuestV2Entry> sQuestV2Store(QuestV2fmt);
 DBCStorage <QuestXPEntry>   sQuestXPStore(QuestXPfmt);
 DBCStorage <QuestFactionRewEntry>  sQuestFactionRewardStore(QuestFactionRewardfmt);
 DBCStorage <RandomPropertiesPointsEntry> sRandomPropertiesPointsStore(RandomPropertiesPointsfmt);
@@ -528,6 +530,7 @@ void LoadDBCStores(const std::string& dataPath)
             if (entry->BracketID > MAX_BATTLEGROUND_BRACKETS)
                 ASSERT(false && "Need update MAX_BATTLEGROUND_BRACKETS by DBC data");
 
+    LoadDBC(availableDbcLocales, bad_dbc_files, sQuestV2Store,                dbcPath, "QuestV2.dbc");//19342
     LoadDBC(availableDbcLocales, bad_dbc_files, sQuestXPStore,                dbcPath, "QuestXP.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sQuestFactionRewardStore,     dbcPath, "QuestFactionReward.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sQuestSortStore,              dbcPath, "QuestSort.dbc");//19116
@@ -744,6 +747,7 @@ void LoadDBCStores(const std::string& dataPath)
     LoadGameTable(bad_dbc_files, "NpcTotalHpExp5", sGtNpcTotalHpExp5Store, dbcPath, "gtNpcTotalHpExp5.dbc"); // 19445
     LoadGameTable(bad_dbc_files, "OCTClassCombatRatingScalar", sGtOCTClassCombatRatingScalarStore, dbcPath, "gtOCTClassCombatRatingScalar.dbc");//19342
     LoadGameTable(bad_dbc_files, "OCTHPPerStamina", sGtOCTHpPerStaminaStore, dbcPath, "gtOCTHpPerStamina.dbc");//19342
+    LoadGameTable(bad_dbc_files, "OCTLevelExperience", sGtOCTLevelExperienceStore, dbcPath, "gtOCTLevelExperience.dbc"); // 19342
     LoadGameTable(bad_dbc_files, "RegenMPPerSpt", sGtRegenMPPerSptStore, dbcPath, "gtRegenMPPerSpt.dbc");//19342
     LoadGameTable(bad_dbc_files, "SpellScaling", sGtSpellScalingStore, dbcPath, "gtSpellScaling.dbc");//19342
     LoadGameTable(bad_dbc_files, "OCTBaseHPByClass", sGtOCTBaseHPByClassStore, dbcPath, "gtOCTBaseHPByClass.dbc");//19342
@@ -895,32 +899,20 @@ uint32 GetMaxLevelForExpansion(uint32 expansion)
     return 0;
 }
 
-/*
-Used only for calculate xp gain by content lvl.
-Calculation on Gilneas and group maps of LostIslands calculated as CONTENT_1_60.
-*/
-ContentLevels GetContentLevelsForMapAndZone(uint32 mapid, uint32 zoneId)
+uint32 GetExpansionForLevel(uint32 level)
 {
-    mapid = GetVirtualMapForMapAndZone(mapid, zoneId);
-    if (mapid < 2)
-        return CONTENT_1_60;
-
-    MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
-    if (!mapEntry)
-        return CONTENT_1_60;
-
-    // no need enum all maps from phasing
-    if (mapEntry->ParentMapID >= 0)
-        mapid = mapEntry->ParentMapID;
-
-    switch (mapid)
-    {
-        case 648:   //LostIslands
-        case 654:   //Gilneas
-            return CONTENT_1_60;
-        default:
-            return ContentLevels(mapEntry->Expansion());
-    }
+    if (level < 60)
+        return EXPANSION_CLASSIC;
+    else if (level < 70)
+        return EXPANSION_THE_BURNING_CRUSADE;
+    else if (level < 80)
+        return EXPANSION_WRATH_OF_THE_LICH_KING;
+    else if (level < 85)
+        return EXPANSION_CATACLYSM;
+    else if (level < 90)
+        return EXPANSION_MISTS_OF_PANDARIA;
+    else
+        return CURRENT_EXPANSION;
 }
 
 bool IsTotemCategoryCompatiableWith(uint32 itemTotemCategoryId, uint32 requiredTotemCategoryId)
@@ -1215,4 +1207,13 @@ uint32 GetTalentSpellCost(uint32 spellId)
     if (itr == sTalentBySpellIDMap.end())
         return 0;
     return 1;
+}
+
+uint32 GetQuestUniqueBitFlag(uint32 questId)
+{
+    QuestV2Entry const* v2 = sQuestV2Store.LookupEntry(questId);
+    if (!v2)
+        return 0;
+
+    return v2->UniqueBitFlag;
 }

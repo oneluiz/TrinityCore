@@ -890,6 +890,11 @@ struct GtOCTClassCombatRatingScalarEntry
     float    ratio;
 };
 
+struct GtOCTLevelExperienceEntry
+{
+    float    Data;
+};
+
 struct GtOCTRegenHPEntry
 {
     float    ratio;
@@ -1345,6 +1350,12 @@ struct QuestSortEntry
 {
     uint32      ID;                                         // 0
     //char*     SortName_lang;                              // 1
+};
+
+struct QuestV2Entry
+{
+    uint32      ID;                                         // 0
+    uint32      UniqueBitFlag;                              // 1
 };
 
 struct QuestXPEntry

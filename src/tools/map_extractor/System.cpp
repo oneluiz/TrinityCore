@@ -126,19 +126,19 @@ float CONF_flat_liquid_delta_limit = 0.001f; // If max - min less this value - l
 
 uint32 CONF_Locale = 0;
 
-#define LOCALES_COUNT 18
+#define LOCALES_COUNT 17
 
 char const* Locales[LOCALES_COUNT] =
 {
-    "none", "unknown1",
-    "enUS", "koKR",
-    "unknown2", "frFR",
-    "deDE", "zhCN",
-    "esES", "zhTW",
-    "enGB", "enCN",
-    "enTW", "esMX",
-    "ruRU", "ptBR",
-    "itIT", "ptPT",
+    "none", "enUS",
+    "koKR", "unknown",
+    "frFR", "deDE",
+    "zhCN", "esES",
+    "zhTW", "enGB",
+    "enCN", "enTW",
+    "esMX", "ruRU",
+    "ptBR", "itIT",
+    "ptPT"
 };
 
 void CreateDir(std::string const& path)
@@ -1144,9 +1144,10 @@ void ExtractDBFilesClient(int l)
     HANDLE dbcFile;
     while (fileName)
     {
-        if (CascOpenFile(CascStorage, fileName, 1 << l, 0, &dbcFile))
+        std::string filename = fileName;
+        if (CascOpenFile(CascStorage, (filename = (filename + ".db2")).c_str(), 1 << l, 0, &dbcFile) ||
+            CascOpenFile(CascStorage, (filename = (filename.substr(0, filename.length() - 4) + ".dbc")).c_str(), 1 << l, 0, &dbcFile))
         {
-            std::string filename = fileName;
             filename = outputPath + filename.substr(filename.rfind('\\') + 1);
 
             if (!FileExists(filename.c_str()))

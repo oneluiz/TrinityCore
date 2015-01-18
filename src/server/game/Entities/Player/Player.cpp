@@ -91,6 +91,8 @@
 #include "MovementPackets.h"
 #include "ItemPackets.h"
 #include "QuestPackets.h"
+#include "LootPackets.h"
+#include <boost/dynamic_bitset.hpp>
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
@@ -510,14 +512,10 @@ inline void KillRewarder::_RewardXP(Player* player, float rate)
         for (Unit::AuraEffectList::const_iterator i = auras.begin(); i != auras.end(); ++i)
             AddPct(xp, (*i)->GetAmount());
 
-        // 4.2.3. Calculate expansion penalty
-        if (_victim->GetTypeId() == TYPEID_UNIT && player->getLevel() >= GetMaxLevelForExpansion(_victim->ToCreature()->GetCreatureTemplate()->expansion))
-            xp = CalculatePct(xp, 10); // Players get only 10% xp for killing creatures of lower expansion levels than himself
-
-        // 4.2.4. Give XP to player.
+        // 4.2.3. Give XP to player.
         player->GiveXP(xp, _victim, _groupRate);
         if (Pet* pet = player->GetPet())
-            // 4.2.5. If player has pet, reward pet with XP (100% for single player, 50% for group case).
+            // 4.2.4. If player has pet, reward pet with XP (100% for single player, 50% for group case).
             pet->GivePetXP(_group ? xp / 2 : xp);
     }
 }
@@ -867,10 +865,9 @@ Player::Player(WorldSession* session): Unit(true)
 
     isDebugAreaTriggers = false;
 
+    _completedQuestBits = new boost::dynamic_bitset<uint8>(QUESTS_COMPLETED_BITS_SIZE * 8);
     m_WeeklyQuestChanged = false;
-
     m_MonthlyQuestChanged = false;
-
     m_SeasonalQuestChanged = false;
 
     SetPendingBind(0, 0);
@@ -913,6 +910,7 @@ Player::~Player()
 
     delete m_declinedname;
     delete m_runes;
+    delete _completedQuestBits;
     delete m_achievementMgr;
     delete m_reputationMgr;
 
@@ -4592,6 +4590,10 @@ void Player::DeleteFromDB(ObjectGuid playerguid, uint32 accountId, bool updateRe
             stmt->setUInt64(0, guid);
             trans->Append(stmt);
 
+            stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_AURA_EFFECT);
+            stmt->setUInt64(0, guid);
+            trans->Append(stmt);
+
             stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_AURA);
             stmt->setUInt64(0, guid);
             trans->Append(stmt);
@@ -4793,9 +4795,9 @@ void Player::DeleteOldCharacters(uint32 keepDays)
 */
 void Player::BuildPlayerRepop()
 {
-    WorldPacket data(SMSG_PRE_RESURRECT, GetPackGUID().size());
-    data << GetPackGUID();
-    GetSession()->SendPacket(&data);
+    WorldPackets::Misc::PreRessurect packet;
+    packet.PlayerGUID = GetGUID();
+    GetSession()->SendPacket(packet.Write());
 
     if (getRace() == RACE_NIGHTELF)
         CastSpell(this, 20584, true);
@@ -4848,12 +4850,9 @@ void Player::BuildPlayerRepop()
 
 void Player::ResurrectPlayer(float restore_percent, bool applySickness)
 {
-    WorldPacket data(SMSG_DEATH_RELEASE_LOC, 4*4);          // remove spirit healer position
-    data << uint32(-1);
-    data << float(0);
-    data << float(0);
-    data << float(0);
-    GetSession()->SendPacket(&data);
+    WorldPackets::Misc::DeathReleaseLoc packet;
+    packet.MapID = -1;
+    GetSession()->SendPacket(packet.Write());
 
     // speed change, land walk
 
@@ -5273,12 +5272,10 @@ void Player::RepopAtGraveyard()
         TeleportTo(ClosestGrave->MapID, ClosestGrave->Loc.X, ClosestGrave->Loc.Y, ClosestGrave->Loc.Z, (ClosestGrave->Facing * M_PI) / 180); // Orientation is initially in degrees
         if (isDead())                                        // not send if alive, because it used in TeleportTo()
         {
-            WorldPacket data(SMSG_DEATH_RELEASE_LOC, 4*4);  // show spirit healer position on minimap
-            data << ClosestGrave->MapID;
-            data << ClosestGrave->Loc.X;
-            data << ClosestGrave->Loc.Y;
-            data << ClosestGrave->Loc.Z;
-            GetSession()->SendPacket(&data);
+            WorldPackets::Misc::DeathReleaseLoc packet;
+            packet.MapID = ClosestGrave->MapID;
+            packet.Loc = G3D::Vector3(ClosestGrave->Loc.X, ClosestGrave->Loc.Y, ClosestGrave->Loc.Z);
+            GetSession()->SendPacket(packet.Write());
         }
     }
     else if (GetPositionZ() < MAX_MAP_DEPTH)
@@ -6629,7 +6626,7 @@ int32 Player::CalculateReputationGain(ReputationSource source, uint32 creatureOr
             break;
     }
 
-    if (rate != 1.0f && creatureOrQuestLevel <= Trinity::XP::GetGrayLevel(getLevel()))
+    if (rate != 1.0f && creatureOrQuestLevel < Trinity::XP::GetGrayLevel(getLevel()))
         percent *= rate;
 
     if (percent <= 0.0f)
@@ -8917,11 +8914,16 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
     {
         SetLootGUID(guid);
 
-        WorldPacket data(SMSG_LOOT_RESPONSE, (9 + 50));           // we guess size
-        data << guid;
-        data << uint8(loot_type);
-        data << LootView(*loot, this, permission);
-        SendDirectMessage(&data);
+        WorldPackets::Loot::LootResponse packet;
+        packet.LootObj = guid;
+        packet.Owner = loot->GetGUID();
+        packet.LootMethod = loot_type;
+        if (!GetGroup())
+            packet.PersonalLooting = true;
+        else
+            packet.PersonalLooting = false;
+        loot->BuildLootResponse(packet, this, permission);
+        SendDirectMessage(packet.Write());
 
         // add 'this' player as one of the players that are looting 'loot'
         loot->AddLooter(GetGUID());
@@ -8942,17 +8944,21 @@ void Player::SendLootError(ObjectGuid guid, LootError error)
     SendDirectMessage(&data);
 }
 
-void Player::SendNotifyLootMoneyRemoved()
+void Player::SendNotifyLootMoneyRemoved(ObjectGuid lootObj)
 {
-    WorldPacket data(SMSG_LOOT_CLEAR_MONEY, 0);
-    GetSession()->SendPacket(&data);
+    WorldPackets::Loot::CoinRemoved packet;
+    packet.LootObj = lootObj;
+    SendDirectMessage(packet.Write());
 }
 
-void Player::SendNotifyLootItemRemoved(uint8 lootSlot)
+void Player::SendNotifyLootItemRemoved(ObjectGuid owner, ObjectGuid lootObj, uint8 lootSlot)
 {
-    WorldPacket data(SMSG_LOOT_REMOVED, 1);
-    data << uint8(lootSlot);
-    GetSession()->SendPacket(&data);
+    WorldPackets::Loot::LootRemoved packet;
+    packet.Owner = owner;
+    packet.LootObj = lootObj;
+    // Since 6.x client expects loot to be starting from 1 hence the +1
+    packet.LootListID = lootSlot+1;
+    GetSession()->SendPacket(packet.Write());
 }
 
 void Player::SendUpdateWorldState(uint32 variable, uint32 value, bool hidden /*= false*/)
@@ -9621,11 +9627,10 @@ void Player::SetBindPoint(ObjectGuid guid)
     GetSession()->SendPacket(&data);
 }
 
-void Player::SendTalentWipeConfirm(ObjectGuid guid)
+void Player::SendRespecWipeConfirm(ObjectGuid const& guid, uint32 cost)
 {
-    WorldPacket data(MSG_TALENT_WIPE_CONFIRM, 8 + 4);
+    WorldPacket data(SMSG_RESPEC_WIPE_CONFIRM, 8 + 4);
     data << guid;
-    uint32 cost = sWorld->getBoolConfig(CONFIG_NO_RESET_TALENT_COST) ? 0 : GetNextResetTalentsCost();
     data << cost;
     GetSession()->SendPacket(&data);
 }
@@ -14016,7 +14021,7 @@ void Player::OnGossipSelect(WorldObject* source, uint32 gossipListId, uint32 men
             break;
         case GOSSIP_OPTION_UNLEARNTALENTS:
             PlayerTalkClass->SendCloseGossip();
-            SendTalentWipeConfirm(guid);
+            SendRespecWipeConfirm(guid, sWorld->getBoolConfig(CONFIG_NO_RESET_TALENT_COST) ? 0 : GetNextResetTalentsCost());
             break;
         case GOSSIP_OPTION_UNLEARNPETTALENTS:
             PlayerTalkClass->SendCloseGossip();
@@ -14849,7 +14854,6 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
     RemoveActiveQuest(quest_id, false);
     m_RewardedQuests.insert(quest_id);
     m_RewardedQuestsSave[quest_id] = QUEST_DEFAULT_SAVE_TYPE;
-
     // StoreNewItem, mail reward, etc. save data directly to the database
     // to prevent exploitable data desynchronisation we save the quest status to the database too
     // (to prevent rewarding this quest another time while rewards were already given out)
@@ -14887,6 +14891,16 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
         UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_QUESTS_IN_ZONE, quest->GetZoneOrSort());
     UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_QUEST_COUNT);
     UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_QUEST, quest->GetQuestId());
+
+    if (uint32 questBit = GetQuestUniqueBitFlag(quest_id))
+    {
+        _completedQuestBits->set(questBit - 1);
+
+        WorldPackets::Quest::SetQuestCompletedBit setCompletedBit;
+        setCompletedBit.QuestID = quest_id;
+        setCompletedBit.Bit = questBit;
+        SendDirectMessage(setCompletedBit.Write());
+    }
 
     if (quest->HasFlag(QUEST_FLAGS_FLAGS_PVP))
     {
@@ -15515,6 +15529,16 @@ void Player::RemoveRewardedQuest(uint32 questId, bool update /*= true*/)
     {
         m_RewardedQuests.erase(rewItr);
         m_RewardedQuestsSave[questId] = QUEST_FORCE_DELETE_SAVE_TYPE;
+    }
+
+    if (uint32 questBit = GetQuestUniqueBitFlag(questId))
+    {
+        _completedQuestBits->reset(questBit - 1);
+
+        WorldPackets::Quest::ClearQuestCompletedBit clearCompletedBit;
+        clearCompletedBit.QuestID = questId;
+        clearCompletedBit.Bit = questBit;
+        SendDirectMessage(clearCompletedBit.Write());
     }
 
     if (update)
@@ -17184,7 +17208,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SQLQueryHolder *holder)
     _LoadSpells(holder->GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_SPELLS));
 
     _LoadGlyphs(holder->GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_GLYPHS));
-    _LoadAuras(holder->GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_AURAS), time_diff);
+    _LoadAuras(holder->GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_AURAS), holder->GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_AURA_EFFECTS), time_diff);
     _LoadGlyphAuras();
     // add ghost flag (must be after aura load: PLAYER_FLAGS_GHOST set in aura)
     if (HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
@@ -17449,67 +17473,83 @@ void Player::_LoadActions(PreparedQueryResult result)
     }
 }
 
-void Player::_LoadAuras(PreparedQueryResult result, uint32 timediff)
+void Player::_LoadAuras(PreparedQueryResult auraResult, PreparedQueryResult effectResult, uint32 timediff)
 {
     TC_LOG_DEBUG("entities.player.loading", "Loading auras for %s", GetGUID().ToString().c_str());
 
-    /*                                                           0       1        2         3                 4         5      6       7         8              9            10
-    QueryResult* result = CharacterDatabase.PQuery("SELECT caster_guid, spell, effect_mask, recalculate_mask, stackcount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2,
-                                                        11          12          13
-                                                    maxduration, remaintime, remaincharges FROM character_aura WHERE guid = '%u'", GetGUIDLow());
+    /*
+                    0         1      2           3            4       5           6
+    SELECT casterGuid, itemGuid, spell, effectMask, effectIndex, amount, baseAmount FROM character_aura_effect WHERE guid = ?
     */
 
-    if (result)
+    ObjectGuid casterGuid, itemGuid;
+    std::map<AuraKey, AuraLoadEffectInfo> effectInfo;
+    if (effectResult)
     {
-        ObjectGuid caster_guid;
         do
         {
-            Field* fields = result->Fetch();
-            int32 damage[3];
-            int32 baseDamage[3];
-            caster_guid.SetRawValue(fields[0].GetBinary());
-            uint32 spellid = fields[1].GetUInt32();
-            uint8 effmask = fields[2].GetUInt8();
-            uint8 recalculatemask = fields[3].GetUInt8();
-            uint8 stackcount = fields[4].GetUInt8();
-            damage[0] = fields[5].GetInt32();
-            damage[1] = fields[6].GetInt32();
-            damage[2] = fields[7].GetInt32();
-            baseDamage[0] = fields[8].GetInt32();
-            baseDamage[1] = fields[9].GetInt32();
-            baseDamage[2] = fields[10].GetInt32();
-            int32 maxduration = fields[11].GetInt32();
-            int32 remaintime = fields[12].GetInt32();
-            uint8 remaincharges = fields[13].GetUInt8();
+            Field* fields = effectResult->Fetch();
+            uint32 effectIndex = fields[4].GetUInt8();
+            if (effectIndex < MAX_SPELL_EFFECTS)
+            {
+                casterGuid.SetRawValue(fields[0].GetBinary());
+                itemGuid.SetRawValue(fields[1].GetBinary());
+                AuraKey key{ casterGuid, itemGuid, fields[2].GetUInt32(), fields[3].GetUInt32() };
+                AuraLoadEffectInfo& info = effectInfo[key];
+                info.Amounts[effectIndex] = fields[5].GetInt32();
+                info.BaseAmounts[effectIndex] = fields[6].GetInt32();
+            }
+        }
+        while (effectResult->NextRow());
+    }
 
-            SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellid);
+    /*
+                    0         1      2           3                4           5            6           7              8
+    SELECT casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = ?
+    */
+    if (auraResult)
+    {
+        do
+        {
+            Field* fields = auraResult->Fetch();
+            casterGuid.SetRawValue(fields[0].GetBinary());
+            itemGuid.SetRawValue(fields[1].GetBinary());
+            AuraKey key{ casterGuid, itemGuid, fields[2].GetUInt32(), fields[3].GetUInt32() };
+            uint32 recalculateMask = fields[4].GetUInt32();
+            uint8 stackCount = fields[5].GetUInt8();
+            int32 maxDuration = fields[6].GetInt32();
+            int32 remainTime = fields[7].GetInt32();
+            uint8 remainCharges = fields[8].GetUInt8();
+
+            SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(key.SpellId);
             if (!spellInfo)
             {
-                TC_LOG_ERROR("entities.player", "Unknown aura (spellid %u), ignore.", spellid);
+                TC_LOG_ERROR("entities.player", "Unknown aura (spellid %u), ignore.", key.SpellId);
                 continue;
             }
 
             // negative effects should continue counting down after logout
-            if (remaintime != -1 && !spellInfo->IsPositive())
+            if (remainTime != -1 && !spellInfo->IsPositive())
             {
-                if (remaintime/IN_MILLISECONDS <= int32(timediff))
+                if (remainTime/IN_MILLISECONDS <= int32(timediff))
                     continue;
 
-                remaintime -= timediff*IN_MILLISECONDS;
+                remainTime -= timediff*IN_MILLISECONDS;
             }
 
-            // prevent wrong values of remaincharges
+            // prevent wrong values of remainCharges
             if (spellInfo->ProcCharges)
             {
                 // we have no control over the order of applying auras and modifiers allow auras
                 // to have more charges than value in SpellInfo
-                if (remaincharges <= 0/* || remaincharges > spellproto->procCharges*/)
-                    remaincharges = spellInfo->ProcCharges;
+                if (remainCharges <= 0/* || remainCharges > spellproto->procCharges*/)
+                    remainCharges = spellInfo->ProcCharges;
             }
             else
-                remaincharges = 0;
+                remainCharges = 0;
 
-            if (Aura* aura = Aura::TryCreate(spellInfo, effmask, this, NULL, &baseDamage[0], NULL, caster_guid))
+            AuraLoadEffectInfo& info = effectInfo[key];
+            if (Aura* aura = Aura::TryCreate(spellInfo, key.EffectMask, this, NULL, info.BaseAmounts.data(), NULL, casterGuid))
             {
                 if (!aura->CanBeSaved())
                 {
@@ -17517,12 +17557,12 @@ void Player::_LoadAuras(PreparedQueryResult result, uint32 timediff)
                     continue;
                 }
 
-                aura->SetLoadedState(maxduration, remaintime, remaincharges, stackcount, recalculatemask, &damage[0]);
+                aura->SetLoadedState(maxDuration, remainTime, remainCharges, stackCount, recalculateMask, info.Amounts.data());
                 aura->ApplyForTargets();
-                TC_LOG_INFO("entities.player", "Added aura spellid %u, effectmask %u", spellInfo->Id, effmask);
+                TC_LOG_INFO("entities.player", "Added aura spellid %u, effectmask %u", spellInfo->Id, key.EffectMask);
             }
         }
-        while (result->NextRow());
+        while (auraResult->NextRow());
     }
 }
 
@@ -18140,10 +18180,14 @@ void Player::_LoadQuestStatusRewarded(PreparedQueryResult result)
 
                 // set rewarded title if any
                 if (quest->GetRewTitle())
-                {
                     if (CharTitlesEntry const* titleEntry = sCharTitlesStore.LookupEntry(quest->GetRewTitle()))
                         SetTitle(titleEntry);
-                }
+
+                // Skip loading special quests - they are also added to rewarded quests but only once and remain there forever
+                // instead add them separately from load daily/weekly/monthly/seasonal
+                if (!quest->IsDailyOrWeekly() && !quest->IsMonthly() && !quest->IsSeasonal())
+                    if (uint32 questBit = GetQuestUniqueBitFlag(quest_id))
+                        _completedQuestBits->set(questBit - 1);
             }
 
             m_RewardedQuests.insert(quest_id);
@@ -18182,6 +18226,8 @@ void Player::_LoadDailyQuestStatus(PreparedQueryResult result)
                 continue;
 
             AddDynamicValue(PLAYER_DYNAMIC_FIELD_DAILY_QUESTS, quest_id);
+            if (uint32 questBit = GetQuestUniqueBitFlag(quest_id))
+                _completedQuestBits->set(questBit - 1);
 
             TC_LOG_DEBUG("entities.player.loading", "Daily quest (%u) cooldown for player (%s)", quest_id, GetGUID().ToString().c_str());
         }
@@ -18206,6 +18252,9 @@ void Player::_LoadWeeklyQuestStatus(PreparedQueryResult result)
                 continue;
 
             m_weeklyquests.insert(quest_id);
+            if (uint32 questBit = GetQuestUniqueBitFlag(quest_id))
+                _completedQuestBits->set(questBit - 1);
+
             TC_LOG_DEBUG("entities.player.loading", "Weekly quest {%u} cooldown for player (%s)", quest_id, GetGUID().ToString().c_str());
         }
         while (result->NextRow());
@@ -18230,6 +18279,9 @@ void Player::_LoadSeasonalQuestStatus(PreparedQueryResult result)
                 continue;
 
             m_seasonalquests[event_id].insert(quest_id);
+            if (uint32 questBit = GetQuestUniqueBitFlag(quest_id))
+                _completedQuestBits->set(questBit - 1);
+
             TC_LOG_DEBUG("entities.player.loading", "Seasonal quest {%u} cooldown for player (%s)", quest_id, GetGUID().ToString().c_str());
         }
         while (result->NextRow());
@@ -18253,6 +18305,9 @@ void Player::_LoadMonthlyQuestStatus(PreparedQueryResult result)
                 continue;
 
             m_monthlyquests.insert(quest_id);
+            if (uint32 questBit = GetQuestUniqueBitFlag(quest_id))
+                _completedQuestBits->set(questBit - 1);
+
             TC_LOG_DEBUG("entities.player.loading", "Monthly quest {%u} cooldown for player (%s)", quest_id, GetGUID().ToString().c_str());
         }
         while (result->NextRow());
@@ -18835,6 +18890,9 @@ void Player::SaveToDB(bool create /*=false*/)
         stmt->setUInt32(index++, GetUInt32Value(PLAYER_FLAGS));
         stmt->setUInt16(index++, (uint16)GetMapId());
         stmt->setUInt32(index++, (uint32)GetInstanceId());
+        stmt->setUInt8(index++, uint8(GetDungeonDifficultyID()));
+        stmt->setUInt8(index++, uint8(GetRaidDifficultyID()));
+        stmt->setUInt8(index++, uint8(GetLegacyRaidDifficultyID()));
         stmt->setFloat(index++, finiteAlways(GetPositionX()));
         stmt->setFloat(index++, finiteAlways(GetPositionY()));
         stmt->setFloat(index++, finiteAlways(GetPositionZ()));
@@ -19186,57 +19244,55 @@ void Player::_SaveActions(SQLTransaction& trans)
 
 void Player::_SaveAuras(SQLTransaction& trans)
 {
-    PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_AURA);
+    PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_AURA_EFFECT);
     stmt->setUInt64(0, GetGUID().GetCounter());
     trans->Append(stmt);
 
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_AURA);
+    stmt->setUInt64(0, GetGUID().GetCounter());
+    trans->Append(stmt);
+
+    uint8 index;
     for (AuraMap::const_iterator itr = m_ownedAuras.begin(); itr != m_ownedAuras.end(); ++itr)
     {
         if (!itr->second->CanBeSaved())
             continue;
 
         Aura* aura = itr->second;
+        uint32 recalculateMask = 0;
+        AuraKey key = aura->GenerateKey(recalculateMask);
 
-        int32 damage[MAX_SPELL_EFFECTS];
-        int32 baseDamage[MAX_SPELL_EFFECTS];
-        uint8 effMask = 0;
-        uint8 recalculateMask = 0;
-        for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
-        {
-            if (AuraEffect const* effect = aura->GetEffect(i))
-            {
-                baseDamage[i] = effect->GetBaseAmount();
-                damage[i] = effect->GetAmount();
-                effMask |= 1 << i;
-                if (effect->CanBeRecalculated())
-                    recalculateMask |= 1 << i;
-            }
-            else
-            {
-                baseDamage[i] = 0;
-                damage[i] = 0;
-            }
-        }
-
-        uint8 index = 0;
+        index = 0;
         stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AURA);
         stmt->setUInt64(index++, GetGUID().GetCounter());
-        stmt->setBinary(index++, itr->second->GetCasterGUID().GetRawValue());
-        stmt->setBinary(index++, itr->second->GetCastItemGUID().GetRawValue());
-        stmt->setUInt32(index++, itr->second->GetId());
-        stmt->setUInt8(index++, effMask);
+        stmt->setBinary(index++, key.Caster.GetRawValue());
+        stmt->setBinary(index++, key.Item.GetRawValue());
+        stmt->setUInt32(index++, key.SpellId);
+        stmt->setUInt32(index++, key.EffectMask);
         stmt->setUInt8(index++, recalculateMask);
-        stmt->setUInt8(index++, itr->second->GetStackAmount());
-        stmt->setInt32(index++, damage[0]);
-        stmt->setInt32(index++, damage[1]);
-        stmt->setInt32(index++, damage[2]);
-        stmt->setInt32(index++, baseDamage[0]);
-        stmt->setInt32(index++, baseDamage[1]);
-        stmt->setInt32(index++, baseDamage[2]);
-        stmt->setInt32(index++, itr->second->GetMaxDuration());
-        stmt->setInt32(index++, itr->second->GetDuration());
-        stmt->setUInt8(index, itr->second->GetCharges());
+        stmt->setUInt8(index++, aura->GetStackAmount());
+        stmt->setInt32(index++, aura->GetMaxDuration());
+        stmt->setInt32(index++, aura->GetDuration());
+        stmt->setUInt8(index, aura->GetCharges());
         trans->Append(stmt);
+
+        for (AuraEffect const* effect : aura->GetAuraEffects())
+        {
+            if (effect)
+            {
+                index = 0;
+                stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AURA_EFFECT);
+                stmt->setUInt64(index++, GetGUID().GetCounter());
+                stmt->setBinary(index++, key.Caster.GetRawValue());
+                stmt->setBinary(index++, key.Item.GetRawValue());
+                stmt->setUInt32(index++, key.SpellId);
+                stmt->setUInt32(index++, key.EffectMask);
+                stmt->setUInt8(index++, effect->GetEffIndex());
+                stmt->setInt32(index++, effect->GetAmount());
+                stmt->setInt32(index++, effect->GetBaseAmount());
+                trans->Append(stmt);
+            }
+        }
     }
 }
 
@@ -22876,10 +22932,13 @@ void Player::SendInitialPacketsBeforeAddToMap()
     worldServerInfo.DifficultyID = GetMap()->GetDifficultyID();
     SendDirectMessage(worldServerInfo.Write());
 
-    // SMSG_TALENTS_INFO x 2 for pet (unspent points and talents in separate packets...)
-    // SMSG_PET_GUIDS
-    // SMSG_UPDATE_WORLD_STATE
-    // SMSG_POWER_UPDATE
+    // SMSG_ACCOUNT_MOUNT_UPDATE
+    // SMSG_ACCOUNT_TOYS_UPDATE
+
+    WorldPackets::Character::InitialSetup initialSetup;
+    initialSetup.ServerExpansionLevel = sWorld->getIntConfig(CONFIG_EXPANSION);
+    boost::to_block_range(*_completedQuestBits, std::back_inserter(initialSetup.QuestsCompleted));
+    SendDirectMessage(initialSetup.Write());
 
     SetMover(this);
 }
@@ -23378,6 +23437,23 @@ void Player::SetMonthlyQuestStatus(uint32 quest_id)
 
 void Player::ResetDailyQuestStatus()
 {
+    std::vector<uint32> dailies = GetDynamicValues(PLAYER_DYNAMIC_FIELD_DAILY_QUESTS);
+    if (!dailies.empty())
+    {
+        WorldPackets::Quest::ClearQuestCompletedBits clearCompletedBits;
+        for (uint32 questId : dailies)
+        {
+            if (uint32 questBit = GetQuestUniqueBitFlag(questId))
+            {
+                clearCompletedBits.Qbits.push_back(questBit);
+                _completedQuestBits->reset(questBit - 1);
+            }
+        }
+
+        if (!clearCompletedBits.Qbits.empty())
+            SendDirectMessage(clearCompletedBits.Write());
+    }
+
     ClearDynamicValue(PLAYER_DYNAMIC_FIELD_DAILY_QUESTS);
 
     m_DFQuests.clear(); // Dungeon Finder Quests.
@@ -23392,18 +23468,47 @@ void Player::ResetWeeklyQuestStatus()
     if (m_weeklyquests.empty())
         return;
 
+    WorldPackets::Quest::ClearQuestCompletedBits clearCompletedBits;
+    for (uint32 questId : m_weeklyquests)
+    {
+        if (uint32 questBit = GetQuestUniqueBitFlag(questId))
+        {
+            clearCompletedBits.Qbits.push_back(questBit);
+            _completedQuestBits->reset(questBit - 1);
+        }
+    }
+
+    if (!clearCompletedBits.Qbits.empty())
+        SendDirectMessage(clearCompletedBits.Write());
+
     m_weeklyquests.clear();
     // DB data deleted in caller
     m_WeeklyQuestChanged = false;
-
 }
 
 void Player::ResetSeasonalQuestStatus(uint16 event_id)
 {
-    if (m_seasonalquests.empty() || m_seasonalquests[event_id].empty())
+    auto eventItr = m_seasonalquests.find(event_id);
+    if (eventItr == m_seasonalquests.end())
         return;
 
-    m_seasonalquests.erase(event_id);
+    if (eventItr->second.empty())
+        return;
+
+    WorldPackets::Quest::ClearQuestCompletedBits clearCompletedBits;
+    for (uint32 questId : eventItr->second)
+    {
+        if (uint32 questBit = GetQuestUniqueBitFlag(questId))
+        {
+            clearCompletedBits.Qbits.push_back(questBit);
+            _completedQuestBits->reset(questBit - 1);
+        }
+    }
+
+    if (!clearCompletedBits.Qbits.empty())
+        SendDirectMessage(clearCompletedBits.Write());
+
+    m_seasonalquests.erase(eventItr);
     // DB data deleted in caller
     m_SeasonalQuestChanged = false;
 }
@@ -23412,6 +23517,19 @@ void Player::ResetMonthlyQuestStatus()
 {
     if (m_monthlyquests.empty())
         return;
+
+    WorldPackets::Quest::ClearQuestCompletedBits clearCompletedBits;
+    for (uint32 questId : m_monthlyquests)
+    {
+        if (uint32 questBit = GetQuestUniqueBitFlag(questId))
+        {
+            clearCompletedBits.Qbits.push_back(questBit);
+            _completedQuestBits->reset(questBit - 1);
+        }
+    }
+
+    if (!clearCompletedBits.Qbits.empty())
+        SendDirectMessage(clearCompletedBits.Write());
 
     m_monthlyquests.clear();
     // DB data deleted in caller
@@ -23909,7 +24027,7 @@ bool Player::isHonorOrXPTarget(Unit const* victim) const
     uint8 k_grey  = Trinity::XP::GetGrayLevel(getLevel());
 
     // Victim level less gray level
-    if (v_level <= k_grey)
+    if (v_level < k_grey)
         return false;
 
     if (Creature const* const creature = victim->ToCreature())
@@ -24230,9 +24348,9 @@ int32 Player::CalculateCorpseReclaimDelay(bool load)
 
 void Player::SendCorpseReclaimDelay(uint32 delay)
 {
-    WorldPacket data(SMSG_CORPSE_RECLAIM_DELAY, 4);
-    data << uint32(delay);
-    GetSession()->SendPacket(&data);
+    WorldPackets::Misc::CorpseReclaimDelay packet;
+    packet.Remaining = delay;
+    GetSession()->SendPacket(packet.Write());
 }
 
 Player* Player::GetNextRandomRaidMember(float radius)
@@ -24938,7 +25056,7 @@ void Player::StoreLootItem(uint8 lootSlot, Loot* loot)
             qitem->is_looted = true;
             //freeforall is 1 if everyone's supposed to get the quest item.
             if (item->freeforall || loot->GetPlayerQuestItems().size() == 1)
-                SendNotifyLootItemRemoved(lootSlot);
+                SendNotifyLootItemRemoved(GetLootGUID(), loot->GetGUID(), lootSlot);
             else
                 loot->NotifyQuestItemRemoved(qitem->index);
         }
@@ -24948,7 +25066,7 @@ void Player::StoreLootItem(uint8 lootSlot, Loot* loot)
             {
                 //freeforall case, notify only one player of the removal
                 ffaitem->is_looted = true;
-                SendNotifyLootItemRemoved(lootSlot);
+                SendNotifyLootItemRemoved(GetLootGUID(), loot->GetGUID(), lootSlot);
             }
             else
             {

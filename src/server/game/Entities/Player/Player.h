@@ -35,6 +35,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <boost/dynamic_bitset_fwd.hpp>
 
 struct CreatureTemplate;
 struct Mail;
@@ -630,6 +631,8 @@ enum QuestSaveType
 //               quest
 typedef std::map<uint32, QuestSaveType> QuestStatusSaveMap;
 
+// Size (in bytes) of client completed quests bit map
+#define QUESTS_COMPLETED_BITS_SIZE 2500
 
 enum QuestSlotOffsets
 {
@@ -905,6 +908,7 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOAD_GROUP,
     PLAYER_LOGIN_QUERY_LOAD_BOUND_INSTANCES,
     PLAYER_LOGIN_QUERY_LOAD_AURAS,
+    PLAYER_LOGIN_QUERY_LOAD_AURA_EFFECTS,
     PLAYER_LOGIN_QUERY_LOAD_SPELLS,
     PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS,
     PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_OBJECTIVES,
@@ -1733,7 +1737,7 @@ class Player : public Unit, public GridObject<Player>
         bool m_mailsUpdated;
 
         void SetBindPoint(ObjectGuid guid);
-        void SendTalentWipeConfirm(ObjectGuid guid);
+        void SendRespecWipeConfirm(ObjectGuid const& guid, uint32 cost);
         void ResetPetTalents();
         void CalcRage(uint32 damage, bool attacker);
         void RegenerateAll();
@@ -2282,8 +2286,8 @@ class Player : public Unit, public GridObject<Player>
         void SendLoot(ObjectGuid guid, LootType loot_type);
         void SendLootError(ObjectGuid guid, LootError error);
         void SendLootRelease(ObjectGuid guid);
-        void SendNotifyLootItemRemoved(uint8 lootSlot);
-        void SendNotifyLootMoneyRemoved();
+        void SendNotifyLootItemRemoved(ObjectGuid owner, ObjectGuid lootObj, uint8 lootSlot);
+        void SendNotifyLootMoneyRemoved(ObjectGuid lootObj);
 
         /*********************************************************/
         /***               BATTLEGROUND SYSTEM                 ***/
@@ -2656,7 +2660,7 @@ class Player : public Unit, public GridObject<Player>
         /*********************************************************/
 
         void _LoadActions(PreparedQueryResult result);
-        void _LoadAuras(PreparedQueryResult result, uint32 timediff);
+        void _LoadAuras(PreparedQueryResult auraResult, PreparedQueryResult effectResult, uint32 timediff);
         void _LoadGlyphAuras();
         void _LoadBoundInstances(PreparedQueryResult result);
         void _LoadInventory(PreparedQueryResult result, uint32 timeDiff);
@@ -2779,6 +2783,8 @@ class Player : public Unit, public GridObject<Player>
 
         RewardedQuestSet m_RewardedQuests;
         QuestStatusSaveMap m_RewardedQuestsSave;
+
+        boost::dynamic_bitset<uint8>* _completedQuestBits;
 
         SkillStatusMap mSkillStatus;
 

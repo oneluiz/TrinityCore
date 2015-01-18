@@ -1209,7 +1209,6 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_PET_NAME_QUERY:                       //   0               1
         case CMSG_NPC_TEXT_QUERY:                       //   0               1
         case CMSG_ATTACKSTOP:                           //   0               1
-        //case CMSG_QUERY_QUESTS_COMPLETED:               //   0               1
         //case CMSG_QUERY_TIME:                           //   0               1
         //case CMSG_CORPSE_MAP_POSITION_QUERY:            //   0               1
         case CMSG_MOVE_TIME_SKIPPED:                    //   0               1
@@ -1245,8 +1244,8 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_HEARTH_AND_RESURRECT:                 //   0               1.5
         case CMSG_TOGGLE_PVP:                           //   0               1.5
         case CMSG_PET_ABANDON:                          //   0               1.5
-        case CMSG_ACTIVATETAXIEXPRESS:                  //   0               1.5
-        case CMSG_ACTIVATETAXI:                         //   0               1.5
+        case CMSG_ACTIVATE_TAXI_EXPRESS:                //   0               1.5
+        case CMSG_ACTIVATE_TAXI:                        //   0               1.5
         case CMSG_SELF_RES:                             //   0               1.5
         case CMSG_UNLEARN_SKILL:                        //   0               1.5
         case CMSG_EQUIPMENT_SET_SAVE:                   //   0               1.5
@@ -1313,7 +1312,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
 
         //case CMSG_GUILD_SET_NOTE:                       //   1               2         1 async db query
         //case CMSG_SET_CONTACT_NOTES:                    //   1               2.5       1 async db query
-        //case CMSG_CALENDAR_GET_CALENDAR:                //   0               1.5       medium upload bandwidth usage
+        //case CMSG_CALENDAR_GET:                         //   0               1.5       medium upload bandwidth usage
         case CMSG_GUILD_BANK_QUERY_TAB:                 //   0               3.5       medium upload bandwidth usage
         //case CMSG_QUERY_INSPECT_ACHIEVEMENTS:           //   0              13         high upload bandwidth usage
         case CMSG_GAMEOBJ_REPORT_USE:                   // not profiled

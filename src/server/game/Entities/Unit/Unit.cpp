@@ -1378,7 +1378,7 @@ void Unit::DealMeleeDamage(CalcDamageInfo* damageInfo, bool durabilityLoss)
             victim->DealDamageMods(this, damage, NULL);
 
             /// @todo Move this to a packet handler
-            WorldPacket data(SMSG_SPELLDAMAGESHIELD, 8 + 8 + 4 + 4 + 4 + 4 + 4);
+            WorldPacket data(SMSG_SPELL_DAMAGE_SHIELD, 8 + 8 + 4 + 4 + 4 + 4 + 4);
             data << victim->GetGUID();
             data << GetGUID();
             data << uint32(i_spellProto->Id);
@@ -3353,6 +3353,12 @@ void Unit::RemoveOwnedAura(Aura* aura, AuraRemoveMode removeMode)
 
     ASSERT(aura->GetOwner() == this);
 
+    if (removeMode == AURA_REMOVE_NONE)
+    {
+        TC_LOG_ERROR("spells", "Unit::RemoveOwnedAura() called with unallowed removeMode AURA_REMOVE_NONE, spellId %u", aura->GetId());
+        return;
+    }
+
     uint32 spellId = aura->GetId();
     AuraMapBoundsNonConst range = m_ownedAuras.equal_range(spellId);
 
@@ -4041,10 +4047,6 @@ Aura* Unit::GetAuraOfRankedSpell(uint32 spellId, ObjectGuid casterGUID, ObjectGu
 
 void Unit::GetDispellableAuraList(Unit* caster, uint32 dispelMask, DispelChargesList& dispelList)
 {
-    // we should not be able to dispel diseases if the target is affected by unholy blight
-    if (dispelMask & (1 << DISPEL_DISEASE) && HasAura(50536))
-        dispelMask &= ~(1 << DISPEL_DISEASE);
-
     AuraMap const& auras = GetOwnedAuras();
     for (AuraMap::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
     {
@@ -8040,7 +8042,7 @@ void Unit::UnsummonAllTotems()
 void Unit::SendHealSpellLog(Unit* victim, uint32 SpellID, uint32 Damage, uint32 OverHeal, uint32 Absorb, bool critical)
 {
     // we guess size
-    WorldPacket data(SMSG_SPELLHEALLOG, 8 + 8 + 4 + 4 + 4 + 4 + 1 + 1);
+    WorldPacket data(SMSG_SPELL_HEAL_LOG, 8 + 8 + 4 + 4 + 4 + 4 + 1 + 1);
     data << victim->GetPackGUID();
     data << GetPackGUID();
     data << uint32(SpellID);
@@ -8065,7 +8067,7 @@ int32 Unit::HealBySpell(Unit* victim, SpellInfo const* spellInfo, uint32 addHeal
 
 void Unit::SendEnergizeSpellLog(Unit* victim, uint32 spellId, int32 damage, Powers powerType)
 {
-    WorldPacket data(SMSG_SPELLENERGIZELOG, (8+8+4+4+4+1));
+    WorldPacket data(SMSG_SPELL_ENERGIZE_LOG, (8+8+4+4+4+1));
     data << victim->GetPackGUID();
     data << GetPackGUID();
     data << uint32(spellId);
@@ -10378,15 +10380,15 @@ void Unit::SetSpeed(UnitMoveType mtype, float rate, bool forced)
     // Spline packets are for creatures and move_update are for players
     static OpcodeServer const moveTypeToOpcode[MAX_MOVE_TYPE][3] =
     {
-        {SMSG_SPLINE_MOVE_SET_WALK_SPEED,        SMSG_MOVE_SET_WALK_SPEED,        SMSG_MOVE_UPDATE_WALK_SPEED       },
-        {SMSG_SPLINE_MOVE_SET_RUN_SPEED,         SMSG_MOVE_SET_RUN_SPEED,         SMSG_MOVE_UPDATE_RUN_SPEED        },
-        {SMSG_SPLINE_MOVE_SET_RUN_BACK_SPEED,    SMSG_MOVE_SET_RUN_BACK_SPEED,    SMSG_MOVE_UPDATE_RUN_BACK_SPEED   },
-        {SMSG_SPLINE_MOVE_SET_SWIM_SPEED,        SMSG_MOVE_SET_SWIM_SPEED,        SMSG_MOVE_UPDATE_SWIM_SPEED       },
-        {SMSG_SPLINE_MOVE_SET_SWIM_BACK_SPEED,   SMSG_MOVE_SET_SWIM_BACK_SPEED,   SMSG_MOVE_UPDATE_SWIM_BACK_SPEED  },
-        {SMSG_SPLINE_MOVE_SET_TURN_RATE,         SMSG_MOVE_SET_TURN_RATE,         SMSG_MOVE_UPDATE_TURN_RATE        },
-        {SMSG_SPLINE_MOVE_SET_FLIGHT_SPEED,      SMSG_MOVE_SET_FLIGHT_SPEED,      SMSG_MOVE_UPDATE_FLIGHT_SPEED     },
-        {SMSG_SPLINE_MOVE_SET_FLIGHT_BACK_SPEED, SMSG_MOVE_SET_FLIGHT_BACK_SPEED, SMSG_MOVE_UPDATE_FLIGHT_BACK_SPEED},
-        {SMSG_SPLINE_MOVE_SET_PITCH_RATE,        SMSG_MOVE_SET_PITCH_RATE,        SMSG_MOVE_UPDATE_PITCH_RATE       },
+        {SMSG_MOVE_SPLINE_SET_WALK_SPEED,        SMSG_MOVE_SET_WALK_SPEED,        SMSG_MOVE_UPDATE_WALK_SPEED       },
+        {SMSG_MOVE_SPLINE_SET_RUN_SPEED,         SMSG_MOVE_SET_RUN_SPEED,         SMSG_MOVE_UPDATE_RUN_SPEED        },
+        {SMSG_MOVE_SPLINE_SET_RUN_BACK_SPEED,    SMSG_MOVE_SET_RUN_BACK_SPEED,    SMSG_MOVE_UPDATE_RUN_BACK_SPEED   },
+        {SMSG_MOVE_SPLINE_SET_SWIM_SPEED,        SMSG_MOVE_SET_SWIM_SPEED,        SMSG_MOVE_UPDATE_SWIM_SPEED       },
+        {SMSG_MOVE_SPLINE_SET_SWIM_BACK_SPEED,   SMSG_MOVE_SET_SWIM_BACK_SPEED,   SMSG_MOVE_UPDATE_SWIM_BACK_SPEED  },
+        {SMSG_MOVE_SPLINE_SET_TURN_RATE,         SMSG_MOVE_SET_TURN_RATE,         SMSG_MOVE_UPDATE_TURN_RATE        },
+        {SMSG_MOVE_SPLINE_SET_FLIGHT_SPEED,      SMSG_MOVE_SET_FLIGHT_SPEED,      SMSG_MOVE_UPDATE_FLIGHT_SPEED     },
+        {SMSG_MOVE_SPLINE_SET_FLIGHT_BACK_SPEED, SMSG_MOVE_SET_FLIGHT_BACK_SPEED, SMSG_MOVE_UPDATE_FLIGHT_BACK_SPEED},
+        {SMSG_MOVE_SPLINE_SET_PITCH_RATE,        SMSG_MOVE_SET_PITCH_RATE,        SMSG_MOVE_UPDATE_PITCH_RATE       },
     };
 
     if (GetTypeId() == TYPEID_PLAYER)
@@ -13757,9 +13759,9 @@ void Unit::SetRooted(bool apply, bool packetOnly /*= false*/)
     }
 
     if (apply)
-        Movement::PacketSender(this, SMSG_SPLINE_MOVE_ROOT, SMSG_MOVE_ROOT, SMSG_MOVE_ROOT).Send();
+        Movement::PacketSender(this, SMSG_MOVE_SPLINE_ROOT, SMSG_MOVE_ROOT, SMSG_MOVE_ROOT).Send();
     else
-        Movement::PacketSender(this, SMSG_SPLINE_MOVE_UNROOT, SMSG_MOVE_UNROOT, SMSG_MOVE_UNROOT).Send();
+        Movement::PacketSender(this, SMSG_MOVE_SPLINE_UNROOT, SMSG_MOVE_UNROOT, SMSG_MOVE_UNROOT).Send();
 }
 
 void Unit::SetFeared(bool apply)
@@ -15859,9 +15861,9 @@ bool Unit::SetWalk(bool enable)
 
     ///@ TODO: Find proper opcode for walk mode setting in player mind controlling a player case
     if (enable)
-        Movement::PacketSender(this, SMSG_SPLINE_MOVE_SET_WALK_MODE, SMSG_SPLINE_MOVE_SET_WALK_MODE).Send();
+        Movement::PacketSender(this, SMSG_MOVE_SPLINE_SET_WALK_MODE, SMSG_MOVE_SPLINE_SET_WALK_MODE).Send();
     else
-        Movement::PacketSender(this, SMSG_SPLINE_MOVE_SET_RUN_MODE, SMSG_SPLINE_MOVE_SET_RUN_MODE).Send();
+        Movement::PacketSender(this, SMSG_MOVE_SPLINE_SET_RUN_MODE, SMSG_MOVE_SPLINE_SET_RUN_MODE).Send();
 
     return true;
 }
@@ -15889,8 +15891,8 @@ bool Unit::SetDisableGravity(bool disable, bool packetOnly /*= false*/)
 
     static OpcodeServer const gravityOpcodeTable[2][2] =
     {
-        {SMSG_SPLINE_MOVE_GRAVITY_ENABLE,   SMSG_MOVE_GRAVITY_ENABLE    },
-        {SMSG_SPLINE_MOVE_GRAVITY_DISABLE,  SMSG_MOVE_GRAVITY_DISABLE   }
+        {SMSG_MOVE_SPLINE_ENABLE_GRAVITY,   SMSG_MOVE_GRAVITY_ENABLE    },
+        {SMSG_MOVE_SPLINE_DISABLE_GRAVITY,  SMSG_MOVE_GRAVITY_DISABLE   }
     };
 
     bool player = GetTypeId() == TYPEID_PLAYER && ToPlayer()->m_mover->GetTypeId() == TYPEID_PLAYER;
@@ -15938,7 +15940,7 @@ bool Unit::SetSwim(bool enable)
     else
         RemoveUnitMovementFlag(MOVEMENTFLAG_SWIMMING);
 
-    static OpcodeServer const swimOpcodeTable[2] = {SMSG_SPLINE_MOVE_STOP_SWIM, SMSG_SPLINE_MOVE_START_SWIM};
+    static OpcodeServer const swimOpcodeTable[2] = { SMSG_MOVE_SPLINE_STOP_SWIM, SMSG_MOVE_SPLINE_START_SWIM};
 
     WorldPackets::Movement::MoveSplineSetFlag packet(swimOpcodeTable[enable]);
     packet.MoverGUID = GetGUID();
@@ -15967,8 +15969,8 @@ bool Unit::SetCanFly(bool enable)
 
     static OpcodeServer const flyOpcodeTable[2][2] =
     {
-        {SMSG_SPLINE_MOVE_UNSET_FLYING, SMSG_MOVE_UNSET_CAN_FLY },
-        {SMSG_SPLINE_MOVE_SET_FLYING,   SMSG_MOVE_SET_CAN_FLY   }
+        { SMSG_MOVE_SPLINE_UNSET_FLYING, SMSG_MOVE_UNSET_CAN_FLY },
+        { SMSG_MOVE_SPLINE_SET_FLYING,   SMSG_MOVE_SET_CAN_FLY   }
     };
 
     bool player = GetTypeId() == TYPEID_PLAYER && ToPlayer()->m_mover->GetTypeId() == TYPEID_PLAYER;
@@ -16005,8 +16007,8 @@ bool Unit::SetWaterWalking(bool enable, bool packetOnly /*= false */)
 
     static OpcodeServer const waterWalkingOpcodeTable[2][2] =
     {
-        {SMSG_SPLINE_MOVE_SET_LAND_WALK,    SMSG_MOVE_LAND_WALK },
-        {SMSG_SPLINE_MOVE_SET_WATER_WALK,   SMSG_MOVE_WATER_WALK}
+        { SMSG_MOVE_SPLINE_SET_LAND_WALK,  SMSG_MOVE_LAND_WALK  },
+        { SMSG_MOVE_SPLINE_SET_WATER_WALK, SMSG_MOVE_WATER_WALK }
     };
 
     bool player = GetTypeId() == TYPEID_PLAYER && ToPlayer()->m_mover->GetTypeId() == TYPEID_PLAYER;
@@ -16043,8 +16045,8 @@ bool Unit::SetFeatherFall(bool enable, bool packetOnly /*= false */)
 
     static OpcodeServer const featherFallOpcodeTable[2][2] =
     {
-        {SMSG_SPLINE_MOVE_SET_NORMAL_FALL,  SMSG_MOVE_NORMAL_FALL   },
-        {SMSG_SPLINE_MOVE_SET_FEATHER_FALL, SMSG_MOVE_FEATHER_FALL  }
+        { SMSG_MOVE_SPLINE_SET_NORMAL_FALL,  SMSG_MOVE_NORMAL_FALL  },
+        { SMSG_MOVE_SPLINE_SET_FEATHER_FALL, SMSG_MOVE_FEATHER_FALL }
     };
 
     bool player = GetTypeId() == TYPEID_PLAYER && ToPlayer()->m_mover->GetTypeId() == TYPEID_PLAYER;
@@ -16096,8 +16098,8 @@ bool Unit::SetHover(bool enable, bool packetOnly /*= false*/)
 
     static OpcodeServer const hoverOpcodeTable[2][2] =
     {
-        {SMSG_SPLINE_MOVE_UNSET_HOVER,  SMSG_MOVE_UNSET_HOVER   },
-        {SMSG_SPLINE_MOVE_SET_HOVER,    SMSG_MOVE_SET_HOVER     }
+        { SMSG_MOVE_SPLINE_UNSET_HOVER, SMSG_MOVE_UNSET_HOVER },
+        { SMSG_MOVE_SPLINE_SET_HOVER,   SMSG_MOVE_SET_HOVER   }
     };
 
     bool player = GetTypeId() == TYPEID_PLAYER && ToPlayer()->m_mover->GetTypeId() == TYPEID_PLAYER;
@@ -16147,7 +16149,7 @@ void Unit::SendSetPlayHoverAnim(bool enable)
 
 void Unit::SendMovementSetSplineAnim(Movement::AnimType anim)
 {
-    WorldPacket data(SMSG_SPLINE_MOVE_SET_ANIM, 8 + 4);
+    WorldPacket data(SMSG_MOVE_SPLINE_SET_ANIM, 8 + 4);
     data << GetPackGUID();
     data << uint32(anim);
     SendMessageToSet(&data, false);

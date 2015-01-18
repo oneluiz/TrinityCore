@@ -59,6 +59,7 @@ enum ContentLevels
 };
 
 uint32 GetMaxLevelForExpansion(uint32 expansion);
+uint32 GetExpansionForLevel(uint32 level);
 
 ContentLevels GetContentLevelsForMapAndZone(uint32 mapid, uint32 zoneId);
 
@@ -86,6 +87,8 @@ uint32 GetPowerIndexByClass(uint32 powerType, uint32 classId);
 LFGDungeonEntry const* GetLFGDungeon(uint32 mapId, Difficulty difficulty);
 
 uint32 GetDefaultMapLight(uint32 mapId);
+
+uint32 GetQuestUniqueBitFlag(uint32 questId);
 
 typedef std::unordered_multimap<uint32, SkillRaceClassInfoEntry const*> SkillRaceClassInfoMap;
 typedef std::pair<SkillRaceClassInfoMap::iterator, SkillRaceClassInfoMap::iterator> SkillRaceClassInfoBounds;
@@ -185,6 +188,7 @@ extern GameTable <GtNpcTotalHpExp3Entry>        sGtNpcTotalHpExp3Store;
 extern GameTable <GtNpcTotalHpExp4Entry>        sGtNpcTotalHpExp4Store;
 extern GameTable <GtNpcTotalHpExp5Entry>        sGtNpcTotalHpExp5Store;
 extern GameTable <GtOCTClassCombatRatingScalarEntry> sGtOCTClassCombatRatingScalarStore;
+extern GameTable <GtOCTLevelExperienceEntry>    sGtOCTLevelExperienceStore;
 extern GameTable <gtOCTHpPerStaminaEntry>       sGtOCTHpPerStaminaStore;
 extern GameTable <GtRegenMPPerSptEntry>         sGtRegenMPPerSptStore;
 extern GameTable <GtSpellScalingEntry>          sGtSpellScalingStore;

@@ -723,7 +723,7 @@ enum UnitFlags2
 };
 
 /// Non Player Character flags
-enum NPCFlags
+enum NPCFlags : uint32
 {
     UNIT_NPC_FLAG_NONE                  = 0x00000000,
     UNIT_NPC_FLAG_GOSSIP                = 0x00000001,       // 100%
@@ -755,7 +755,8 @@ enum NPCFlags
     UNIT_NPC_FLAG_MAILBOX               = 0x04000000,       // mailbox
     UNIT_NPC_FLAG_REFORGER              = 0x08000000,       // reforging
     UNIT_NPC_FLAG_TRANSMOGRIFIER        = 0x10000000,       // transmogrification
-    UNIT_NPC_FLAG_VAULTKEEPER           = 0x20000000        // void storage
+    UNIT_NPC_FLAG_VAULTKEEPER           = 0x20000000,       // void storage
+    UNIT_NPC_FLAG_BLACK_MARKET          = 0x80000000        // black market
 };
 
 enum MovementFlags
