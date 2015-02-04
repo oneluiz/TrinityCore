@@ -28,14 +28,12 @@
 #include "WorldSession.h"
 #include "TalentPackets.h"
 
-void WorldSession::HandleLearnTalentOpcode(WorldPackets::Talent::LearnTalent& packet)
+void WorldSession::HandleLearnTalentsOpcode(WorldPackets::Talent::LearnTalents& packet)
 {
     bool anythingLearned = false;
     for (uint32 talentId : packet.Talents)
-    {
         if (_player->LearnTalent(talentId))
             anythingLearned = true;
-    }
 
     if (anythingLearned)
         _player->SendTalentsInfoData();

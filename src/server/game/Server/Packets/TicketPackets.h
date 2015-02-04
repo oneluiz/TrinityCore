@@ -15,30 +15,33 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef WMOROOT_H
-#define WMOROOT_H
-#include <string>
-#include <vector>
+#ifndef TicketPackets_h__
+#define TicketPackets_h__
 
-#include "ChunkedData.h"
-#include "Utils.h"
-#include "WorldModelGroup.h"
+#include "Packet.h"
 
-class WorldModelRoot
+namespace WorldPackets
 {
-public:
-    WorldModelRoot(std::string path);
-    ~WorldModelRoot();
-    std::string Path;
-    ChunkedData* Data;
-    WorldModelHeader Header;
-    std::vector<DoodadInstance> DoodadInstances;
-    std::vector<DoodadSet> DoodadSets;
-    std::vector<WorldModelGroup> Groups;
-private:
-    void ReadGroups();
-    void ReadDoodadSets();
-    void ReadDoodadInstances();
-    void ReadHeader();
-};
-#endif
+    namespace Ticket
+    {
+        class GMTicketGetSystemStatus final : public ClientPacket
+        {
+        public:
+            GMTicketGetSystemStatus(WorldPacket&& packet) : ClientPacket(CMSG_GM_TICKET_GET_SYSTEM_STATUS, std::move(packet)) { }
+
+            void Read() override { };
+        };
+
+        class GMTicketSystemStatus final : public ServerPacket
+        {
+        public:
+            GMTicketSystemStatus() : ServerPacket(SMSG_GM_TICKET_SYSTEM_STATUS, 4) { }
+
+            WorldPacket const* Write() override;
+
+            int32 Status = 0;
+        };
+    }
+}
+
+#endif // TicketPackets_h__

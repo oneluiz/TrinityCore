@@ -76,7 +76,6 @@ DBCStorage <ChrRacesEntry> sChrRacesStore(ChrRacesEntryfmt);
 DBCStorage <ChrPowerTypesEntry> sChrPowerTypesStore(ChrClassesXPowerTypesfmt);
 DBCStorage <ChrSpecializationEntry> sChrSpecializationStore(ChrSpecializationEntryfmt);
 ChrSpecializationByIndexArray sChrSpecializationByIndexStore;
-SpecializationSpellsBySpecStore sSpecializationSpellsBySpecStore;
 DBCStorage <CinematicSequencesEntry> sCinematicSequencesStore(CinematicSequencesEntryfmt);
 DBCStorage <CreatureDisplayInfoEntry> sCreatureDisplayInfoStore(CreatureDisplayInfofmt);
 DBCStorage <CreatureDisplayInfoExtraEntry> sCreatureDisplayInfoExtraStore(CreatureDisplayInfoExtrafmt);
@@ -199,6 +198,7 @@ DBCStorage <SkillTiersEntry> sSkillTiersStore(SkillTiersfmt);
 DBCStorage <SoundEntriesEntry> sSoundEntriesStore(SoundEntriesfmt);
 
 DBCStorage <SpecializationSpellsEntry> sSpecializationSpellsStore(SpecializationSpellsEntryfmt);
+std::unordered_map<uint32, std::vector<SpecializationSpellsEntry const*>> sSpecializationSpellsBySpecStore;
 DBCStorage <SpellItemEnchantmentEntry> sSpellItemEnchantmentStore(SpellItemEnchantmentfmt);
 DBCStorage <SpellItemEnchantmentConditionEntry> sSpellItemEnchantmentConditionStore(SpellItemEnchantmentConditionfmt);
 DBCStorage <SpellEntry> sSpellStore(SpellEntryfmt);
@@ -206,8 +206,6 @@ DBCStorage <SpellEffectScalingEntry> sSpellEffectScalingStore(SpellEffectScaling
 
 SpellCategoryStore sSpellsByCategoryStore;
 PetFamilySpellsStore sPetFamilySpellsStore;
-SpellsPerClassStore sSpellsPerClassStore;
-ClassBySkillIdStore sClassBySkillIdStore;
 SpellEffectScallingByEffectId sSpellEffectScallingByEffectId;
 
 
@@ -231,9 +229,7 @@ DBCStorage <SpellShapeshiftFormEntry> sSpellShapeshiftFormStore(SpellShapeshiftF
 DBCStorage <StableSlotPricesEntry> sStableSlotPricesStore(StableSlotPricesfmt);
 DBCStorage <SummonPropertiesEntry> sSummonPropertiesStore(SummonPropertiesfmt);
 DBCStorage <TalentEntry> sTalentStore(TalentEntryfmt);
-TalentBySpellIDMap sTalentBySpellIDMap;
-SpecializationSpellsMap sSpecializationSpellsMap;
-SpecializationOverrideSpellsMap sSpecializationOverrideSpellMap;
+TalentsByPosition sTalentByPos;
 
 DBCStorage <TotemCategoryEntry> sTotemCategoryStore(TotemCategoryEntryfmt);
 DBCStorage <TransportAnimationEntry> sTransportAnimationStore(TransportAnimationfmt);
@@ -501,11 +497,10 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bad_dbc_files, sMapStore,                    dbcPath, "Map.dbc");//19116
     LoadDBC(availableDbcLocales, bad_dbc_files, sMapDifficultyStore,          dbcPath, "MapDifficulty.dbc");//19116
     // fill data
-    sMapDifficultyMap[0][0] = MapDifficulty(DIFFICULTY_NONE, 0, 0, false);//map 0 is missingg from MapDifficulty.dbc use this till its ported to sql
     for (uint32 i = 0; i < sMapDifficultyStore.GetNumRows(); ++i)
         if (MapDifficultyEntry const* entry = sMapDifficultyStore.LookupEntry(i))
-            sMapDifficultyMap[entry->MapID][entry->DifficultyID] = MapDifficulty(entry->DifficultyID, entry->RaidDuration, entry->MaxPlayers, entry->Message_lang[0] > 0);
-    sMapDifficultyStore.Clear();
+            sMapDifficultyMap[entry->MapID][entry->DifficultyID] = entry;
+    sMapDifficultyMap[0][0] = sMapDifficultyMap[1][0]; //map 0 is missing from MapDifficulty.dbc use this till its ported to sql
 
     LoadDBC(availableDbcLocales, bad_dbc_files, sModifierTreeStore,           dbcPath, "ModifierTree.dbc");//19342
     LoadDBC(availableDbcLocales, bad_dbc_files, sMountCapabilityStore,        dbcPath, "MountCapability.dbc");//19116
@@ -549,16 +544,15 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bad_dbc_files, sSkillTiersStore,             dbcPath, "SkillTiers.dbc");
     LoadDBC(availableDbcLocales, bad_dbc_files, sSoundEntriesStore,           dbcPath, "SoundEntries.dbc");//15595
     LoadDBC(availableDbcLocales, bad_dbc_files, sSpecializationSpellsStore,   dbcPath, "SpecializationSpells.dbc");
-    for (uint32 i = 1; i < sSpecializationSpellsStore.GetNumRows(); ++i)
+    for (uint32 i = 0; i < sSpecializationSpellsStore.GetNumRows(); ++i)
     {
         SpecializationSpellsEntry const* specSpells = sSpecializationSpellsStore.LookupEntry(i);
         if (!specSpells)
             continue;
-        sSpecializationSpellsBySpecStore[specSpells->SpecID].push_back(specSpells);
 
-        if (specSpells->OverridesSpellID)
-            sSpecializationOverrideSpellMap[specSpells->SpecID][specSpells->OverridesSpellID] = specSpells->SpellID;
+        sSpecializationSpellsBySpecStore[specSpells->SpecID].push_back(specSpells);
     }
+
     LoadDBC(availableDbcLocales, bad_dbc_files, sSpellStore,                  dbcPath, "Spell.dbc"/*, &CustomSpellEntryfmt, &CustomSpellEntryIndex*/);
     LoadDBC(availableDbcLocales, bad_dbc_files, sSpellCategoriesStore,        dbcPath, "SpellCategories.dbc");//15595
     LoadDBC(availableDbcLocales, bad_dbc_files, sSpellCategoryStore,          dbcPath, "SpellCategory.dbc");
@@ -601,99 +595,18 @@ void LoadDBCStores(const std::string& dataPath)
 
         sSpellEffectScallingByEffectId.insert(std::make_pair(spellEffectScaling->SpellEffectID, j));
     }
-    std::map<std::string, uint32> classIdByName;
-    for (uint32 j = 0; j < sChrClassesStore.GetNumRows(); j++)
+
+    LoadDBC(availableDbcLocales, bad_dbc_files, sTalentStore,                 dbcPath, "Talent.dbc");//19342
+    for (uint32 i = 0; i < sTalentStore.GetNumRows(); ++i)
     {
-        ChrClassesEntry const* classEntry = sChrClassesStore.LookupEntry(j);
-        if (!classEntry)
-            continue;
-
-        classIdByName.insert(std::make_pair(std::string(classEntry->Name_lang), j));
-    }
-
-    for (uint32 j = 0; j < sSkillLineStore.GetNumRows(); j++)
-    {
-        SkillLineEntry const* skillEntry = sSkillLineStore.LookupEntry(j);
-        if (!skillEntry)
-            continue;
-
-        if (skillEntry->CategoryID!= SKILL_CATEGORY_CLASS)
-            continue;
-
-        std::map<std::string, uint32> ::const_iterator iter = classIdByName.find(std::string(skillEntry->DisplayName_lang));
-        if (iter == classIdByName.end())
-            continue;
-
-        sClassBySkillIdStore.insert(std::make_pair(j, iter->second));
-    }
-
-    for (uint32 j = 0; j < sSkillLineAbilityStore.GetNumRows(); ++j)
-    {
-        SkillLineAbilityEntry const* skillAbility = sSkillLineAbilityStore.LookupEntry(j);
-        if (!skillAbility)
-            continue;
-
-        if (skillAbility->AquireMethod != SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN)
-            continue;
-
-        SpellEntry const* spellInfo = sSpellStore.LookupEntry(skillAbility->SpellID);
-        if (!spellInfo)
-            continue;
-
-        SpellLevelsEntry const* spellLevels = sSpellLevelsStore.LookupEntry(spellInfo->LevelsID);
-        if (!spellLevels || !spellLevels->SpellLevel)
-            continue;
-
-        uint32 classId = GetClassBySkillId(skillAbility->SkillLine);
-
-        if (!classId)
-            continue;
-
-        if (sSpellsPerClassStore.find(classId) == sSpellsPerClassStore.end())
-            sSpellsPerClassStore.insert(make_pair(classId, std::list<SkillLineAbilityEntry const*>()));
-
-        sSpellsPerClassStore[classId].push_back(skillAbility);
-    }
-
-    LoadDBC(availableDbcLocales, bad_dbc_files, sTalentStore,                 dbcPath, "Talent.dbc");//15595
-
-    // Create Spelldifficulty searcher
-    /* TODO: 6.x update to new spell diffs
-    for (uint32 i = 0; i < sSpellDifficultyStore.GetNumRows(); ++i)
-    {
-        SpellDifficultyEntry const* spellDiff = sSpellDifficultyStore.LookupEntry(i);
-        if (!spellDiff)
-            continue;
-
-        SpellDifficultyEntry newEntry;
-        memset(newEntry.SpellID, 0, 4*sizeof(uint32));
-        for (uint32 x = 0; x < MAX_DIFFICULTY; ++x)
+        if (TalentEntry const* talentInfo = sTalentStore.LookupEntry(i))
         {
-            if (spellDiff->SpellID[x] <= 0 || !sSpellStore.LookupEntry(spellDiff->SpellID[x]))
-            {
-                if (spellDiff->SpellID[x] > 0)//don't show error if spell is <= 0, not all modes have spells and there are unknown negative values
-                    TC_LOG_ERROR("sql.sql", "spelldifficulty_dbc: spell %i at field id:%u at spellid%i does not exist in SpellStore (spell.dbc), loaded as 0", spellDiff->SpellID[x], spellDiff->ID, x);
-                newEntry.SpellID[x] = 0;//spell was <= 0 or invalid, set to 0
-            }
+            if (talentInfo->ClassID < MAX_CLASSES && talentInfo->TierID < MAX_TALENT_TIERS && talentInfo->ColumnIndex < MAX_TALENT_COLUMNS)
+                sTalentByPos[talentInfo->ClassID][talentInfo->TierID][talentInfo->ColumnIndex].push_back(talentInfo);
             else
-                newEntry.SpellID[x] = spellDiff->SpellID[x];
+                TC_LOG_ERROR("server.loading", "Value of class (found: %u, max allowed %u) or (found: %u, max allowed %u) tier or column (found: %u, max allowed %u) is invalid.",
+                    talentInfo->ClassID, MAX_CLASSES, talentInfo->TierID, MAX_TALENT_TIERS, talentInfo->ColumnIndex, MAX_TALENT_COLUMNS);
         }
-
-        if (newEntry.SpellID[0] <= 0 || newEntry.SpellID[1] <= 0)//id0-1 must be always set!
-            continue;
-
-        for (uint32 x = 0; x < MAX_DIFFICULTY; ++x)
-            if (newEntry.SpellID[x])
-                sSpellMgr->SetSpellDifficultyId(uint32(newEntry.SpellID[x]), spellDiff->ID);
-    }*/
-
-    for (unsigned int i = 0; i < sTalentStore.GetNumRows(); ++i)
-    {
-        TalentEntry const* talentInfo = sTalentStore.LookupEntry(i);
-        if (!talentInfo)
-            continue;
-
-        sTalentBySpellIDMap[talentInfo->SpellID] = talentInfo;
     }
 
     //LoadDBC(availableDbcLocales, bad_dbc_files, sTeamContributionPointsStore, dbcPath, "TeamContributionPoints.dbc");
@@ -961,7 +874,7 @@ void Map2ZoneCoordinates(float& x, float& y, uint32 zone)
     std::swap(x, y);                                         // client have map coords swapped
 }
 
-MapDifficulty const* GetDefaultMapDifficulty(uint32 mapID)
+MapDifficultyEntry const* GetDefaultMapDifficulty(uint32 mapID)
 {
     auto itr = sMapDifficultyMap.find(mapID);
     if (itr == sMapDifficultyMap.end())
@@ -977,13 +890,13 @@ MapDifficulty const* GetDefaultMapDifficulty(uint32 mapID)
             continue;
 
         if (difficulty->Flags & DIFFICULTY_FLAG_DEFAULT)
-            return &p.second;
+            return p.second;
     }
 
-    return &itr->second.begin()->second;
+    return itr->second.begin()->second;
 }
 
-MapDifficulty const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
+MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
 {
     auto itr = sMapDifficultyMap.find(mapId);
     if (itr == sMapDifficultyMap.end())
@@ -993,17 +906,17 @@ MapDifficulty const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
     if (diffItr == itr->second.end())
         return nullptr;
 
-    return &diffItr->second;
+    return diffItr->second;
 }
 
-MapDifficulty const* GetDownscaledMapDifficultyData(uint32 mapId, Difficulty &difficulty)
+MapDifficultyEntry const* GetDownscaledMapDifficultyData(uint32 mapId, Difficulty &difficulty)
 {
     DifficultyEntry const* diffEntry = sDifficultyStore.LookupEntry(difficulty);
     if (!diffEntry)
         return GetDefaultMapDifficulty(mapId);
 
     uint32 tmpDiff = difficulty;
-    MapDifficulty const* mapDiff = GetMapDifficultyData(mapId, Difficulty(tmpDiff));
+    MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapId, Difficulty(tmpDiff));
     while (!mapDiff)
     {
         tmpDiff = diffEntry->FallbackDifficultyID;
@@ -1051,14 +964,6 @@ PvPDifficultyEntry const* GetBattlegroundBracketById(uint32 mapid, BattlegroundB
                 return entry;
 
     return NULL;
-}
-
-TalentEntry const* GetTalentBySpellID(uint32 spellID)
-{
-    auto itr = sTalentBySpellIDMap.find(spellID);
-    if (itr != sTalentBySpellIDMap.end())
-        return itr->second;
-    return nullptr;
 }
 
 uint32 GetLiquidFlags(uint32 liquidType)
@@ -1130,85 +1035,6 @@ SkillRaceClassInfoEntry const* GetSkillRaceClassInfo(uint32 skill, uint8 race, u
     return NULL;
 }
 
-uint32 GetClassBySkillId(uint32 skillId)
-{
-    ClassBySkillIdStore::const_iterator iter = sClassBySkillIdStore.find(skillId);
-    if (iter != sClassBySkillIdStore.end())
-        return iter->second;
-    return 0;
-}
-
-uint32 GetSkillIdByClass(uint32 classId)
-{
-    for (ClassBySkillIdStore::const_iterator iter = sClassBySkillIdStore.begin(); iter != sClassBySkillIdStore.end(); iter++)
-        if (iter->second == classId)
-            return iter->first;
-    return 0;
-}
-
-std::list<uint32> GetSpellsForLevels(uint32 classId, uint32 raceMask, uint32 specializationId, uint32 minLevel, uint32 maxLevel)
-{
-    std::list<uint32> spellList;
-
-    if (classId != 0)
-    {
-        SpellsPerClassStore::const_iterator classIter = sSpellsPerClassStore.find(classId);
-        if (classIter != sSpellsPerClassStore.end())
-        {
-            const std::list<SkillLineAbilityEntry const*>& learnSpellList = classIter->second;
-            for (std::list<SkillLineAbilityEntry const*>::const_iterator iter = learnSpellList.begin(); iter != learnSpellList.end(); iter++)
-            {
-                SkillLineAbilityEntry const* skillLine = *iter;
-                if (!skillLine)
-                    continue;
-
-                SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(skillLine->SpellID);
-                if (!spellInfo)
-                    continue;
-
-                if (skillLine->RaceMask && !(skillLine->RaceMask & raceMask))
-                    continue;
-
-                if (spellInfo->SpellLevel <= minLevel || spellInfo->SpellLevel > maxLevel)
-                    continue;
-
-                spellList.push_back(spellInfo->Id);
-            }
-        }
-    }
-
-    if (!specializationId)
-        return spellList;
-
-    SpecializationSpellsBySpecStore::const_iterator specIter = sSpecializationSpellsBySpecStore.find(specializationId);
-    if (specIter != sSpecializationSpellsBySpecStore.end())
-    {
-        SpecializationSpellsBySpecEntry learnSpellList = specIter->second;
-        for (size_t i = 0; i < learnSpellList.size(); ++i)
-        {
-            SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(learnSpellList[i]->SpellID);
-            if (!spellInfo)
-            {
-                TC_LOG_ERROR("spells", "GetSpellsForLevels: spell %u not found in spellstore", learnSpellList[i]->SpellID);
-                continue;
-            }
-            if (spellInfo->SpellLevel <= minLevel || spellInfo->SpellLevel > maxLevel)
-                continue;
-
-            spellList.push_back(spellInfo->Id);
-        }
-    }
-    return spellList;
-}
-
-uint32 GetTalentSpellCost(uint32 spellId)
-{
-    TalentBySpellIDMap::const_iterator itr = sTalentBySpellIDMap.find(spellId);
-    if (itr == sTalentBySpellIDMap.end())
-        return 0;
-    return 1;
-}
-
 uint32 GetQuestUniqueBitFlag(uint32 questId)
 {
     QuestV2Entry const* v2 = sQuestV2Store.LookupEntry(questId);
@@ -1216,4 +1042,13 @@ uint32 GetQuestUniqueBitFlag(uint32 questId)
         return 0;
 
     return v2->UniqueBitFlag;
+}
+
+std::vector<SpecializationSpellsEntry const*> const* GetSpecializationSpells(uint32 specId)
+{
+    auto itr = sSpecializationSpellsBySpecStore.find(specId);
+    if (itr != sSpecializationSpellsBySpecStore.end())
+        return &itr->second;
+
+    return nullptr;
 }

@@ -177,6 +177,8 @@ Battleground::Battleground()
     m_PrematureCountDown = false;
     m_PrematureCountDownTimer = 0;
 
+    m_Guid = 0;
+
     m_HonorMode = BG_NORMAL;
 
     StartDelayTimes[BG_STARTING_EVENT_FIRST]  = BG_START_DELAY_2M;
@@ -1076,7 +1078,7 @@ void Battleground::AddPlayer(Player* player)
     BattlegroundPlayer bp;
     bp.OfflineRemoveTime = 0;
     bp.Team = team;
-    bp.ActiveSpec = player->GetActiveTalentSpec();
+    bp.ActiveSpec = player->GetSpecId(player->GetActiveTalentGroup());
 
     // Add to list/maps
     m_Players[player->GetGUID()] = bp;

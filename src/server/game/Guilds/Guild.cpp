@@ -116,11 +116,11 @@ void Guild::SendCommandResult(WorldSession* session, GuildCommandType type, Guil
 
 void Guild::SendSaveEmblemResult(WorldSession* session, GuildEmblemError errCode)
 {
-    WorldPacket data(MSG_SAVE_GUILD_EMBLEM, 4);
+    WorldPacket data(SMSG_SAVE_GUILD_EMBLEM, 4);
     data << uint32(errCode);
     session->SendPacket(&data);
 
-    TC_LOG_DEBUG("guild", "MSG_SAVE_GUILD_EMBLEM [%s] Code: %u", session->GetPlayerInfo().c_str(), errCode);
+    TC_LOG_DEBUG("guild", "SMSG_SAVE_GUILD_EMBLEM [%s] Code: %u", session->GetPlayerInfo().c_str(), errCode);
 }
 
 // LogHolder
@@ -1366,7 +1366,7 @@ bool Guild::SetName(std::string const& name)
     CharacterDatabase.Execute(stmt);
 
     ObjectGuid guid = GetGUID();
-    WorldPacket data(SMSG_GUILD_RENAMED, 24 + 8 + 1);
+    WorldPacket data(SMSG_GUILD_NAME_CHANGED, 24 + 8 + 1);
     data.WriteBit(guid[5]);
     data.WriteBits(name.length(), 8);
     data.WriteBit(guid[4]);
@@ -1507,7 +1507,7 @@ void Guild::SendQueryResponse(WorldSession* session)
 void Guild::SendGuildRankInfo(WorldSession* session) const
 {
     ByteBuffer rankData(100);
-    WorldPacket data(SMSG_GUILD_RANK, 100);
+    WorldPacket data(SMSG_GUILD_RANKS, 100);
 
     data.WriteBits(_GetRanksSize(), 18);
 
@@ -1550,19 +1550,20 @@ void Guild::HandleSetAchievementTracking(WorldSession* session, std::set<uint32>
     {
         std::set<uint32> criteriaIds;
 
-        /*
-        for (std::set<uint32>::iterator achievementId = achievementIds.begin(); achievementId != achievementIds.end(); ++achievementId)
+        for (uint32 achievementId : achievementIds)
         {
-            if (AchievementCriteriaEntryList const* cList = sAchievementMgr->GetAchievementCriteriaByAchievement(*achievementId))
+            if (AchievementEntry const* achievement = sAchievementMgr->GetAchievement(achievementId))
             {
-                for (AchievementCriteriaEntryList::const_iterator itr = cList->begin(); itr != cList->end(); ++itr)
+                if (AchievementCriteriaTree const* tree = sAchievementMgr->GetAchievementCriteriaTree(achievement->CriteriaTree))
                 {
-                    AchievementCriteriaTree const* criteria = *itr;
-                    criteriaIds.insert(criteria->ID);
+                    sAchievementMgr->WalkCriteriaTree(tree, [&criteriaIds](AchievementCriteriaTree const* node)
+                    {
+                        if (node->Criteria)
+                            criteriaIds.insert(node->Criteria->ID);
+                    });
                 }
             }
         }
-        */
 
         member->SetTrackedCriteriaIds(criteriaIds);
         m_achievementMgr.SendAllTrackedCriterias(player, member->GetTrackedCriteriaIds());
@@ -1950,6 +1951,7 @@ void Guild::HandleUpdateMemberRank(WorldSession* session, ObjectGuid guid, bool 
         }
 
         Member const* memberMe = GetMember(player->GetGUID());
+        ASSERT(memberMe);
         uint8 rankId = memberMe->GetRankId();
         if (demote)
         {
@@ -1988,6 +1990,8 @@ void Guild::HandleSetMemberRank(WorldSession* session, ObjectGuid targetGuid, Ob
 {
     Player* player = session->GetPlayer();
     Member* member = GetMember(targetGuid);
+    if (!member)
+        return;
     GuildRankRights rights = GR_RIGHT_PROMOTE;
     GuildCommandType type = GUILD_COMMAND_PROMOTE;
 
@@ -2190,7 +2194,7 @@ void Guild::HandleGuildRequestChallengeUpdate(WorldSession* session)
 
 void Guild::SendEventLog(WorldSession* session) const
 {
-    WorldPacket data(SMSG_GUILD_EVENT_LOG_QUERY_RESULT, 1 + m_eventLog->GetSize() * (1 + 8 + 4));
+    WorldPacket data(SMSG_GUILD_EVENT_LOG_QUERY_RESULTS, 1 + m_eventLog->GetSize() * (1 + 8 + 4));
     m_eventLog->WritePacket(data);
     session->SendPacket(&data);
     TC_LOG_DEBUG("guild", "SMSG_GUILD_EVENT_LOG_QUERY_RESULT [%s]", session->GetPlayerInfo().c_str());
@@ -2638,7 +2642,7 @@ void Guild::BroadcastPacket(WorldPacket const* packet) const
             player->GetSession()->SendPacket(packet);
 }
 
-void Guild::BroadcastPacketIfTrackingAchievement(WorldPacket* packet, uint32 criteriaId) const
+void Guild::BroadcastPacketIfTrackingAchievement(WorldPacket const* packet, uint32 criteriaId) const
 {
     for (Members::const_iterator itr = m_members.begin(); itr != m_members.end(); ++itr)
         if (itr->second->IsTrackingCriteriaId(criteriaId))
@@ -3489,7 +3493,7 @@ void Guild::SendGuildRanksUpdate(ObjectGuid setterGuid, ObjectGuid targetGuid, u
     Member* member = GetMember(targetGuid);
     ASSERT(member);
 
-    WorldPacket data(SMSG_GUILD_RANKS_UPDATE, 100);
+    WorldPacket data(SMSG_GUILD_SEND_RANK_CHANGE, 100);
     data.WriteBit(setterGuid[7]);
     data.WriteBit(setterGuid[2]);
     data.WriteBit(targetGuid[2]);

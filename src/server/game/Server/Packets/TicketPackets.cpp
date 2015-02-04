@@ -15,26 +15,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GEOMETRY_H
-#define GEOMETRY_H
-#include <vector>
+#include "TicketPackets.h"
 
-#include "Utils.h"
-
-class ADT;
-class Geometry
+WorldPacket const* WorldPackets::Ticket::GMTicketSystemStatus::Write()
 {
-public:
-    Geometry();
+    _worldPacket << int32(Status);
 
-    void CalculateBoundingBox(float*& min, float*& max);
-    void CalculateMinMaxHeight(float& min, float& max);
-    void AddData(std::vector<Vector3>& verts, std::vector<Triangle<uint32> >& tris);
-    void AddAdt(ADT* adt);
-    void GetRawData(float*& verts, int*& tris, uint8*& areas);
-
-    std::vector<Vector3> Vertices;
-    std::vector<Triangle<uint32> > Triangles;
-    bool Transform;
-};
-#endif
+    return &_worldPacket;
+}

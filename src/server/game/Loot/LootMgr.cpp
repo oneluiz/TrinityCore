@@ -414,13 +414,6 @@ void LootItem::AddAllowedLooter(const Player* player)
     allowedGUIDs.insert(player->GetGUID());
 }
 
-void LootItem::BuildItemInstance(WorldPackets::Item::ItemInstance& instance) const
-{
-    instance.ItemID = itemid;
-    instance.RandomPropertiesSeed = randomSuffix;
-    instance.RandomPropertiesID = randomPropertyId;
-}
-
 //
 // --------- Loot ---------
 //
@@ -442,6 +435,12 @@ void Loot::AddItem(LootStoreItem const& item)
     {
         LootItem generatedLoot(item);
         generatedLoot.count = std::min(count, proto->GetMaxStackSize());
+        if (_difficultyBonusTreeMod)
+        {
+            std::set<uint32> bonusListIDs = sDB2Manager.GetItemBonusTree(generatedLoot.itemid, _difficultyBonusTreeMod);
+            generatedLoot.BonusListIDs.insert(generatedLoot.BonusListIDs.end(), bonusListIDs.begin(), bonusListIDs.end());
+        }
+
         lootItems.push_back(generatedLoot);
         count -= proto->GetMaxStackSize();
 
@@ -468,6 +467,8 @@ bool Loot::FillLoot(uint32 lootId, LootStore const& store, Player* lootOwner, bo
             TC_LOG_ERROR("sql.sql", "Table '%s' loot id #%u used but it doesn't have records.", store.GetName(), lootId);
         return false;
     }
+
+    _difficultyBonusTreeMod = lootOwner->GetMap()->GetDifficultyLootBonusTreeMod();
 
     items.reserve(MAX_NR_LOOT_ITEMS);
     quest_items.reserve(MAX_NR_QUEST_ITEMS);
@@ -920,7 +921,7 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player* v
                     lootItem.LootListID = packet.Items.size()+1;
                     lootItem.LootItemType = slot_type;
                     lootItem.Quantity = items[i].count;
-                    items[i].BuildItemInstance(lootItem.Loot);
+                    lootItem.Loot.Initalize(items[i]);
                     packet.Items.push_back(lootItem);
                 }
             }
@@ -940,7 +941,7 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player* v
                     lootItem.LootListID = packet.Items.size()+1;
                     lootItem.LootItemType = LOOT_SLOT_TYPE_ALLOW_LOOT;
                     lootItem.Quantity = items[i].count;
-                    items[i].BuildItemInstance(lootItem.Loot);
+                    lootItem.Loot.Initalize(items[i]);
                     packet.Items.push_back(lootItem);
                 }
             }
@@ -957,7 +958,7 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player* v
                     lootItem.LootListID = packet.Items.size()+1;
                     lootItem.LootItemType = LOOT_SLOT_TYPE_ALLOW_LOOT;
                     lootItem.Quantity = items[i].count;
-                    items[i].BuildItemInstance(lootItem.Loot);
+                    lootItem.Loot.Initalize(items[i]);
                     packet.Items.push_back(lootItem);
                 }
             }
@@ -980,7 +981,7 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player* v
                 WorldPackets::Loot::LootItem lootItem;
                 lootItem.LootListID = packet.Items.size()+1;
                 lootItem.Quantity = item.count;
-                item.BuildItemInstance(lootItem.Loot);
+                lootItem.Loot.Initalize(item);
 
                 if (item.follow_loot_rules)
                 {
@@ -1026,7 +1027,7 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player* v
                 lootItem.LootListID = packet.Items.size()+1;
                 lootItem.LootItemType = LOOT_SLOT_TYPE_ALLOW_LOOT;
                 lootItem.Quantity = item.count;
-                item.BuildItemInstance(lootItem.Loot);
+                lootItem.Loot.Initalize(item);
                 packet.Items.push_back(lootItem);
             }
         }
@@ -1045,7 +1046,7 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player* v
                 WorldPackets::Loot::LootItem lootItem;
                 lootItem.LootListID = packet.Items.size()+1;
                 lootItem.Quantity = item.count;
-                item.BuildItemInstance(lootItem.Loot);
+                lootItem.Loot.Initalize(item);
 
                 if (item.follow_loot_rules)
                 {

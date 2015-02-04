@@ -42,10 +42,10 @@ namespace WorldPackets
             MovementInfo movementInfo;
         };
 
-        class ServerPlayerMovement final : public ServerPacket
+        class MoveUpdate final : public ServerPacket
         {
         public:
-            ServerPlayerMovement() : ServerPacket(SMSG_PLAYER_MOVE) { }
+            MoveUpdate() : ServerPacket(SMSG_MOVE_UPDATE) { }
 
             WorldPacket const* Write() override;
 
@@ -107,7 +107,7 @@ namespace WorldPackets
         class MonsterMove final : public ServerPacket
         {
         public:
-            MonsterMove() : ServerPacket(SMSG_MONSTER_MOVE) { }
+            MonsterMove() : ServerPacket(SMSG_ON_MONSTER_MOVE) { }
 
             void InitializeSplineData(::Movement::MoveSpline const& moveSpline);
 
@@ -286,20 +286,17 @@ namespace WorldPackets
             int32 MoveTime = 0;
         };
     }
-}
 
-ByteBuffer& operator<<(ByteBuffer& data, G3D::Vector3 const& v);
-ByteBuffer& operator>>(ByteBuffer& data, G3D::Vector3& v);
+    ByteBuffer& operator<<(ByteBuffer& data, Movement::MonsterSplineFilterKey const& monsterSplineFilterKey);
+    ByteBuffer& operator<<(ByteBuffer& data, Movement::MonsterSplineFilter const& monsterSplineFilter);
+    ByteBuffer& operator<<(ByteBuffer& data, Movement::MovementSpline const& movementSpline);
+    ByteBuffer& operator<<(ByteBuffer& data, Movement::MovementMonsterSpline const& movementMonsterSpline);
+}
 
 ByteBuffer& operator>>(ByteBuffer& data, MovementInfo& movementInfo);
 ByteBuffer& operator<<(ByteBuffer& data, MovementInfo& movementInfo);
 
 ByteBuffer& operator>>(ByteBuffer& data, MovementInfo::TransportInfo& transportInfo);
 ByteBuffer& operator<<(ByteBuffer& data, MovementInfo::TransportInfo const& transportInfo);
-
-ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Movement::MonsterSplineFilterKey const& monsterSplineFilterKey);
-ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Movement::MonsterSplineFilter const& monsterSplineFilter);
-ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Movement::MovementSpline const& movementSpline);
-ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Movement::MovementMonsterSpline const& movementMonsterSpline);
 
 #endif // MovementPackets_h__

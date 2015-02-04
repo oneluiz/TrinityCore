@@ -504,7 +504,7 @@ enum SpellAttr4
     SPELL_ATTR4_UNK4                             = 0x00000010, //  4 This will no longer cause guards to attack on use??
     SPELL_ATTR4_UNK5                             = 0x00000020, //  5
     SPELL_ATTR4_NOT_STEALABLE                    = 0x00000040, //  6 although such auras might be dispellable, they cannot be stolen
-    SPELL_ATTR4_TRIGGERED                        = 0x00000080, //  7 spells forced to be triggered
+    SPELL_ATTR4_CAN_CAST_WHILE_CASTING           = 0x00000080, //  7 Can be cast while another cast is in progress - see CanCastWhileCasting(SpellRec const*,CGUnit_C *,int &)
     SPELL_ATTR4_FIXED_DAMAGE                     = 0x00000100, //  8 Ignores resilience and any (except mechanic related) damage or % damage taken auras on target.
     SPELL_ATTR4_TRIGGER_ACTIVATE                 = 0x00000200, //  9 initially disabled / trigger activate from event (Execute, Riposte, Deep Freeze end other)
     SPELL_ATTR4_SPELL_VS_EXTEND_COST             = 0x00000400, // 10 Rogue Shiv have this flag
@@ -1188,7 +1188,7 @@ enum SpellEffectName
     SPELL_EFFECT_178                                = 178, // Unused (4.3.4)
     SPELL_EFFECT_CREATE_AREATRIGGER                 = 179,
     SPELL_EFFECT_UPDATE_AREATRIGGER                 = 180, // NYI
-    SPELL_EFFECT_REMOVE_TALENT                      = 181, // NYI
+    SPELL_EFFECT_REMOVE_TALENT                      = 181,
     SPELL_EFFECT_182                                = 182,
     SPELL_EFFECT_183                                = 183,
     SPELL_EFFECT_REPUTATION_2                       = 184, // NYI
@@ -1517,7 +1517,7 @@ enum SpellCastResult // 19116
     SPELL_FAILED_BUILDING_ACTIVATE_NOT_READY      = 257,
     SPELL_FAILED_NOT_SOULBOUND                    = 258,
     SPELL_FAILED_RIDING_VEHICLE                   = 259,
-    SPELL_FAILED_UNKNOWN                          = 260, // custom value, default case
+    SPELL_FAILED_UNKNOWN                          = 260,
     SPELL_CAST_OK                                 = 0xFFFF // custom value, must not be sent to client
 };
 
@@ -4315,7 +4315,7 @@ enum AiReaction
 // Diminishing Returns Types
 enum DiminishingReturnsType
 {
-    DRTYPE_NONE         = 0,                                // this spell is not diminished, but may have limited it's duration to 10s
+    DRTYPE_NONE         = 0,                                // this spell is not diminished, but may have its duration limited
     DRTYPE_PLAYER       = 1,                                // this spell is diminished only when applied on players
     DRTYPE_ALL          = 2                                 // this spell is diminished in every case
 };
@@ -4323,27 +4323,15 @@ enum DiminishingReturnsType
 // Diminishing Return Groups
 enum DiminishingGroup
 {
-    DIMINISHING_NONE                = 0,
-    DIMINISHING_BANISH              = 1,
-    DIMINISHING_CHARGE              = 2,
-    DIMINISHING_OPENING_STUN        = 3, // Cheap Shot and Pounce
-    DIMINISHING_CONTROLLED_STUN     = 4,
-    DIMINISHING_CONTROLLED_ROOT     = 5,
-    DIMINISHING_CYCLONE             = 6,
-    DIMINISHING_DISARM              = 7,
-    DIMINISHING_DISORIENT           = 8, // Several spells where name cant be generalized.
-    DIMINISHING_ENTRAPMENT          = 9,
-    DIMINISHING_FEAR                = 10,
-    DIMINISHING_HORROR              = 11,
-    DIMINISHING_MIND_CONTROL        = 12,
-    DIMINISHING_ROOT                = 13,
-    DIMINISHING_STUN                = 14,
-    DIMINISHING_SCATTER_SHOT        = 15,
-    DIMINISHING_SILENCE             = 16,
-    DIMINISHING_SLEEP               = 17,
-    DIMINISHING_TAUNT               = 18,
-    DIMINISHING_LIMITONLY           = 19,
-    DIMINISHING_DRAGONS_BREATH      = 20
+    DIMINISHING_NONE             = 0,
+    DIMINISHING_ROOT             = 1,
+    DIMINISHING_STUN             = 2,
+    DIMINISHING_INCAPACITATE     = 3,
+    DIMINISHING_DISORIENT        = 4,
+    DIMINISHING_SILENCE          = 5,
+    DIMINISHING_AOE_KNOCKBACK    = 6,
+    DIMINISHING_TAUNT            = 7,
+    DIMINISHING_LIMITONLY        = 8,
 };
 
 enum SummonCategory
@@ -4628,6 +4616,8 @@ enum SpellFamilyNames
     // 16 - unused
     SPELLFAMILY_PET         = 17,
     SPELLFAMILY_UNK3        = 50,
+    SPELLFAMILY_MONK        = 53,
+    SPELLFAMILY_WARLOCK_PET = 57,
 };
 
 enum TradeStatus

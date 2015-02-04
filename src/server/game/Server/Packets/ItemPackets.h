@@ -20,6 +20,7 @@
 
 #include "Packet.h"
 #include "Item.h"
+#include "PacketUtilities.h"
 
 namespace WorldPackets
 {
@@ -36,10 +37,10 @@ namespace WorldPackets
             uint32 Slot = 0;
         };
 
-        class ItemRefundInfo final : public ClientPacket
+        class GetItemPurchaseData final : public ClientPacket
         {
         public:
-            ItemRefundInfo(WorldPacket&& packet) : ClientPacket(CMSG_ITEM_REFUND_INFO, std::move(packet)) { }
+            GetItemPurchaseData(WorldPacket&& packet) : ClientPacket(CMSG_GET_ITEM_PURCHASE_DATA, std::move(packet)) { }
 
             void Read() override;
 
@@ -94,17 +95,20 @@ namespace WorldPackets
 
         struct ItemBonusInstanceData
         {
-            uint8 Context                   = 0;
+            uint8 Context = 0;
             std::vector<int32> BonusListIDs;
         };
 
         struct ItemInstance
         {
+            void Initalize(::Item const* item);
+            void Initalize(::LootItem const& lootItem);
+
             uint32 ItemID                   = 0;
             uint32 RandomPropertiesSeed     = 0;
             uint32 RandomPropertiesID       = 0;
             Optional<ItemBonusInstanceData> ItemBonus;
-            std::vector<int32> Modifications;
+            Optional<CompactArray<int32>> Modifications;
         };
 
         struct InvUpdate
@@ -186,6 +190,19 @@ namespace WorldPackets
             uint8 Slot = 0;
             InvUpdate Inv;
             uint8 PackSlot = 0;
+        };
+
+        class AutoStoreBagItem final : public ClientPacket
+        {
+        public:
+            AutoStoreBagItem(WorldPacket&& packet) : ClientPacket(CMSG_AUTOSTORE_BAG_ITEM, std::move(packet)) { }
+
+            void Read() override;
+
+            uint8 ContainerSlotB = 0;
+            InvUpdate Inv;
+            uint8 ContainerSlotA = 0;
+            uint8 SlotA = 0;
         };
 
         class DestroyItem final : public ClientPacket

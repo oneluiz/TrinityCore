@@ -25,8 +25,22 @@
 
 DB2FileLoader::DB2FileLoader()
 {
-    data = NULL;
+    recordSize = 0;
+    recordCount = 0;
+    fieldCount = 0;
+    stringSize = 0;
     fieldsOffset = NULL;
+    data = NULL;
+    stringTable = NULL;
+
+    tableHash = 0;
+    build = 0;
+
+    unk1 = 0;
+    minIndex = 0;
+    maxIndex = 0;
+    locale = 0;
+    unk5 = 0;
 }
 
 bool DB2FileLoader::Load(const char *filename, const char *fmt)
@@ -531,7 +545,11 @@ char* DB2DatabaseLoader::Load(const char* format, int32 preparedStatement, uint3
     } while (result->NextRow());
 
     if (!newRecords)
+    {
+        delete[] tempDataTable;
+        delete[] newIndexes;
         return nullptr;
+    }
 
     // Compact new data table to only contain new records not previously loaded from file
     char* dataTable = new char[newRecords * recordSize];
