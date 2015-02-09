@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 TrintiyCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -286,6 +286,14 @@ struct SpellClassOptionsEntry
     uint32      ModalNextSpell;                                     // 1
     flag128     SpellClassMask;                                     // 2
     uint32      SpellClassSet;                                      // 3
+};
+
+struct SpellLearnSpellEntry
+{
+    uint32      ID;                                                 // 0
+    uint32      LearnSpellID;                                       // 1
+    uint32      SpellID;                                            // 2
+    uint32      OverridesSpellID;                                   // 3
 };
 
 struct SpellMiscEntry

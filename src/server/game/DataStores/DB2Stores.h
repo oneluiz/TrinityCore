@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 TrintiyCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,6 +35,7 @@ extern DB2Storage<PhaseGroupEntry>              sPhaseGroupStore;
 extern DB2Storage<SpellAuraRestrictionsEntry>   sSpellAuraRestrictionsStore;
 extern DB2Storage<SpellCastingRequirementsEntry> sSpellCastingRequirementsStore;
 extern DB2Storage<SpellClassOptionsEntry>       sSpellClassOptionsStore;
+extern DB2Storage<SpellLearnSpellEntry>         sSpellLearnSpellStore;
 extern DB2Storage<SpellMiscEntry>               sSpellMiscStore;
 extern DB2Storage<SpellPowerEntry>              sSpellPowerStore;
 extern SpellPowerBySpellIDMap                   sSpellPowerBySpellIDStore;

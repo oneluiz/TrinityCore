@@ -112,6 +112,7 @@ namespace WorldPackets
         class LogoutRequest;
         class LogoutCancel;
         class LoadingScreenNotify;
+        class SetActionBarToggles;
     }
 
     namespace ClientConfig
@@ -197,6 +198,19 @@ namespace WorldPackets
         class LootMoney;
     }
 
+    namespace Mail
+    {
+        class MailCreateTextItem;
+        class MailDelete;
+        class MailGetList;
+        class MailMarkAsRead;
+        class MailQueryNextMailTime;
+        class MailReturnToSender;
+        class MailTakeItem;
+        class MailTakeMoney;
+        class SendMail;
+    }
+
     namespace Misc
     {
         class AreaTrigger;
@@ -252,6 +266,16 @@ namespace WorldPackets
         class QuestGiverQueryQuest;
     }
 
+    namespace Social
+    {
+        class AddFriend;
+        class AddIgnore;
+        class DelFriend;
+        class DelIgnore;
+        class SendContactList;
+        class SetContactNotes;
+    }
+
     namespace Spells
     {
         class CancelAura;
@@ -269,11 +293,20 @@ namespace WorldPackets
     namespace Ticket
     {
         class GMTicketGetSystemStatus;
+        class GMTicketGetCaseStatus;
+        class GMTicketGetTicket;
+        class GMTicketAcknowledgeSurvey;
     }
 
     namespace Trade
     {
         class CancelTrade;
+    }
+
+    namespace Who
+    {
+        class WhoIsRequest;
+        class WhoRequestPkt;
     }
 }
 
@@ -514,6 +547,7 @@ class WorldSession
         void SendAuthWaitQue(uint32 position);
 
         void SendSetTimeZoneInformation();
+        void SendFeatureSystemStatus();
         void SendFeatureSystemStatusGlueScreen();
 
         void SendNameQueryOpcode(ObjectGuid guid);
@@ -732,7 +766,7 @@ class WorldSession
         void HandleLootOpcode(WorldPackets::Loot::LootUnit& packet);
         void HandleLootReleaseOpcode(WorldPackets::Loot::LootRelease& packet);
         void HandleLootMasterGiveOpcode(WorldPacket& recvPacket);
-        void HandleWhoOpcode(WorldPacket& recvPacket);
+        void HandleWhoOpcode(WorldPackets::Who::WhoRequestPkt& whoRequest);
         void HandleLogoutRequestOpcode(WorldPackets::Character::LogoutRequest& logoutRequest);
         void HandleLogoutCancelOpcode(WorldPackets::Character::LogoutCancel& logoutCancel);
 
@@ -740,7 +774,8 @@ class WorldSession
         void HandleGMTicketCreateOpcode(WorldPacket& recvPacket);
         void HandleGMTicketUpdateOpcode(WorldPacket& recvPacket);
         void HandleGMTicketDeleteOpcode(WorldPacket& recvPacket);
-        void HandleGMTicketGetTicketOpcode(WorldPacket& recvPacket);
+        void HandleGMTicketGetCaseStatusOpcode(WorldPackets::Ticket::GMTicketGetCaseStatus& packet);
+        void HandleGMTicketGetTicketOpcode(WorldPackets::Ticket::GMTicketGetTicket& packet);
         void HandleGMTicketSystemStatusOpcode(WorldPackets::Ticket::GMTicketGetSystemStatus& packet);
         void HandleGMSurveySubmit(WorldPacket& recvPacket);
         void HandleReportLag(WorldPacket& recvPacket);
@@ -752,14 +787,17 @@ class WorldSession
         void HandleSetSelectionOpcode(WorldPackets::Misc::SetSelection& packet);
         void HandleStandStateChangeOpcode(WorldPackets::Misc::StandStateChange& packet);
         void HandleEmoteOpcode(WorldPacket& recvPacket);
-        void HandleContactListOpcode(WorldPacket& recvPacket);
-        void HandleAddFriendOpcode(WorldPacket& recvPacket);
+
+        // Social
+        void HandleContactListOpcode(WorldPackets::Social::SendContactList& packet);
+        void HandleAddFriendOpcode(WorldPackets::Social::AddFriend& packet);
         void HandleAddFriendOpcodeCallBack(PreparedQueryResult result, std::string const& friendNote);
-        void HandleDelFriendOpcode(WorldPacket& recvPacket);
-        void HandleAddIgnoreOpcode(WorldPacket& recvPacket);
+        void HandleDelFriendOpcode(WorldPackets::Social::DelFriend& packet);
+        void HandleAddIgnoreOpcode(WorldPackets::Social::AddIgnore& packet);
         void HandleAddIgnoreOpcodeCallBack(PreparedQueryResult result);
-        void HandleDelIgnoreOpcode(WorldPacket& recvPacket);
-        void HandleSetContactNotesOpcode(WorldPacket& recvPacket);
+        void HandleDelIgnoreOpcode(WorldPackets::Social::DelIgnore& packet);
+        void HandleSetContactNotesOpcode(WorldPackets::Social::SetContactNotes& packet);
+
         void HandleBugReportOpcode(WorldPacket& recvPacket);
 
         void HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& packet);
@@ -925,16 +963,16 @@ class WorldSession
         // Black Market
         void HandleBlackMarketOpen(WorldPackets::BlackMarket::BlackMarketOpen& packet);
 
-        void HandleGetMailList(WorldPacket& recvData);
-        void HandleSendMail(WorldPacket& recvData);
-        void HandleMailTakeMoney(WorldPacket& recvData);
-        void HandleMailTakeItem(WorldPacket& recvData);
-        void HandleMailMarkAsRead(WorldPacket& recvData);
-        void HandleMailReturnToSender(WorldPacket& recvData);
-        void HandleMailDelete(WorldPacket& recvData);
+        void HandleGetMailList(WorldPackets::Mail::MailGetList& packet);
+        void HandleSendMail(WorldPackets::Mail::SendMail& packet);
+        void HandleMailTakeMoney(WorldPackets::Mail::MailTakeMoney& packet);
+        void HandleMailTakeItem(WorldPackets::Mail::MailTakeItem& packet);
+        void HandleMailMarkAsRead(WorldPackets::Mail::MailMarkAsRead& packet);
+        void HandleMailReturnToSender(WorldPackets::Mail::MailReturnToSender& packet);
+        void HandleMailDelete(WorldPackets::Mail::MailDelete& packet);
         void HandleItemTextQuery(WorldPacket& recvData);
-        void HandleMailCreateTextItem(WorldPacket& recvData);
-        void HandleQueryNextMailTime(WorldPacket& recvData);
+        void HandleMailCreateTextItem(WorldPackets::Mail::MailCreateTextItem& packet);
+        void HandleQueryNextMailTime(WorldPackets::Mail::MailQueryNextMailTime& packet);
         void HandleCancelChanneling(WorldPacket& recvData);
 
         void SendItemPageInfo(ItemTemplate* itemProto);
@@ -1047,7 +1085,7 @@ class WorldSession
         void HandlePetCastSpellOpcode(WorldPackets::Spells::PetCastSpell& castRequest);
         void HandlePetLearnTalent(WorldPacket& recvPacket);
 
-        void HandleSetActionBarToggles(WorldPacket& recvData);
+        void HandleSetActionBarToggles(WorldPackets::Character::SetActionBarToggles& packet);
 
         void HandleTotemDestroyed(WorldPacket& recvData);
         void HandleDismissCritter(WorldPacket& recvData);
@@ -1088,7 +1126,7 @@ class WorldSession
         void HandleSetTitleOpcode(WorldPacket& recvData);
         void HandleRealmSplitOpcode(WorldPacket& recvData);
         void HandleTimeSyncResponse(WorldPackets::Misc::TimeSyncResponse& packet);
-        void HandleWhoisOpcode(WorldPacket& recvData);
+        void HandleWhoisOpcode(WorldPackets::Who::WhoIsRequest& packet);
         void HandleResetInstancesOpcode(WorldPacket& recvData);
         void HandleHearthAndResurrect(WorldPacket& recvData);
         void HandleInstanceLockResponse(WorldPacket& recvPacket);

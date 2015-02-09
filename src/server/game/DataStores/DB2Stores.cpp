@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 TrintiyCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -42,6 +42,7 @@ DB2Storage<PhaseGroupEntry>                 sPhaseGroupStore(PhaseGroupEntryfmt)
 DB2Storage<SpellAuraRestrictionsEntry>      sSpellAuraRestrictionsStore(SpellAuraRestrictionsEntryfmt);
 DB2Storage<SpellCastingRequirementsEntry>   sSpellCastingRequirementsStore(SpellCastingRequirementsEntryfmt);
 DB2Storage<SpellClassOptionsEntry>          sSpellClassOptionsStore(SpellClassOptionsEntryfmt);
+DB2Storage<SpellLearnSpellEntry>            sSpellLearnSpellStore(SpellLearnSpellEntryfmt);
 DB2Storage<SpellMiscEntry>                  sSpellMiscStore(SpellMiscEntryfmt);
 DB2Storage<SpellPowerEntry>                 sSpellPowerStore(SpellPowerEntryfmt);
 SpellPowerBySpellIDMap                      sSpellPowerBySpellIDStore;
@@ -142,6 +143,7 @@ void DB2Manager::LoadStores(std::string const& dataPath)
     LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellAuraRestrictionsStore, db2Path,   "SpellAuraRestrictions.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellCastingRequirementsStore, db2Path, "SpellCastingRequirements.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellClassOptionsStore,    db2Path,    "SpellClassOptions.db2");
+    LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellLearnSpellStore,      db2Path,    "SpellLearnSpell.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellMiscStore,            db2Path,    "SpellMisc.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellPowerStore,           db2Path,    "SpellPower.db2");
     LoadDB2(availableDb2Locales, bad_db2_files, _stores, sSpellReagentsStore,        db2Path,    "SpellReagents.db2");
