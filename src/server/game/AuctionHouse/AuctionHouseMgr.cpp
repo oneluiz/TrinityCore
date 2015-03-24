@@ -440,8 +440,6 @@ bool AuctionHouseObject::RemoveAuction(AuctionEntry* auction)
 
     // we need to delete the entry, it is not referenced any more
     delete auction;
-    auction = NULL;
-
     return wasInMap;
 }
 
@@ -469,7 +467,7 @@ void AuctionHouseObject::Update()
             continue;
 
         ///- Either cancel the auction if there was no bidder
-        if (!auction->bidder)
+        if (auction->bidder == 0 && auction->bid == 0)
         {
             sAuctionMgr->SendAuctionExpiredMail(auction, trans);
             sScriptMgr->OnAuctionExpire(this, auction);
@@ -531,8 +529,6 @@ void AuctionHouseObject::BuildListAuctionItems(WorldPacket& data, Player* player
     uint32 inventoryType, uint32 itemClass, uint32 itemSubClass, uint32 quality,
     uint32& count, uint32& totalcount)
 {
-    int loc_idx = player->GetSession()->GetSessionDbLocaleIndex();
-
     time_t curTime = sWorld->GetGameTime();
 
     for (AuctionEntryMap::const_iterator itr = AuctionsMap.begin(); itr != AuctionsMap.end(); ++itr)
@@ -554,7 +550,7 @@ void AuctionHouseObject::BuildListAuctionItems(WorldPacket& data, Player* player
         if (itemSubClass != 0xffffffff && proto->GetSubClass() != itemSubClass)
             continue;
 
-        if (inventoryType != 0xffffffff && proto->GetInventoryType() != inventoryType)
+        if (inventoryType != 0xffffffff && proto->GetInventoryType() != InventoryType(inventoryType))
             continue;
 
         if (quality != 0xffffffff && proto->GetQuality() != quality)
@@ -570,14 +566,9 @@ void AuctionHouseObject::BuildListAuctionItems(WorldPacket& data, Player* player
         // No need to do any of this if no search term was entered
         if (!wsearchedname.empty())
         {
-            std::string name = proto->GetDefaultLocaleName();
+            std::string name = proto->GetName(player->GetSession()->GetSessionDbcLocale());
             if (name.empty())
                 continue;
-
-            // local name
-            if (loc_idx >= 0)
-                if (ItemLocale const* il = sObjectMgr->GetItemLocale(proto->GetId()))
-                    ObjectMgr::GetLocaleString(il->Name, loc_idx, name);
 
             // DO NOT use GetItemEnchantMod(proto->RandomProperty) as it may return a result
             //  that matches the search but it may not equal item->GetItemRandomPropertyId()

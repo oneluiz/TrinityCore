@@ -38,7 +38,7 @@ namespace WorldPackets
 
         struct MailAttachedItem
         {
-            MailAttachedItem(::Item const* item, uint8 pos); 
+            MailAttachedItem(::Item const* item, uint8 pos);
 
             uint8 Position = 0;
             int32 AttachID = 0;
@@ -126,7 +126,7 @@ namespace WorldPackets
                 std::string Body;
                 std::vector<MailAttachment> Attachments;
             };
-            
+
             SendMail(WorldPacket&& packet) : ClientPacket(CMSG_SEND_MAIL, std::move(packet)) { }
 
             void Read() override;
@@ -223,7 +223,6 @@ namespace WorldPackets
                 MailNextTimeEntry(::Mail const* mail);
 
                 ObjectGuid SenderGuid;
-                Query::PlayerGuidLookupHint SenderHint;
                 float TimeLeft = 0.0f;
                 int32 AltSenderID = 0;
                 int8 AltSenderType = 0;

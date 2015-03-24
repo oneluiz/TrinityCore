@@ -131,6 +131,7 @@ namespace WorldPackets
                 uint32 CustomizationFlag = 0; ///< Character customization flags @see enum CharacterCustomizeFlags
                 uint32 Flags3            = 0; ///< Character flags 3 @todo research
                 bool FirstLogin      = false;
+                uint8 unkWod61x          = 0;
 
                 struct PetInfo
                 {
@@ -429,6 +430,32 @@ namespace WorldPackets
             uint32 Reason = 0;
         };
 
+        enum class LoginFailureReason : uint8
+        {
+            Failed                          = 0,
+            NoWorld                         = 1,
+            DuplicateCharacter              = 2,
+            NoInstances                     = 3,
+            Disabled                        = 4,
+            NoCharacter                     = 5,
+            LockedForTransfer               = 6,
+            LockedByBilling                 = 7,
+            LockedByMobileAH                = 8,
+            TemporaryGMLock                 = 9,
+            LockedByCharacterUpgrade        = 10,
+            LockedByRevokedCharacterUpgrade = 11
+        };
+
+        class CharacterLoginFailed  final : public ServerPacket
+        {
+        public:
+            CharacterLoginFailed(LoginFailureReason code) : ServerPacket(SMSG_CHARACTER_LOGIN_FAILED, 1), Code(code) { }
+
+            WorldPacket const* Write() override;
+
+            LoginFailureReason Code = LoginFailureReason::Failed;
+        };
+
         class LogoutRequest final : public ClientPacket
         {
         public:
@@ -488,20 +515,16 @@ namespace WorldPackets
         class InitialSetup final : public ServerPacket
         {
         public:
-            InitialSetup() : ServerPacket(SMSG_INITIAL_SETUP, 1 + 1 + 4 + QUESTS_COMPLETED_BITS_SIZE + 4)
-            {
-                QuestsCompleted.reserve(QUESTS_COMPLETED_BITS_SIZE);
-            }
+            InitialSetup() : ServerPacket(SMSG_INITIAL_SETUP, 1 + 1 + 4 + 4) { }
 
             WorldPacket const* Write() override;
 
             uint8 ServerExpansionTier = 0;
             uint8 ServerExpansionLevel = 0;
             time_t RaidOrigin = time_t(1135753200); // 28/12/2005 07:00:00
-            std::vector<uint8> QuestsCompleted;
             int32 ServerRegionID = 3;   // Cfg_Regions.dbc, EU
         };
-		
+
         class SetActionBarToggles final : public ClientPacket
         {
         public:
@@ -510,6 +533,58 @@ namespace WorldPackets
             void Read() override;
 
             uint8 Mask = 0;
+        };
+
+        class PlayedTimeClient final : public ClientPacket
+        {
+        public:
+            PlayedTimeClient(WorldPacket&& packet) : ClientPacket(CMSG_PLAYED_TIME, std::move(packet)) { }
+
+            void Read() override;
+
+            bool TriggerScriptEvent = false;
+        };
+
+        class PlayedTime final : public ServerPacket
+        {
+        public:
+            PlayedTime() : ServerPacket(SMSG_PLAYED_TIME, 9) { }
+
+            WorldPacket const* Write() override;
+
+            int32 TotalTime = 0;
+            int32 LevelTime = 0;
+            bool TriggerEvent = false;
+        };
+
+        class ShowingCloak final : public ClientPacket
+        {
+        public:
+            ShowingCloak(WorldPacket&& packet) : ClientPacket(CMSG_SHOWING_CLOAK, std::move(packet)) { }
+
+            void Read() override;
+
+            bool ShowCloak = false;
+        };
+
+        class ShowingHelm final : public ClientPacket
+        {
+        public:
+            ShowingHelm(WorldPacket&& packet) : ClientPacket(CMSG_SHOWING_HELM, std::move(packet)) { }
+
+            void Read() override;
+
+            bool ShowHelm = false;
+        };
+
+        class SetTitle final : public ClientPacket
+        {
+        public:
+            SetTitle(WorldPacket&& packet) : ClientPacket(CMSG_SET_TITLE, std::move(packet)) { }
+
+            void Read() override;
+
+            int32 TitleID = 0;
         };
     }
 }

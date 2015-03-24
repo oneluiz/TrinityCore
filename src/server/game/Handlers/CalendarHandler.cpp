@@ -173,7 +173,7 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recvData*/)
         for (uint8 j = 0; j < MAX_HOLIDAY_FLAGS; ++j)
             data << uint32(holiday->CalendarFlags[j]);      // 10 * m_calendarFlags
 
-        data << holiday->TextureFilename;                   // m_textureFilename (holiday name)
+        data << holiday->TextureFilename->Str[sWorld->GetDefaultDbcLocale()]; // m_textureFilename (holiday name)
     }
 
     SendPacket(&data);
@@ -585,7 +585,7 @@ void WorldSession::HandleCalendarEventRemoveInvite(WorldPacket& recvData)
     recvData >> invitee.ReadAsPacked();
     recvData >> inviteId >> ownerInviteId >> eventId;
 
-    TC_LOG_DEBUG("network", "CMSG_CALENDAR_EVENT_REMOVE_INVITE [%s] EventId [" UI64FMTD
+    TC_LOG_DEBUG("network", "CMSG_CALENDAR_REMOVE_INVITE [%s] EventId [" UI64FMTD
         "], ownerInviteId [" UI64FMTD "], Invitee ([%s] id: [" UI64FMTD "])",
         guid.ToString().c_str(), eventId, ownerInviteId, invitee.ToString().c_str(), inviteId);
 

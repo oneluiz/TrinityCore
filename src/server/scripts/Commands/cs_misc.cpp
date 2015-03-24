@@ -36,6 +36,7 @@
 #include "GroupMgr.h"
 #include "MMapFactory.h"
 #include "DisableMgr.h"
+#include "SpellHistory.h"
 
 class misc_commandscript : public CommandScript
 {
@@ -237,7 +238,8 @@ public:
             zoneId, (zoneEntry ? zoneEntry->ZoneName : unknown),
             areaId, (areaEntry ? areaEntry->ZoneName : unknown),
             object->GetPhaseMask(),
-            object->GetPositionX(), object->GetPositionY(), object->GetPositionZ(), object->GetOrientation(),
+            object->GetPositionX(), object->GetPositionY(), object->GetPositionZ(), object->GetOrientation());
+        handler->PSendSysMessage(LANG_GRID_POSITION,
             cell.GridX(), cell.GridY(), cell.CellX(), cell.CellY(), object->GetInstanceId(),
             zoneX, zoneY, groundZ, floorZ, haveMap, haveVMap, haveMMap);
 
@@ -713,7 +715,8 @@ public:
 
         if (!*args)
         {
-            target->RemoveAllSpellCooldown();
+            target->GetSpellHistory()->ResetAllCooldowns();
+            target->GetSpellHistory()->ResetAllCharges();
             handler->PSendSysMessage(LANG_REMOVEALL_COOLDOWN, nameLink.c_str());
         }
         else
@@ -723,14 +726,16 @@ public:
             if (!spellIid)
                 return false;
 
-            if (!sSpellMgr->GetSpellInfo(spellIid))
+            SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellIid);
+            if (!spellInfo)
             {
                 handler->PSendSysMessage(LANG_UNKNOWN_SPELL, target == handler->GetSession()->GetPlayer() ? handler->GetTrinityString(LANG_YOU) : nameLink.c_str());
                 handler->SetSentErrorMessage(true);
                 return false;
             }
 
-            target->RemoveSpellCooldown(spellIid, true);
+            target->GetSpellHistory()->ResetCooldown(spellIid, true);
+            target->GetSpellHistory()->ResetCharges(spellInfo->ChargeCategoryEntry);
             handler->PSendSysMessage(LANG_REMOVE_COOLDOWN, spellIid, target == handler->GetSession()->GetPlayer() ? handler->GetTrinityString(LANG_YOU) : nameLink.c_str());
         }
         return true;
@@ -1117,19 +1122,22 @@ public:
             if (itemNameStr && itemNameStr[0])
             {
                 std::string itemName = itemNameStr+1;
-                WorldDatabase.EscapeString(itemName);
+                auto itr = std::find_if(sItemSparseStore.begin(), sItemSparseStore.end(), [&itemName](ItemSparseEntry const* itemSparse)
+                {
+                    for (uint32 i = 0; i < MAX_LOCALES; ++i)
+                        if (itemName == itemSparse->Name->Str[i])
+                            return true;
+                    return false;
+                });
 
-                PreparedStatement* stmt = WorldDatabase.GetPreparedStatement(WORLD_SEL_ITEM_TEMPLATE_BY_NAME);
-                stmt->setString(0, itemName);
-                PreparedQueryResult result = WorldDatabase.Query(stmt);
-
-                if (!result)
+                if (itr == sItemSparseStore.end())
                 {
                     handler->PSendSysMessage(LANG_COMMAND_COULDNOTFIND, itemNameStr+1);
                     handler->SetSentErrorMessage(true);
                     return false;
                 }
-                itemId = result->Fetch()->GetUInt32();
+
+                itemId = itr->ID;
             }
             else
                 return false;
@@ -2605,7 +2613,7 @@ public:
         return true;
     }
 
-    static bool HandleAurasCommand(ChatHandler* handler, char const* args)
+    static bool HandleAurasCommand(ChatHandler* handler, char const* /*args*/)
     {
         Unit* target = handler->GetSession()->GetPlayer()->GetSelectedUnit();
 

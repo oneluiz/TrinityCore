@@ -162,6 +162,10 @@ bool LoginQueryHolder::Initialize()
     stmt->setUInt64(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_SPELL_COOLDOWNS, stmt);
 
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_SPELL_CHARGES);
+    stmt->setUInt64(0, lowGuid);
+    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_SPELL_CHARGES, stmt);
+
     if (sWorld->getBoolConfig(CONFIG_DECLINED_NAMES_USED))
     {
         stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_DECLINEDNAMES);
@@ -790,17 +794,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPackets::Character::PlayerLogin&
         return;
     }
 
-    boost::system::error_code ignored_error;
-    boost::asio::ip::tcp::endpoint instanceAddress = realm.GetAddressForClient(boost::asio::ip::address::from_string(GetRemoteAddress(), ignored_error));
-    instanceAddress.port(sWorld->getIntConfig(CONFIG_PORT_INSTANCE));
-
-    WorldPackets::Auth::ConnectTo connectTo;
-    connectTo.Key = MAKE_PAIR64(GetAccountId(), CONNECTION_TYPE_INSTANCE);
-    connectTo.Serial = 1;
-    connectTo.Payload.Where = instanceAddress;
-    connectTo.Con = CONNECTION_TYPE_INSTANCE;
-
-    SendPacket(connectTo.Write());
+    SendConnectToInstance(WorldPackets::Auth::ConnectToSerial::WorldAttempt1);
 }
 
 void WorldSession::HandleContinuePlayerLogin()
@@ -820,6 +814,18 @@ void WorldSession::HandleContinuePlayerLogin()
     }
 
     _charLoginCallback = CharacterDatabase.DelayQueryHolder(holder);
+}
+
+void WorldSession::AbortLogin(WorldPackets::Character::LoginFailureReason reason)
+{
+    if (!PlayerLoading() || GetPlayer())
+    {
+        KickPlayer();
+        return;
+    }
+
+    m_playerLoading.Clear();
+    SendPacket(WorldPackets::Character::CharacterLoginFailed(reason).Write());
 }
 
 void WorldSession::HandleLoadScreenOpcode(WorldPackets::Character::LoadingScreenNotify& /*loadingScreenNotify*/)
@@ -1082,20 +1088,28 @@ void WorldSession::SendFeatureSystemStatus()
     features.ComplaintStatus = 2;
     features.ScrollOfResurrectionRequestsRemaining = 1;
     features.ScrollOfResurrectionMaxRequestsPerDay = 1;
+    features.UnkInt27 = 60;
+    features.UnkInt29 = 20;
     features.CfgRealmID = 2;
     features.CfgRealmRecID = 0;
     features.VoiceEnabled = false;
     features.BrowserEnabled = false; // Has to be false, otherwise client will crash if "Customer Support" is opened
 
     features.EuropaTicketSystemStatus.HasValue = true;
-    features.EuropaTicketSystemStatus.Value.ThrottleState.MaxTries = 5;
-    features.EuropaTicketSystemStatus.Value.ThrottleState.PerMilliseconds = 5;
-    features.EuropaTicketSystemStatus.Value.ThrottleState.TryCount = 0;
-    features.EuropaTicketSystemStatus.Value.ThrottleState.LastResetTimeBeforeNow = time(nullptr) - 5000;
+    features.EuropaTicketSystemStatus.Value.ThrottleState.MaxTries = 10;
+    features.EuropaTicketSystemStatus.Value.ThrottleState.PerMilliseconds = 60000;
+    features.EuropaTicketSystemStatus.Value.ThrottleState.TryCount = 1;
+    features.EuropaTicketSystemStatus.Value.ThrottleState.LastResetTimeBeforeNow = 111111;
+    features.ComplaintStatus = 0;
+    features.TutorialsEnabled = true;
+    features.UnkBit90 = true;
     /// END OF DUMMY VALUES
 
-    features.EuropaTicketSystemStatus.Value.SubmitBugEnabled = sWorld->getBoolConfig(CONFIG_TICKET_SUBMIT_BUG);
-    features.EuropaTicketSystemStatus.Value.TicketSystemEnabled = sWorld->getBoolConfig(CONFIG_TICKET_SUBMIT_TICKET);
+    features.EuropaTicketSystemStatus.Value.TicketsEnabled = sWorld->getBoolConfig(CONFIG_SUPPORT_TICKETS_ENABLED);
+    features.EuropaTicketSystemStatus.Value.BugsEnabled = sWorld->getBoolConfig(CONFIG_SUPPORT_BUGS_ENABLED);
+    features.EuropaTicketSystemStatus.Value.ComplaintsEnabled = sWorld->getBoolConfig(CONFIG_SUPPORT_COMPLAINTS_ENABLED);
+    features.EuropaTicketSystemStatus.Value.SuggestionsEnabled = sWorld->getBoolConfig(CONFIG_SUPPORT_SUGGESTIONS_ENABLED);
+
     features.CharUndeleteEnabled = sWorld->getBoolConfig(CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED);
     features.BpayStoreEnabled = sWorld->getBoolConfig(CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED);
 
@@ -1169,18 +1183,20 @@ void WorldSession::HandleSetFactionInactiveOpcode(WorldPacket& recvData)
     _player->GetReputationMgr().SetInactive(replistid, inactive != 0);
 }
 
-void WorldSession::HandleShowingHelmOpcode(WorldPacket& recvData)
+void WorldSession::HandleShowingHelmOpcode(WorldPackets::Character::ShowingHelm& packet)
 {
-    TC_LOG_DEBUG("network", "CMSG_SHOWING_HELM for %s", _player->GetName().c_str());
-    recvData.read_skip<uint8>(); // unknown, bool?
-    _player->ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM);
+    if (packet.ShowHelm)
+        _player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM);
+    else
+        _player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM);
 }
 
-void WorldSession::HandleShowingCloakOpcode(WorldPacket& recvData)
+void WorldSession::HandleShowingCloakOpcode(WorldPackets::Character::ShowingCloak& packet)
 {
-    TC_LOG_DEBUG("network", "CMSG_SHOWING_CLOAK for %s", _player->GetName().c_str());
-    recvData.read_skip<uint8>(); // unknown, bool?
-    _player->ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
+    if (packet.ShowCloak)
+        _player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
+    else
+        _player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
 }
 
 void WorldSession::HandleCharRenameOpcode(WorldPackets::Character::CharacterRenameRequest& request)
@@ -1378,7 +1394,7 @@ void WorldSession::HandleAlterAppearance(WorldPacket& recvData)
         return;
     }
 
-    if (_player->GetStandState() != UNIT_STAND_STATE_SIT_LOW_CHAIR + go->GetGOInfo()->barberChair.chairheight)
+    if (_player->GetStandState() != UnitStandStateType(UNIT_STAND_STATE_SIT_LOW_CHAIR + go->GetGOInfo()->barberChair.chairheight))
     {
         SendBarberShopResult(BARBER_SHOP_RESULT_NOT_ON_CHAIR);
         return;
@@ -2328,8 +2344,9 @@ void WorldSession::HandleUndeleteCooldownStatusCallback(PreparedQueryResult resu
             if (result)
             {
                 uint32 lastUndelete = result->Fetch()[0].GetUInt32();
-                if (lastUndelete)
-                    cooldown = uint32(std::max<int32>(0, int32(lastUndelete) + maxCooldown - time(nullptr)));
+                uint32 now = uint32(time(nullptr));
+                if (lastUndelete + maxCooldown > now)
+                    cooldown = std::max<uint32>(0, lastUndelete + maxCooldown - now);
             }
 
             SendUndeleteCooldownStatusResponse(cooldown, maxCooldown);

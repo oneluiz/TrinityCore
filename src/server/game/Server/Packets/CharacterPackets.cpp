@@ -46,7 +46,7 @@ WorldPackets::Character::EnumCharactersResult::CharacterInfo::CharacterInfo(Fiel
     PreLoadPosition.y = fields[11].GetFloat();
     PreLoadPosition.z = fields[12].GetFloat();
 
-    if (uint32 guildId = fields[13].GetUInt32())
+    if (ObjectGuid::LowType guildId = fields[13].GetUInt64())
         GuildGuid = ObjectGuid::Create<HighGuid::Guild>(guildId);
 
     uint32 playerFlags  = fields[14].GetUInt32();
@@ -153,6 +153,7 @@ WorldPacket const* WorldPackets::Character::EnumCharactersResult::Write()
         _worldPacket.WriteBits(charInfo.Name.length(), 6);
         _worldPacket.WriteBit(charInfo.FirstLogin);
         _worldPacket.WriteBit(charInfo.BoostInProgress);
+        _worldPacket.WriteBits(charInfo.unkWod61x, 5);
         _worldPacket.WriteString(charInfo.Name);
     }
 
@@ -357,6 +358,12 @@ WorldPacket const* WorldPackets::Character::LoginVerifyWorld::Write()
     return &_worldPacket;
 }
 
+WorldPacket const* WorldPackets::Character::CharacterLoginFailed::Write()
+{
+    _worldPacket << uint8(Code);
+    return &_worldPacket;
+}
+
 WorldPacket const* WorldPackets::Character::LogoutResponse::Write()
 {
     _worldPacket << int32(LogoutResult);
@@ -379,13 +386,10 @@ void WorldPackets::Character::LoadingScreenNotify::Read()
 
 WorldPacket const* WorldPackets::Character::InitialSetup::Write()
 {
-    _worldPacket << uint32(QuestsCompleted.size());
     _worldPacket << uint8(ServerExpansionLevel);
     _worldPacket << uint8(ServerExpansionTier);
     _worldPacket << int32(ServerRegionID);
     _worldPacket << uint32(RaidOrigin);
-    if (!QuestsCompleted.empty())
-        _worldPacket.append(QuestsCompleted.data(), QuestsCompleted.size());
 
     return &_worldPacket;
 }
@@ -393,4 +397,34 @@ WorldPacket const* WorldPackets::Character::InitialSetup::Write()
 void WorldPackets::Character::SetActionBarToggles::Read()
 {
     _worldPacket >> Mask;
+}
+
+void WorldPackets::Character::PlayedTimeClient::Read()
+{
+    TriggerScriptEvent = _worldPacket.ReadBit();
+}
+
+WorldPacket const* WorldPackets::Character::PlayedTime::Write()
+{
+    _worldPacket << int32(TotalTime);
+    _worldPacket << int32(LevelTime);
+    _worldPacket.WriteBit(TriggerEvent);
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Character::ShowingCloak::Read()
+{
+    ShowCloak = _worldPacket.ReadBit();
+}
+
+void WorldPackets::Character::ShowingHelm::Read()
+{
+    ShowHelm = _worldPacket.ReadBit();
+}
+
+void WorldPackets::Character::SetTitle::Read()
+{
+    _worldPacket >> TitleID;
 }

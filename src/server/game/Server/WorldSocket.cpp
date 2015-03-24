@@ -19,6 +19,7 @@
 #include "WorldSocket.h"
 #include "AuthenticationPackets.h"
 #include "BigNumber.h"
+#include "CharacterPackets.h"
 #include "Opcodes.h"
 #include "Player.h"
 #include "ScriptMgr.h"
@@ -211,14 +212,12 @@ bool WorldSocket::ReadDataHandler()
 
         OpcodeClient opcode = static_cast<OpcodeClient>(cmd);
 
-        std::string opcodeName = GetOpcodeNameForLogging(opcode);
-
         WorldPacket packet(opcode, std::move(_packetBuffer), GetConnectionType());
 
         if (sPacketLog->CanLogPacket())
             sPacketLog->LogPacket(packet, CLIENT_TO_SERVER, GetRemoteIpAddress(), GetRemotePort(), GetConnectionType());
 
-        TC_LOG_TRACE("network.opcode", "C->S: %s %s", (_worldSession ? _worldSession->GetPlayerInfo() : GetRemoteIpAddress().to_string()).c_str(), opcodeName.c_str());
+        TC_LOG_TRACE("network.opcode", "C->S: %s %s", (_worldSession ? _worldSession->GetPlayerInfo() : GetRemoteIpAddress().to_string()).c_str(), GetOpcodeNameForLogging(opcode).c_str());
 
         switch (opcode)
         {
@@ -251,23 +250,28 @@ bool WorldSocket::ReadDataHandler()
                 HandleAuthContinuedSession(authSession);
                 break;
             }
-                /*
             case CMSG_KEEP_ALIVE:
-                TC_LOG_DEBUG("network", "%s", opcodeName.c_str());
+                TC_LOG_DEBUG("network", "%s", GetOpcodeNameForLogging(opcode).c_str());
                 sScriptMgr->OnPacketReceive(_worldSession, packet);
                 break;
-            */
             case CMSG_LOG_DISCONNECT:
                 packet.rfinish();   // contains uint32 disconnectReason;
-                TC_LOG_DEBUG("network", "%s", opcodeName.c_str());
+                TC_LOG_DEBUG("network", "%s", GetOpcodeNameForLogging(opcode).c_str());
                 sScriptMgr->OnPacketReceive(_worldSession, packet);
                 return true;
             case CMSG_ENABLE_NAGLE:
             {
-                TC_LOG_DEBUG("network", "%s", opcodeName.c_str());
+                TC_LOG_DEBUG("network", "%s", GetOpcodeNameForLogging(opcode).c_str());
                 sScriptMgr->OnPacketReceive(_worldSession, packet);
                 if (_worldSession)
                     _worldSession->HandleEnableNagleAlgorithm();
+                break;
+            }
+            case CMSG_CONNECT_TO_FAILED:
+            {
+                WorldPackets::Auth::ConnectToFailed connectToFailed(std::move(packet));
+                connectToFailed.Read();
+                HandleConnectToFailed(connectToFailed);
                 break;
             }
             default:
@@ -621,7 +625,7 @@ void WorldSocket::HandleAuthSession(WorldPackets::Auth::AuthSession& authSession
     if (allowedAccountType > SEC_PLAYER && AccountTypes(security) < allowedAccountType)
     {
         SendAuthResponseError(AUTH_UNAVAILABLE);
-        TC_LOG_INFO("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
+        TC_LOG_DEBUG("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
         sScriptMgr->OnFailedAccountLogin(id);
         DelayedCloseSocket();
         return;
@@ -716,6 +720,45 @@ void WorldSocket::HandleAuthContinuedSession(WorldPackets::Auth::AuthContinuedSe
 
     _worldSession->AddInstanceConnection(shared_from_this());
     _worldSession->HandleContinuePlayerLogin();
+}
+
+void WorldSocket::HandleConnectToFailed(WorldPackets::Auth::ConnectToFailed& connectToFailed)
+{
+    if (_worldSession)
+    {
+        if (_worldSession->PlayerLoading())
+        {
+            switch (connectToFailed.Serial)
+            {
+                case WorldPackets::Auth::ConnectToSerial::WorldAttempt1:
+                    _worldSession->SendConnectToInstance(WorldPackets::Auth::ConnectToSerial::WorldAttempt2);
+                    break;
+                case WorldPackets::Auth::ConnectToSerial::WorldAttempt2:
+                    _worldSession->SendConnectToInstance(WorldPackets::Auth::ConnectToSerial::WorldAttempt3);
+                    break;
+                case WorldPackets::Auth::ConnectToSerial::WorldAttempt3:
+                    _worldSession->SendConnectToInstance(WorldPackets::Auth::ConnectToSerial::WorldAttempt4);
+                    break;
+                case WorldPackets::Auth::ConnectToSerial::WorldAttempt4:
+                    _worldSession->SendConnectToInstance(WorldPackets::Auth::ConnectToSerial::WorldAttempt5);
+                    break;
+                case WorldPackets::Auth::ConnectToSerial::WorldAttempt5:
+                {
+                    TC_LOG_ERROR("network", "%s failed to connect 5 times to world socket, aborting login", _worldSession->GetPlayerInfo().c_str());
+                    _worldSession->AbortLogin(WorldPackets::Character::LoginFailureReason::NoWorld);
+                    break;
+                }
+                default:
+                    return;
+            }
+        }
+        //else
+        //{
+        //    transfer_aborted when/if we get map node redirection
+        //    SendPacket(*WorldPackets::Auth::ResumeComms().Write());
+        //}
+    }
+
 }
 
 void WorldSocket::SendAuthResponseError(uint8 code)

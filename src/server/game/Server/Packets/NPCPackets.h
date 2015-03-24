@@ -59,7 +59,7 @@ namespace WorldPackets
             int32 QuestLevel    = 0;
             bool Repeatable     = false;
             std::string QuestTitle;
-            int32 QuestFlags[2];
+            int32 QuestFlags[2] = { };
         };
 
         class GossipMessage final : public ServerPacket
@@ -75,6 +75,27 @@ namespace WorldPackets
             std::vector<ClientGossipText> GossipText;
             int32 TextID = 0;
             int32 GossipID = 0;
+        };
+
+        class GossipSelectOption final : public ClientPacket
+        {
+        public:
+            GossipSelectOption(WorldPacket&& packet) : ClientPacket(CMSG_GOSSIP_SELECT_OPTION, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid GossipUnit;
+            int32 GossipIndex = 0;
+            int32 GossipID = 0;
+            std::string PromotionCode;
+        };
+
+        class GossipComplete final : public ServerPacket
+        {
+        public:
+            GossipComplete() : ServerPacket(SMSG_GOSSIP_COMPLETE, 0) { }
+
+            WorldPacket const* Write() override { return &_worldPacket; }
         };
 
         struct VendorItem
@@ -109,7 +130,7 @@ namespace WorldPackets
             int32 MoneyCost     = 0;
             int32 ReqSkillLine  = 0;
             int32 ReqSkillRank  = 0;
-            int32 ReqAbility[MAX_TRAINERSPELL_ABILITY_REQS];
+            int32 ReqAbility[MAX_TRAINERSPELL_ABILITY_REQS] = { };
             uint8 Usable        = 0;
             uint8 ReqLevel      = 0;
         };
@@ -136,6 +157,27 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             ObjectGuid Guid;
+        };
+
+        class PlayerTabardVendorActivate final : public ServerPacket
+        {
+        public:
+            PlayerTabardVendorActivate() : ServerPacket(SMSG_TABARD_VENDOR_ACTIVATE, 16) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Vendor;
+        };
+
+        class SuppressNPCGreetings final : public ServerPacket
+        {
+        public:
+            SuppressNPCGreetings() : ServerPacket(SMSG_SUPPRESS_NPC_GREETINGS, 16 + 1) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid UnitGUID;
+            bool SuppressNPCGreeting = false;
         };
     }
 }

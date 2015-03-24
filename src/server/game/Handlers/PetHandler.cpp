@@ -30,8 +30,10 @@
 #include "Pet.h"
 #include "World.h"
 #include "Group.h"
+#include "SpellHistory.h"
 #include "SpellInfo.h"
 #include "Player.h"
+#include "SpellPackets.h"
 
 void WorldSession::HandleDismissCritter(WorldPacket& recvData)
 {
@@ -75,7 +77,7 @@ void WorldSession::HandlePetAction(WorldPacket& recvData)
 
     // used also for charmed creature
     Unit* pet = ObjectAccessor::GetUnit(*_player, guid1);
-    TC_LOG_INFO("network", "HandlePetAction: %s - flag: %u, spellid: %u, target: %s.", guid1.ToString().c_str(), uint32(flag), spellid, guid2.ToString().c_str());
+    TC_LOG_DEBUG("network", "HandlePetAction: %s - flag: %u, spellid: %u, target: %s.", guid1.ToString().c_str(), uint32(flag), spellid, guid2.ToString().c_str());
 
     if (!pet)
     {
@@ -361,8 +363,6 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid guid1, uint32 spe
 
             if (result == SPELL_CAST_OK)
             {
-                pet->ToCreature()->AddCreatureSpellCooldown(spellid);
-
                 unit_target = spell->m_targets.GetUnitTarget();
 
                 //10% chance to play special pet attack talk, else growl
@@ -396,8 +396,8 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid guid1, uint32 spe
                 else
                     spell->SendPetCastResult(result);
 
-                if (!pet->ToCreature()->HasSpellCooldown(spellid))
-                    GetPlayer()->SendClearCooldown(spellid, pet);
+                if (!pet->GetSpellHistory()->HasCooldown(spellid))
+                    pet->GetSpellHistory()->ResetCooldown(spellid, true);
 
                 spell->finish(false);
                 delete spell;
@@ -415,7 +415,7 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid guid1, uint32 spe
 
 void WorldSession::HandlePetNameQuery(WorldPacket& recvData)
 {
-    TC_LOG_INFO("network", "HandlePetNameQuery. CMSG_PET_NAME_QUERY");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_NAME_QUERY");
 
     uint32 petnumber;
     ObjectGuid petguid;
@@ -482,7 +482,7 @@ bool WorldSession::CheckStableMaster(ObjectGuid guid)
 
 void WorldSession::HandlePetSetAction(WorldPacket& recvData)
 {
-    TC_LOG_INFO("network", "HandlePetSetAction. CMSG_PET_SET_ACTION");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_SET_ACTION");
 
     ObjectGuid petguid;
     uint8  count;
@@ -562,7 +562,7 @@ void WorldSession::HandlePetSetAction(WorldPacket& recvData)
         uint32 spell_id = UNIT_ACTION_BUTTON_ACTION(data[i]);
         uint8 act_state = UNIT_ACTION_BUTTON_TYPE(data[i]);
 
-        TC_LOG_INFO("network", "Player %s has changed pet spell action. Position: %u, Spell: %u, State: 0x%X",
+        TC_LOG_DEBUG("network", "Player %s has changed pet spell action. Position: %u, Spell: %u, State: 0x%X",
             _player->GetName().c_str(), position[i], spell_id, uint32(act_state));
 
         //if it's act for spell (en/disable/cast) and there is a spell given (0 = remove spell) which pet doesn't know, don't add
@@ -599,7 +599,7 @@ void WorldSession::HandlePetSetAction(WorldPacket& recvData)
 
 void WorldSession::HandlePetRename(WorldPacket& recvData)
 {
-    TC_LOG_INFO("network", "HandlePetRename. CMSG_PET_RENAME");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_RENAME");
 
     ObjectGuid petguid;
     uint8 isdeclined;
@@ -688,7 +688,7 @@ void WorldSession::HandlePetAbandon(WorldPacket& recvData)
 {
     ObjectGuid guid;
     recvData >> guid;                                      //pet guid
-    TC_LOG_INFO("network", "HandlePetAbandon. CMSG_PET_ABANDON %s", guid.ToString().c_str());
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_ABANDON %s", guid.ToString().c_str());
 
     if (!_player->IsInWorld())
         return;
@@ -706,7 +706,7 @@ void WorldSession::HandlePetAbandon(WorldPacket& recvData)
 
 void WorldSession::HandlePetSpellAutocastOpcode(WorldPacket& recvPacket)
 {
-    TC_LOG_INFO("network", "CMSG_PET_SPELL_AUTOCAST");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_SPELL_AUTOCAST");
     ObjectGuid guid;
     uint32 spellid;
     uint8  state;                                           //1 for on, 0 for off
@@ -752,59 +752,45 @@ void WorldSession::HandlePetSpellAutocastOpcode(WorldPacket& recvPacket)
     charmInfo->SetSpellAutocast(spellInfo, state != 0);
 }
 
-void WorldSession::HandlePetCastSpellOpcode(WorldPackets::Spells::PetCastSpell& castRequest)
+void WorldSession::HandlePetCastSpellOpcode(WorldPackets::Spells::PetCastSpell& petCastSpell)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_PET_CAST_SPELL");
-    /*
-    ObjectGuid guid;
-    uint8  castCount;
-    uint32 spellId;
-    uint8  castFlags;
-
-    recvPacket >> guid >> castCount >> spellId >> castFlags;
-
-    TC_LOG_DEBUG("network", "WORLD: CMSG_PET_CAST_SPELL, %s, castCount: %u, spellId %u, castFlags %u", guid.ToString().c_str(), castCount, spellId, castFlags);
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(petCastSpell.Cast.SpellID);
+    if (!spellInfo)
+    {
+        TC_LOG_ERROR("network", "WORLD: unknown PET spell id %i", petCastSpell.Cast.SpellID);
+        return;
+    }
 
     // This opcode is also sent from charmed and possessed units (players and creatures)
     if (!_player->GetGuardianPet() && !_player->GetCharm())
         return;
 
-    Unit* caster = ObjectAccessor::GetUnit(*_player, guid);
+    Unit* caster = ObjectAccessor::GetUnit(*_player, petCastSpell.PetGUID);
 
     if (!caster || (caster != _player->GetGuardianPet() && caster != _player->GetCharm()))
     {
-        TC_LOG_ERROR("network", "HandlePetCastSpellOpcode: %s isn't pet of player %s (%s).", guid.ToString().c_str(), GetPlayer()->GetName().c_str(), GetPlayer()->GetGUID().ToString().c_str());
-        return;
-    }
-
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
-    if (!spellInfo)
-    {
-        TC_LOG_ERROR("network", "WORLD: unknown PET spell id %i", spellId);
+        TC_LOG_ERROR("network", "HandlePetCastSpellOpcode: %s isn't pet of player %s (%s).", petCastSpell.PetGUID.ToString().c_str(), GetPlayer()->GetName().c_str(), GetPlayer()->GetGUID().ToString().c_str());
         return;
     }
 
     // do not cast not learned spells
-    if (!caster->HasSpell(spellId) || spellInfo->IsPassive())
+    if (!caster->HasSpell(spellInfo->Id) || spellInfo->IsPassive())
         return;
 
-    SpellCastTargets targets;
-    targets.Read(recvPacket, caster);
-    HandleClientCastFlags(recvPacket, castFlags, targets);
+    SpellCastTargets targets(caster, petCastSpell.Cast);
 
     caster->ClearUnitState(UNIT_STATE_FOLLOW);
 
     Spell* spell = new Spell(caster, spellInfo, TRIGGERED_NONE);
-    spell->m_cast_count = castCount;                    // probably pending spell cast
+    spell->m_cast_count = petCastSpell.Cast.CastID;
+    spell->m_misc.Data = petCastSpell.Cast.Misc;
     spell->m_targets = targets;
 
     SpellCastResult result = spell->CheckPetCast(NULL);
-
     if (result == SPELL_CAST_OK)
     {
         if (Creature* creature = caster->ToCreature())
         {
-            creature->AddCreatureSpellCooldown(spellId);
             if (Pet* pet = creature->ToPet())
             {
                 // 10% chance to play special pet attack talk, else growl
@@ -812,30 +798,22 @@ void WorldSession::HandlePetCastSpellOpcode(WorldPackets::Spells::PetCastSpell& 
                 if (pet->getPetType() == SUMMON_PET && (urand(0, 100) < 10))
                     pet->SendPetTalk(PET_TALK_SPECIAL_SPELL);
                 else
-                    pet->SendPetAIReaction(guid);
+                    pet->SendPetAIReaction(petCastSpell.PetGUID);
             }
         }
 
-        spell->prepare(&(spell->m_targets));
+        spell->prepare(&targets);
     }
     else
     {
         spell->SendPetCastResult(result);
 
-        if (caster->GetTypeId() == TYPEID_PLAYER)
-        {
-            if (!caster->ToPlayer()->HasSpellCooldown(spellId))
-                GetPlayer()->SendClearCooldown(spellId, caster);
-        }
-        else
-        {
-            if (!caster->ToCreature()->HasSpellCooldown(spellId))
-                GetPlayer()->SendClearCooldown(spellId, caster);
-        }
+        if (!caster->GetSpellHistory()->HasCooldown(spellInfo->Id))
+            caster->GetSpellHistory()->ResetCooldown(spellInfo->Id, true);
 
         spell->finish(false);
         delete spell;
-    }*/
+    }
 }
 
 void WorldSession::SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName *declinedName)
@@ -849,17 +827,4 @@ void WorldSession::SendPetNameInvalid(uint32 error, const std::string& name, Dec
             data << declinedName->name[i];
 
     SendPacket(&data);
-}
-
-void WorldSession::HandlePetLearnTalent(WorldPacket& recvData)
-{
-    /* TODO: 6.x remove pet talents (add pet specializations)
-    TC_LOG_DEBUG("network", "WORLD: CMSG_PET_LEARN_TALENT");
-
-    ObjectGuid guid;
-    uint32 talentId, requestedRank;
-    recvData >> guid >> talentId >> requestedRank;
-
-    _player->LearnPetTalent(guid, talentId, requestedRank);
-    _player->SendTalentsInfoData(true);*/
 }

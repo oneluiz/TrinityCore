@@ -733,7 +733,7 @@ void AchievementMgr<Guild>::LoadFromDB(PreparedQueryResult achievementResult, Pr
         {
             Field* fields = criteriaResult->Fetch();
             uint32 id      = fields[0].GetUInt32();
-            uint32 counter = fields[1].GetUInt32();
+            uint64 counter = fields[1].GetUInt64();
             time_t date    = time_t(fields[2].GetUInt32());
             ObjectGuid::LowType guid = fields[3].GetUInt64();
 
@@ -997,8 +997,8 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCriteriaTypes type,
         , GetOwner()->GetGUID().ToString().c_str(), AchievementGlobalMgr::GetCriteriaTypeString(type), type, miscValue1, miscValue2, miscValue3);
 
     // Lua_GetGuildLevelEnabled() is checked in achievement UI to display guild tab
-    if (IsGuild<T>() && !sWorld->getBoolConfig(CONFIG_GUILD_LEVELING_ENABLED))
-        return;
+    //if (IsGuild<T>() && !sWorld->getBoolConfig(CONFIG_GUILD_LEVELING_ENABLED))
+    //    return;
 
     AchievementCriteriaList const& achievementCriteriaList = sAchievementMgr->GetAchievementCriteriaByType(type, IsGuild<T>());
     for (AchievementCriteria const* achievementCriteria : achievementCriteriaList)
@@ -1738,7 +1738,7 @@ void AchievementMgr<Player>::CompletedAchievement(AchievementEntry const* achiev
     if (!GetOwner()->GetSession()->PlayerLoading())
         SendAchievementEarned(achievement);
 
-    TC_LOG_INFO("achievement", "AchievementMgr::CompletedAchievement(%u). %s %s",
+    TC_LOG_DEBUG("achievement", "AchievementMgr::CompletedAchievement(%u). %s %s",
         achievement->ID, GetOwner()->GetGUID().ToString().c_str(), GetOwner()->GetName().c_str());
 
     CompletedAchievementData& ca = m_completedAchievements[achievement->ID];

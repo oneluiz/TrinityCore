@@ -48,9 +48,11 @@
 #include "WardenWin.h"
 #include "WardenMac.h"
 #include "BattlenetServerManager.h"
+#include "AuthenticationPackets.h"
 #include "CharacterPackets.h"
 #include "ClientConfigPackets.h"
 #include "MiscPackets.h"
+#include "ChatPackets.h"
 
 namespace {
 
@@ -183,8 +185,10 @@ std::string WorldSession::GetPlayerInfo() const
     std::ostringstream ss;
 
     ss << "[Player: " << GetPlayerName() << " (";
-    if (_player != NULL)
+    if (_player)
         ss << _player->GetGUID().ToString() << ", ";
+    else if (!m_playerLoading.IsEmpty())
+        ss << "Logging in: " << m_playerLoading.ToString() << ", ";
 
     ss << "Account: " << GetAccountId() << ")]";
 
@@ -268,8 +272,8 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool forced /*= false*/
     {
         uint64 minTime = uint64(cur_time - lastTime);
         uint64 fullTime = uint64(lastTime - firstTime);
-        TC_LOG_INFO("misc", "Send all time packets count: " UI64FMTD " bytes: " UI64FMTD " avr.count/sec: %f avr.bytes/sec: %f time: %u", sendPacketCount, sendPacketBytes, float(sendPacketCount)/fullTime, float(sendPacketBytes)/fullTime, uint32(fullTime));
-        TC_LOG_INFO("misc", "Send last min packets count: " UI64FMTD " bytes: " UI64FMTD " avr.count/sec: %f avr.bytes/sec: %f", sendLastPacketCount, sendLastPacketBytes, float(sendLastPacketCount)/minTime, float(sendLastPacketBytes)/minTime);
+        TC_LOG_DEBUG("misc", "Send all time packets count: " UI64FMTD " bytes: " UI64FMTD " avr.count/sec: %f avr.bytes/sec: %f time: %u", sendPacketCount, sendPacketBytes, float(sendPacketCount)/fullTime, float(sendPacketBytes)/fullTime, uint32(fullTime));
+        TC_LOG_DEBUG("misc", "Send last min packets count: " UI64FMTD " bytes: " UI64FMTD " avr.count/sec: %f avr.bytes/sec: %f", sendLastPacketCount, sendLastPacketBytes, float(sendLastPacketCount)/minTime, float(sendLastPacketBytes)/minTime);
 
         lastTime = cur_time;
         sendLastPacketCount = 1;
@@ -651,12 +655,7 @@ void WorldSession::SendNotification(char const* format, ...)
         vsnprintf(szStr, 1024, format, ap);
         va_end(ap);
 
-        size_t len = strlen(szStr);
-        WorldPacket data(SMSG_NOTIFICATION, 2 + len);
-        data.WriteBits(len, 13);
-        data.FlushBits();
-        data.append(szStr, len);
-        SendPacket(&data);
+        SendPacket(WorldPackets::Chat::PrintNotification(szStr).Write());
     }
 }
 
@@ -672,12 +671,7 @@ void WorldSession::SendNotification(uint32 stringId, ...)
         vsnprintf(szStr, 1024, format, ap);
         va_end(ap);
 
-        size_t len = strlen(szStr);
-        WorldPacket data(SMSG_NOTIFICATION, 2 + len);
-        data.WriteBits(len, 13);
-        data.FlushBits();
-        data.append(szStr, len);
-        SendPacket(&data);
+        SendPacket(WorldPackets::Chat::PrintNotification(szStr).Write());
     }
 }
 
@@ -702,6 +696,21 @@ void WorldSession::Handle_ServerSide(WorldPacket& recvPacket)
 {
     TC_LOG_ERROR("network.opcode", "Received server-side opcode %s from %s"
         , GetOpcodeNameForLogging(static_cast<OpcodeClient>(recvPacket.GetOpcode())).c_str(), GetPlayerInfo().c_str());
+}
+
+void WorldSession::SendConnectToInstance(WorldPackets::Auth::ConnectToSerial serial)
+{
+    boost::system::error_code ignored_error;
+    boost::asio::ip::tcp::endpoint instanceAddress = realm.GetAddressForClient(boost::asio::ip::address::from_string(GetRemoteAddress(), ignored_error));
+    instanceAddress.port(sWorld->getIntConfig(CONFIG_PORT_INSTANCE));
+
+    WorldPackets::Auth::ConnectTo connectTo;
+    connectTo.Key = MAKE_PAIR64(GetAccountId(), CONNECTION_TYPE_INSTANCE);
+    connectTo.Serial = serial;
+    connectTo.Payload.Where = instanceAddress;
+    connectTo.Con = CONNECTION_TYPE_INSTANCE;
+
+    SendPacket(connectTo.Write());
 }
 
 void WorldSession::LoadGlobalAccountData()
@@ -856,7 +865,7 @@ void WorldSession::ReadAddonsInfo(ByteBuffer& data)
 
             addonInfo >> enabled >> crc >> unk1;
 
-            TC_LOG_INFO("misc", "ADDON: Name: %s, Enabled: 0x%x, CRC: 0x%x, Unknown2: 0x%x", addonName.c_str(), enabled, crc, unk1);
+            TC_LOG_DEBUG("misc", "ADDON: Name: %s, Enabled: 0x%x, CRC: 0x%x, Unknown2: 0x%x", addonName.c_str(), enabled, crc, unk1);
 
             AddonInfo addon(addonName, enabled, crc, 2, true);
 
@@ -864,15 +873,15 @@ void WorldSession::ReadAddonsInfo(ByteBuffer& data)
             if (savedAddon)
             {
                 if (addon.CRC != savedAddon->CRC)
-                    TC_LOG_INFO("misc", "ADDON: %s was known, but didn't match known CRC (0x%x)!", addon.Name.c_str(), savedAddon->CRC);
+                    TC_LOG_ERROR("misc", "ADDON: %s was known, but didn't match known CRC (0x%x)!", addon.Name.c_str(), savedAddon->CRC);
                 else
-                    TC_LOG_INFO("misc", "ADDON: %s was known, CRC is correct (0x%x)", addon.Name.c_str(), savedAddon->CRC);
+                    TC_LOG_DEBUG("misc", "ADDON: %s was known, CRC is correct (0x%x)", addon.Name.c_str(), savedAddon->CRC);
             }
             else
             {
                 AddonMgr::SaveAddon(addon);
 
-                TC_LOG_INFO("misc", "ADDON: %s (0x%x) was not known, saving...", addon.Name.c_str(), addon.CRC);
+                TC_LOG_DEBUG("misc", "ADDON: %s (0x%x) was not known, saving...", addon.Name.c_str(), addon.CRC);
             }
 
             /// @todo Find out when to not use CRC/pubkey, and other possible states.
@@ -1165,7 +1174,7 @@ bool WorldSession::DosProtection::EvaluateOpcode(WorldPacket& p, time_t time) co
             return true;
         case POLICY_KICK:
         {
-            TC_LOG_INFO("network", "AntiDOS: Player kicked!");
+            TC_LOG_WARN("network", "AntiDOS: Player kicked!");
             Session->KickPlayer();
             return false;
         }
@@ -1181,7 +1190,7 @@ bool WorldSession::DosProtection::EvaluateOpcode(WorldPacket& p, time_t time) co
                 case BAN_IP: nameOrIp = Session->GetRemoteAddress(); break;
             }
             sWorld->BanAccount(bm, nameOrIp, duration, "DOS (Packet Flooding/Spoofing", "Server: AutoDOS");
-            TC_LOG_INFO("network", "AntiDOS: Player automatically banned for %u seconds.", duration);
+            TC_LOG_WARN("network", "AntiDOS: Player automatically banned for %u seconds.", duration);
             Session->KickPlayer();
             return false;
         }
@@ -1195,7 +1204,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
 {
     uint32 maxPacketCounterAllowed;
     switch (opcode)
-    {
+    {/*
         // CPU usage sending 2000 packets/second on a 3.70 GHz 4 cores on Win x64
         //                                              [% CPU mysqld]   [%CPU worldserver RelWithDebInfo]
         case CMSG_PLAYER_LOGIN:                         //   0               0.5
@@ -1249,7 +1258,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         //case CMSG_GROUP_INVITE:                         //   0               1.5
         //case CMSG_GROUP_INVITE_RESPONSE:                //   0               1.5
         //case CMSG_GROUP_UNINVITE_GUID:                  //   0               1.5
-        //case CMSG_GROUP_DISBAND:                        //   0               1.5
+        //case CMSG_LEAVE_GROUP:                          //   0               1.5
         case CMSG_BATTLEMASTER_JOIN_ARENA:              //   0               1.5
         case CMSG_BATTLEFIELD_LEAVE:                    //   0               1.5
         case CMSG_GUILD_BANK_LOG_QUERY:                 //   0               2
@@ -1297,7 +1306,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_AUTOBANK_ITEM:                        //   0               6
         case CMSG_AUTOSTORE_BANK_ITEM:                  //   0               6
         case CMSG_WHO:                                  //   0               7
-        //case CMSG_PLAYER_VEHICLE_ENTER:                 //   0               8
+        //case CMSG_RIDE_VEHICLE_INTERACT:                //   0               8
         case CMSG_MOVE_HEARTBEAT:
         {
             maxPacketCounterAllowed = 200;
@@ -1325,7 +1334,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
 
         //case CMSG_GM_REPORT_LAG:                        //   1               3         1 async db query
         case CMSG_SPELLCLICK:                           // not profiled
-        //case CMSG_DISMISS_CONTROLLED_VEHICLE:           // not profiled
+        //case CMSG_MOVE_DISMISS_VEHICLE:                 // not profiled
         {
             maxPacketCounterAllowed = 20;
             break;
@@ -1333,7 +1342,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
 
         //case CMSG_PETITION_SIGN:                        //   9               4         2 sync 1 async db queries
         //case CMSG_TURN_IN_PETITION:                     //   8               5.5       2 sync db query
-        //case CMSG_GROUP_CHANGE_SUB_GROUP:               //   6               5         1 sync 1 async db queries
+        //case CMSG_CHANGE_SUB_GROUP:               //   6               5         1 sync 1 async db queries
         //case CMSG_PETITION_QUERY:                       //   4               3.5       1 sync db query
         case CMSG_CHAR_CUSTOMIZE:                       //   5               5         1 sync db query
         case CMSG_CHAR_RACE_OR_FACTION_CHANGE:          //   5               5         1 sync db query
@@ -1343,18 +1352,18 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_CHAR_RENAME:                          //   5               3         1 async db query
         //case CMSG_GMSURVEY_SUBMIT:                      //   2               3         1 async db query
         //case CMSG_BUG:                                  //   1               1         1 async db query
-        //case CMSG_GROUP_SET_LEADER:                     //   1               2         1 async db query
-        //case CMSG_GROUP_RAID_CONVERT:                   //   1               5         1 async db query
-        //case CMSG_GROUP_ASSISTANT_LEADER:               //   1               2         1 async db query
+        //case CMSG_SET_PARTY_LEADER:                     //   1               2         1 async db query
+        //case CMSG_CONVERT_RAID:                         //   1               5         1 async db query
+        //case CMSG_SET_ASSISTANT_LEADER:                 //   1               2         1 async db query
         //case CMSG_CALENDAR_ADD_EVENT:                   //  21              10         2 async db query
+        //case CMSG_MOVE_CHANGE_VEHICLE_SEATS:            // not profiled
         //case CMSG_PETITION_BUY:                         // not profiled                1 sync 1 async db queries
-        //case CMSG_CHANGE_SEATS_ON_CONTROLLED_VEHICLE:   // not profiled
         //case CMSG_REQUEST_VEHICLE_PREV_SEAT:            // not profiled
         //case CMSG_REQUEST_VEHICLE_NEXT_SEAT:            // not profiled
         //case CMSG_REQUEST_VEHICLE_SWITCH_SEAT:          // not profiled
         //case CMSG_REQUEST_VEHICLE_EXIT:                 // not profiled
         //case CMSG_EJECT_PASSENGER:                      // not profiled
-        //case CMSG_ITEM_REFUND:                          // not profiled
+        //case CMSG_ITEM_PURCHASE_REFUND:                 // not profiled
         case CMSG_SOCKET_GEMS:                          // not profiled
         //case CMSG_WRAP_ITEM:                            // not profiled
         //case CMSG_REPORT_PVP_AFK:                       // not profiled
@@ -1375,8 +1384,8 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         //case CMSG_CALENDAR_EVENT_INVITE:                // not profiled
         //case CMSG_CALENDAR_EVENT_SIGNUP:                // not profiled
         //case CMSG_CALENDAR_EVENT_RSVP:                  // not profiled
-        //case CMSG_CALENDAR_EVENT_REMOVE_INVITE:         // not profiled
         //case CMSG_CALENDAR_EVENT_MODERATOR_STATUS:      // not profiled
+        //case CMSG_CALENDAR_REMOVE_INVITE:               // not profiled
         //case CMSG_ARENA_TEAM_INVITE:                    // not profiled
         //case CMSG_ARENA_TEAM_ACCEPT:                    // not profiled
         //case CMSG_ARENA_TEAM_DECLINE:                   // not profiled
@@ -1385,23 +1394,23 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         //case CMSG_ARENA_TEAM_REMOVE:                    // not profiled
         //case CMSG_ARENA_TEAM_LEADER:                    // not profiled
         case CMSG_LOOT_METHOD:                          // not profiled
-        case CMSG_GUILD_INVITE_BY_NAME:                   // not profiled
-        //case CMSG_GUILD_ACCEPT:                         // not profiled
-        case CMSG_GUILD_DECLINE:                        // not profiled
+        case CMSG_GUILD_INVITE_BY_NAME:                 // not profiled
+        case CMSG_ACCEPT_GUILD_INVITE:                  // not profiled
+        case CMSG_GUILD_DECLINE_INVITATION:             // not profiled
         case CMSG_GUILD_LEAVE:                          // not profiled
-        case CMSG_GUILD_DISBAND:                        // not profiled
+        case CMSG_GUILD_DELETE:                         // not profiled
         case CMSG_GUILD_SET_GUILD_MASTER:               // not profiled
-        //case CMSG_GUILD_MOTD:                           // not profiled
+        case CMSG_GUILD_UPDATE_MOTD_TEXT:               // not profiled
         case CMSG_GUILD_SET_RANK_PERMISSIONS:           // not profiled
         case CMSG_GUILD_ADD_RANK:                       // not profiled
         case CMSG_GUILD_DELETE_RANK:                    // not profiled
-        case CMSG_GUILD_UPDATE_INFO_TEXT:                 // not profiled
+        case CMSG_GUILD_UPDATE_INFO_TEXT:               // not profiled
         case CMSG_GUILD_BANK_DEPOSIT_MONEY:             // not profiled
-        //case CMSG_GUILD_BANK_WITHDRAW_MONEY:            // not profiled
+        case CMSG_GUILD_BANK_WITHDRAW_MONEY:            // not profiled
         case CMSG_GUILD_BANK_BUY_TAB:                   // not profiled
-        //case CMSG_GUILD_BANK_UPDATE_TAB:                // not profiled
+        case CMSG_GUILD_BANK_UPDATE_TAB:                // not profiled
         //case CMSG_SET_GUILD_BANK_TEXT:                  // not profiled
-        //case CMSG_SAVE_GUILD_EMBLEM:                     // not profiled
+        case CMSG_SAVE_GUILD_EMBLEM:                    // not profiled
         //case MSG_PETITION_RENAME:                       // not profiled
         //case MSG_TALENT_WIPE_CONFIRM:                   // not profiled
         case CMSG_SET_DUNGEON_DIFFICULTY:               // not profiled
@@ -1417,7 +1426,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         {
             maxPacketCounterAllowed = PLAYER_SLOTS_COUNT;
             break;
-        }
+        }*/
         default:
         {
             maxPacketCounterAllowed = 100;

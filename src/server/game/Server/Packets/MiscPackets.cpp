@@ -286,3 +286,96 @@ WorldPacket const* WorldPackets::Misc::StandStateUpdate::Write()
 
     return &_worldPacket;
 }
+
+WorldPacket const* WorldPackets::Misc::PlayerBound::Write()
+{
+    _worldPacket << BinderID;
+    _worldPacket << uint32(AreaID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::BinderConfirm::Write()
+{
+    _worldPacket << Unit;
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::StartMirrorTimer::Write()
+{
+    _worldPacket << int32(Timer);
+    _worldPacket << int32(Value);
+    _worldPacket << int32(MaxValue);
+    _worldPacket << int32(Scale);
+    _worldPacket << int32(SpellID);
+    _worldPacket.WriteBit(Paused);
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::PauseMirrorTimer::Write()
+{
+    _worldPacket << int32(Timer);
+    _worldPacket.WriteBit(Paused);
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::StopMirrorTimer::Write()
+{
+    _worldPacket << int32(Timer);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::ExplorationExperience::Write()
+{
+    _worldPacket << int32(AreaID);
+    _worldPacket << int32(Experience);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::LevelUpInfo::Write()
+{
+    _worldPacket << int32(Level);
+    _worldPacket << int32(HealthDelta);
+
+    for (int32 power : PowerDelta)
+        _worldPacket << power;
+
+    for (int32 stat : StatDelta)
+        _worldPacket << stat;
+
+    _worldPacket << int32(Cp);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::PlayMusic::Write()
+{
+    _worldPacket << uint32(SoundKitID);
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Misc::RandomRollClient::Read()
+{
+    _worldPacket >> Min;
+    _worldPacket >> Max;
+    _worldPacket >> PartyIndex;
+}
+
+WorldPacket const* WorldPackets::Misc::RandomRoll::Write()
+{
+    _worldPacket << Roller;
+    _worldPacket << RollerWowAccount;
+    _worldPacket << int32(Min);
+    _worldPacket << int32(Max);
+    _worldPacket << int32(Result);
+
+    return &_worldPacket;
+}

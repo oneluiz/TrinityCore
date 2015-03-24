@@ -151,9 +151,11 @@ enum WorldBoolConfigs
     CONFIG_SHOW_MUTE_IN_WORLD,
     CONFIG_SHOW_BAN_IN_WORLD,
     CONFIG_AUTOBROADCAST,
-    CONFIG_TICKET_SYSTEM_STATUS,
-    CONFIG_TICKET_SUBMIT_TICKET,
-    CONFIG_TICKET_SUBMIT_BUG,
+    CONFIG_SUPPORT_ENABLED,
+    CONFIG_SUPPORT_TICKETS_ENABLED,
+    CONFIG_SUPPORT_BUGS_ENABLED,
+    CONFIG_SUPPORT_COMPLAINTS_ENABLED,
+    CONFIG_SUPPORT_SUGGESTIONS_ENABLED,
     CONFIG_DBC_ENFORCE_ITEM_ATTRIBUTES,
     CONFIG_PRESERVE_CUSTOM_CHANNELS,
     CONFIG_PDUMP_NO_PATHS,
@@ -164,7 +166,6 @@ enum WorldBoolConfigs
     CONFIG_WARDEN_ENABLED,
     CONFIG_ENABLE_MMAPS,
     CONFIG_WINTERGRASP_ENABLE,
-    CONFIG_GUILD_LEVELING_ENABLED,
     CONFIG_UI_QUESTLEVELS_IN_DIALOGS,     // Should we add quest levels to the title in the NPC dialogs?
     CONFIG_EVENT_ANNOUNCE,
     CONFIG_STATS_LIMITS_ENABLE,
@@ -350,10 +351,7 @@ enum WorldIntConfigs
     CONFIG_WINTERGRASP_NOBATTLETIME,
     CONFIG_WINTERGRASP_RESTART_AFTER_CRASH,
     CONFIG_GUILD_SAVE_INTERVAL,
-    CONFIG_GUILD_MAX_LEVEL,
     CONFIG_GUILD_UNDELETABLE_LEVEL,
-    CONFIG_GUILD_DAILY_XP_CAP,
-    CONFIG_GUILD_WEEKLY_REP_CAP,
     CONFIG_PACKET_SPOOF_POLICY,
     CONFIG_PACKET_SPOOF_BANMODE,
     CONFIG_PACKET_SPOOF_BANDURATION,
@@ -582,9 +580,9 @@ class World
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
         const SessionMap& GetAllSessions() const { return m_sessions; }
-        uint32 GetActiveAndQueuedSessionCount() const { return m_sessions.size(); }
-        uint32 GetActiveSessionCount() const { return m_sessions.size() - m_QueuedPlayer.size(); }
-        uint32 GetQueuedSessionCount() const { return m_QueuedPlayer.size(); }
+        uint32 GetActiveAndQueuedSessionCount() const { return uint32(m_sessions.size()); }
+        uint32 GetActiveSessionCount() const { return uint32(m_sessions.size() - m_QueuedPlayer.size()); }
+        uint32 GetQueuedSessionCount() const { return uint32(m_QueuedPlayer.size()); }
         /// Get the maximum number of parallel sessions on the server since last reboot
         uint32 GetMaxQueuedSessionCount() const { return m_maxQueuedSessionCount; }
         uint32 GetMaxActiveSessionCount() const { return m_maxActiveSessionCount; }

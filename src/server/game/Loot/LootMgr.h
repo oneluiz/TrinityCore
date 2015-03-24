@@ -35,11 +35,6 @@ namespace WorldPackets
     {
         class LootResponse;
     }
-
-    namespace Item
-    {
-        struct ItemInstance;
-    }
 }
 
 enum RollType
@@ -149,14 +144,13 @@ struct LootStoreItem
 
     // Constructor
     // displayid is filled in IsValid() which must be called after
-    LootStoreItem(uint32 _itemid, uint32 _reference, float _chance, bool _needs_quest, uint16 _lootmode, uint8 _groupid, int32 _mincount, uint8 _maxcount)
+    LootStoreItem(uint32 _itemid, uint32 _reference, float _chance, bool _needs_quest, uint16 _lootmode, uint8 _groupid, uint8 _mincount, uint8 _maxcount)
         : itemid(_itemid), reference(_reference), chance(_chance), lootmode(_lootmode),
         needs_quest(_needs_quest), groupid(_groupid), mincount(_mincount), maxcount(_maxcount)
          { }
 
     bool Roll(bool rate) const;                             // Checks if the entry takes it's chance (at loot generation)
-    bool IsValid(LootStore const& store, uint32 entry) const;
-                                                            // Checks correctness of values
+    bool IsValid(LootStore const& store, uint32 entry) const; // Checks correctness of values
 };
 
 struct LootItem

@@ -50,15 +50,12 @@ enum StableResultCode
     STABLE_ERR_STABLE       = 0x0C,                         // "Internal pet error"
 };
 
-void WorldSession::HandleTabardVendorActivateOpcode(WorldPacket& recvData)
+void WorldSession::HandleTabardVendorActivateOpcode(WorldPackets::NPC::Hello& packet)
 {
-    ObjectGuid guid;
-    recvData >> guid;
-
-    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_TABARDDESIGNER);
+    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(packet.Unit, UNIT_NPC_FLAG_TABARDDESIGNER);
     if (!unit)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleTabardVendorActivateOpcode - %s not found or you can not interact with him.", guid.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleTabardVendorActivateOpcode - %s not found or you can not interact with him.", packet.Unit.ToString().c_str());
         return;
     }
 
@@ -66,38 +63,13 @@ void WorldSession::HandleTabardVendorActivateOpcode(WorldPacket& recvData)
     if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
         GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
 
-    SendTabardVendorActivate(guid);
+    SendTabardVendorActivate(packet.Unit);
 }
 
 void WorldSession::SendTabardVendorActivate(ObjectGuid guid)
 {
-    WorldPacket data(SMSG_TABARD_VENDOR_ACTIVATE, 18);
-    data << guid;
-    SendPacket(&data);
-}
-
-void WorldSession::HandleBankerActivateOpcode(WorldPackets::NPC::Hello& packet)
-{
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_BANKER_ACTIVATE");
-
-    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(packet.Unit, UNIT_NPC_FLAG_BANKER);
-    if (!unit)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBankerActivateOpcode - %s not found or you can not interact with him.", packet.Unit.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    SendShowBank(packet.Unit);
-}
-
-void WorldSession::SendShowBank(ObjectGuid guid)
-{
-    WorldPackets::NPC::ShowBank packet;
-    packet.Guid = guid;
+    WorldPackets::NPC::PlayerTabardVendorActivate packet;
+    packet.Vendor = guid;
     SendPacket(packet.Write());
 }
 
@@ -148,10 +120,8 @@ void WorldSession::SendTrainerList(ObjectGuid guid, const std::string& strTitle)
 
     // reputation discount
     float fDiscountMod = _player->GetReputationPriceDiscount(unit);
-    bool can_learn_primary_prof = GetPlayer()->GetFreePrimaryProfessionPoints() > 0;
 
-    packet.Spells.resize(trainer_spells->spellList.size());
-    uint32 count = 0;
+    packet.Spells.reserve(trainer_spells->spellList.size());
     for (TrainerSpellMap::const_iterator itr = trainer_spells->spellList.begin(); itr != trainer_spells->spellList.end(); ++itr)
     {
         TrainerSpell const* tSpell = &itr->second;
@@ -171,12 +141,13 @@ void WorldSession::SendTrainerList(ObjectGuid guid, const std::string& strTitle)
             if (learnedSpellInfo && learnedSpellInfo->IsPrimaryProfessionFirstRank())
                 primary_prof_first_rank = true;
         }
+
         if (!valid)
             continue;
 
         TrainerSpellState state = _player->GetTrainerSpellState(tSpell);
 
-        WorldPackets::NPC::TrainerListSpell& spell = packet.Spells[count];
+        WorldPackets::NPC::TrainerListSpell spell;
         spell.SpellID = tSpell->SpellID;
         spell.MoneyCost = floor(tSpell->MoneyCost * fDiscountMod);
         spell.ReqSkillLine = tSpell->ReqSkillLine;
@@ -185,38 +156,33 @@ void WorldSession::SendTrainerList(ObjectGuid guid, const std::string& strTitle)
         spell.Usable = (state == TRAINER_SPELL_GREEN_DISABLED ? TRAINER_SPELL_GREEN : state);
 
         uint8 maxReq = 0;
-        /// @todo Update this when new spell system is ready
-        /*for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+        for (uint8 i = 0; i < MAX_TRAINERSPELL_ABILITY_REQS; ++i)
         {
             if (!tSpell->ReqAbility[i])
                 continue;
+
             if (uint32 prevSpellId = sSpellMgr->GetPrevSpellInChain(tSpell->ReqAbility[i]))
             {
                 spell.ReqAbility[maxReq] = prevSpellId;
                 ++maxReq;
             }
+
             if (maxReq == 2)
                 break;
+
             SpellsRequiringSpellMapBounds spellsRequired = sSpellMgr->GetSpellsRequiredForSpellBounds(tSpell->ReqAbility[i]);
             for (SpellsRequiringSpellMap::const_iterator itr2 = spellsRequired.first; itr2 != spellsRequired.second && maxReq < 3; ++itr2)
             {
                 spell.ReqAbility[maxReq] = itr2->second;
                 ++maxReq;
             }
+
             if (maxReq == 2)
                 break;
-        }*/
-        while (maxReq < MAX_TRAINERSPELL_ABILITY_REQS)
-        {
-            spell.ReqAbility[maxReq] = 0;
-            ++maxReq;
         }
 
-        ++count;
+        packet.Spells.push_back(spell);
     }
-
-    // Shrink to actual data size
-    packet.Spells.resize(count);
 
     SendPacket(packet.Write());
 }

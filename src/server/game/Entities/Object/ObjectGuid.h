@@ -24,6 +24,7 @@
 #include <boost/functional/hash.hpp>
 
 #include <functional>
+#include <unordered_set>
 
 enum TypeID
 {
@@ -162,7 +163,7 @@ class ObjectGuid
             return UI64LIT(0xFFFFFFFFFF);
         }
 
-        uint32 GetMaxCounter() const { return GetMaxCounter(GetHigh()); }
+        LowType GetMaxCounter() const { return GetMaxCounter(GetHigh()); }
 
         uint8& operator[](uint32 index)
         {
@@ -266,6 +267,7 @@ typedef std::set<ObjectGuid> GuidSet;
 typedef std::list<ObjectGuid> GuidList;
 typedef std::deque<ObjectGuid> GuidDeque;
 typedef std::vector<ObjectGuid> GuidVector;
+typedef std::unordered_set<ObjectGuid> GuidUnorderedSet;
 
 // maximum buffer size for packed guid is 18 bytes
 #define PACKED_GUID_MIN_BUFFER_SIZE 18

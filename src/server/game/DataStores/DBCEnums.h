@@ -19,6 +19,8 @@
 #ifndef DBCENUMS_H
 #define DBCENUMS_H
 
+#include "Define.h"
+
 struct DBCPosition2D
 {
     float X;
@@ -338,7 +340,7 @@ enum AreaFlags
     AREA_FLAG_UNK9                  = 0x40000000
 };
 
-enum Difficulty
+enum Difficulty : uint8
 {
     DIFFICULTY_NONE           = 0,
     DIFFICULTY_NORMAL         = 1,
@@ -474,10 +476,19 @@ enum ItemLimitCategoryMode
     ITEM_LIMIT_CATEGORY_MODE_EQUIP      = 1                       // limit applied to amount equipped items (including used gems)
 };
 
+enum MountCapabilityFlags
+{
+    MOUNT_CAPABILITY_FLAG_CAN_PITCH     = 0x4,                    // client checks MOVEMENTFLAG2_FULL_SPEED_PITCHING
+    MOUNT_CAPABILITY_FLAG_CAN_SWIM      = 0x8,                    // client checks MOVEMENTFLAG_SWIMMING
+};
+
 enum MountFlags
 {
-    MOUNT_FLAG_CAN_PITCH                = 0x4,                    // client checks MOVEMENTFLAG2_FULL_SPEED_PITCHING
-    MOUNT_FLAG_CAN_SWIM                 = 0x8,                    // client checks MOVEMENTFLAG_SWIMMING
+    MOUNT_FLAG_SELF_MOUNT               = 0x02,                   // Player becomes the mount himself
+    MOUNT_FLAG_FACTION_SPECIFIC         = 0x04,
+    MOUNT_FLAG_PREFERRED_SWIMMING       = 0x10,
+    MOUNT_FLAG_PREFERRED_WATER_WALKING  = 0x20,
+    MOUNT_FLAG_HIDE_IF_UNKNOWN          = 0x40
 };
 
 enum SkillRaceClassInfoFlags
@@ -494,7 +505,7 @@ enum SpellCategoryFlags
 {
     SPELL_CATEGORY_FLAG_COOLDOWN_SCALES_WITH_WEAPON_SPEED   = 0x01, // unused
     SPELL_CATEGORY_FLAG_COOLDOWN_STARTS_ON_EVENT            = 0x04,
-    SPELL_CATEGORY_FLAG_COOLDOWN_EXPIRES_AT_MIDNIGHT        = 0x08
+    SPELL_CATEGORY_FLAG_COOLDOWN_EXPIRES_AT_DAILY_RESET     = 0x08
 };
 
 enum TotemCategoryType

@@ -468,7 +468,7 @@ enum AuraType
     SPELL_AURA_408                                          = 408,
     SPELL_AURA_409                                          = 409,
     SPELL_AURA_410                                          = 410,
-    SPELL_AURA_MOD_CHARGES                                  = 411,  // NYI
+    SPELL_AURA_MOD_MAX_CHARGES                              = 411,
     SPELL_AURA_412                                          = 412,
     SPELL_AURA_413                                          = 413,
     SPELL_AURA_414                                          = 414,
@@ -508,19 +508,19 @@ enum AuraType
     SPELL_AURA_448                                          = 448,
     SPELL_AURA_449                                          = 449,
     SPELL_AURA_450                                          = 450,
-    SPELL_AURA_451                                          = 451,
+    SPELL_AURA_OVERRIDE_PET_SPECS                           = 451, // NYI
     SPELL_AURA_452                                          = 452,
-    SPELL_AURA_453                                          = 453,
-    SPELL_AURA_454                                          = 454,
+    SPELL_AURA_CHARGE_RECOVERY_MOD                          = 453,
+    SPELL_AURA_CHARGE_RECOVERY_MULTIPLIER                   = 454,
     SPELL_AURA_455                                          = 455,
-    SPELL_AURA_456                                          = 456,
-    SPELL_AURA_457                                          = 457,
-    SPELL_AURA_458                                          = 458,
+    SPELL_AURA_CHARGE_RECOVERY_AFFECTED_BY_HASTE            = 456,
+    SPELL_AURA_CHARGE_RECOVERY_AFFECTED_BY_HASTE_REGEN      = 457,
+    SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY                = 458, // NYI
     SPELL_AURA_459                                          = 459,
     SPELL_AURA_460                                          = 460,
     SPELL_AURA_461                                          = 461,
     SPELL_AURA_462                                          = 462,
-    SPELL_AURA_463                                          = 463,
+    SPELL_AURA_CONVER_CRIT_RATING_PCT_TO_PARRY_RATING       = 463, // NYI
     SPELL_AURA_464                                          = 464,
     SPELL_AURA_465                                          = 465,
     SPELL_AURA_466                                          = 466,
@@ -535,7 +535,12 @@ enum AuraType
     SPELL_AURA_476                                          = 476,
     SPELL_AURA_477                                          = 477,
     SPELL_AURA_478                                          = 478,
-    TOTAL_AURAS                                             = 479   // 6.0.3
+    SPELL_AURA_479                                          = 479,
+    SPELL_AURA_480                                          = 480,
+    SPELL_AURA_481                                          = 481,
+    SPELL_AURA_482                                          = 482,
+    SPELL_AURA_483                                          = 483,
+    TOTAL_AURAS                                             = 484
 };
 
 enum AuraObjectType

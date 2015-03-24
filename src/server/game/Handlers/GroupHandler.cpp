@@ -33,6 +33,7 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "SpellAuraEffects.h"
+#include "MiscPackets.h"
 
 class Aura;
 
@@ -444,7 +445,7 @@ void WorldSession::HandleGroupUninviteOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleGroupSetLeaderOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_GROUP_SET_LEADER");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_SET_ROLE");
 
     ObjectGuid guid;
     recvData >> guid;
@@ -493,7 +494,7 @@ void WorldSession::HandleGroupSetRolesOpcode(WorldPacket& recvData)
     recvData.ReadByteSeq(guid2[2]);
     recvData.ReadByteSeq(guid2[7]);
 
-    WorldPacket data(SMSG_GROUP_SET_ROLE, 24);
+    WorldPacket data(SMSG_ROLE_CHANGED_INFORM, 24);
 
     data.WriteBit(guid1[1]);
     data.WriteBit(guid2[0]);
@@ -543,7 +544,7 @@ void WorldSession::HandleGroupSetRolesOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleGroupDisbandOpcode(WorldPacket& /*recvData*/)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_GROUP_DISBAND");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_LEAVE_GROUP");
 
     Group* grp = GetPlayer()->GetGroup();
     if (!grp)
@@ -648,13 +649,13 @@ void WorldSession::HandleMinimapPingOpcode(WorldPacket& recvData)
     GetPlayer()->GetGroup()->BroadcastPacket(&data, true, -1, GetPlayer()->GetGUID());
 }
 
-void WorldSession::HandleRandomRollOpcode(WorldPacket& recvData)
+void WorldSession::HandleRandomRollOpcode(WorldPackets::Misc::RandomRollClient& packet)
 {
     TC_LOG_DEBUG("network", "WORLD: Received CMSG_RANDOM_ROLL");
 
     uint32 minimum, maximum, roll;
-    recvData >> minimum;
-    recvData >> maximum;
+    minimum = packet.Min;
+    maximum = packet.Max;
 
     /** error handling **/
     if (minimum > maximum || maximum > 10000)                // < 32768 for urand call
@@ -666,15 +667,16 @@ void WorldSession::HandleRandomRollOpcode(WorldPacket& recvData)
 
     //TC_LOG_DEBUG("misc", "ROLL: MIN: %u, MAX: %u, ROLL: %u", minimum, maximum, roll);
 
-    WorldPacket data(SMSG_RANDOM_ROLL, 4+4+4+8);
-    data << uint32(minimum);
-    data << uint32(maximum);
-    data << uint32(roll);
-    data << GetPlayer()->GetGUID();
+    WorldPackets::Misc::RandomRoll randomRoll;
+    randomRoll.Min = minimum;
+    randomRoll.Max = maximum;
+    randomRoll.Result = roll;
+    randomRoll.Roller = GetPlayer()->GetGUID();
+    randomRoll.RollerWowAccount = GetAccountGUID();
     if (GetPlayer()->GetGroup())
-        GetPlayer()->GetGroup()->BroadcastPacket(&data, false);
+        GetPlayer()->GetGroup()->BroadcastPacket(randomRoll.Write(), false);
     else
-        SendPacket(&data);
+        SendPacket(randomRoll.Write());
 }
 
 void WorldSession::HandleRaidTargetUpdateOpcode(WorldPacket& recvData)
@@ -716,7 +718,7 @@ void WorldSession::HandleRaidTargetUpdateOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleGroupRaidConvertOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_GROUP_RAID_CONVERT");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_CONVERT_RAID");
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -758,7 +760,7 @@ void WorldSession::HandleGroupRequestJoinUpdates(WorldPacket& /*recvData*/)
 
 void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_GROUP_CHANGE_SUB_GROUP");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_CHANGE_SUB_GROUP");
 
     // we will get correct pointer for group here, so we don't have to check if group is BG raid
     Group* group = GetPlayer()->GetGroup();
@@ -796,7 +798,7 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_GROUP_SWAP_SUB_GROUP");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_SWAP_SUB_GROUPS");
     std::string unk1;
     std::string unk2;
 
@@ -806,7 +808,7 @@ void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_GROUP_ASSISTANT_LEADER");
+    TC_LOG_DEBUG("network", "WORLD: Received CMSG_SET_ASSISTANT_LEADER");
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -1349,7 +1351,7 @@ void WorldSession::HandleRolePollBeginOpcode(WorldPacket& recvData)
 
         ObjectGuid guid = GetPlayer()->GetGUID();
 
-        WorldPacket data(SMSG_ROLE_POLL_BEGIN, 8);
+        WorldPacket data(SMSG_ROLE_POLL_INFORM, 8);
         data.WriteBit(guid[1]);
         data.WriteBit(guid[5]);
         data.WriteBit(guid[7]);
