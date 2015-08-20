@@ -31,42 +31,6 @@ enum GMTicketSystemStatus
     GMTICKET_QUEUE_STATUS_ENABLED   = 1
 };
 
-enum GMTicketStatus
-{
-    GMTICKET_STATUS_HASTEXT = 0x06,
-    GMTICKET_STATUS_DEFAULT = 0x0A
-};
-
-enum GMTicketResponse
-{
-    GMTICKET_RESPONSE_ALREADY_EXIST     = 1,
-    GMTICKET_RESPONSE_CREATE_SUCCESS    = 2,
-    GMTICKET_RESPONSE_CREATE_ERROR      = 3,
-    GMTICKET_RESPONSE_UPDATE_SUCCESS    = 4,
-    GMTICKET_RESPONSE_UPDATE_ERROR      = 5,
-    GMTICKET_RESPONSE_TICKET_DELETED    = 9
-};
-
-// from blizzard lua
-enum GMTicketOpenedByGMStatus
-{
-    GMTICKET_OPENEDBYGM_STATUS_NOT_OPENED   = 0,      // ticket has never been opened by a gm
-    GMTICKET_OPENEDBYGM_STATUS_OPENED       = 1       // ticket has been opened by a gm
-};
-
-// from Blizzard LUA:
-// GMTICKET_ASSIGNEDTOGM_STATUS_NOT_ASSIGNED = 0;    -- ticket is not currently assigned to a gm
-// GMTICKET_ASSIGNEDTOGM_STATUS_ASSIGNED = 1;        -- ticket is assigned to a normal gm
-// GMTICKET_ASSIGNEDTOGM_STATUS_ESCALATED = 2;        -- ticket is in the escalation queue
-// 3 is a custom value and should never actually be sent
-enum GMTicketEscalationStatus
-{
-    TICKET_UNASSIGNED           = 0,
-    TICKET_ASSIGNED             = 1,
-    TICKET_IN_ESCALATION_QUEUE  = 2,
-    TICKET_ESCALATED_ASSIGNED   = 3
-};
-
 enum GMSupportComplaintType
 {
     GMTICKET_SUPPORT_COMPLAINT_TYPE_NONE        = 0,
@@ -94,8 +58,16 @@ public:
 
     uint32 GetId() const { return _id; }
     ObjectGuid GetPlayerGuid() const { return _playerGuid; }
-    Player* GetPlayer() const { return ObjectAccessor::FindPlayer(_playerGuid); }
-    Player* GetAssignedPlayer() const { return ObjectAccessor::FindPlayer(_assignedTo); }
+    Player* GetPlayer() const { return ObjectAccessor::FindConnectedPlayer(_playerGuid); }
+    std::string GetPlayerName() const
+    {
+        std::string name;
+        if (!_playerGuid.IsEmpty())
+            ObjectMgr::GetPlayerNameByGUID(_playerGuid, name);
+
+        return name;
+    }
+    Player* GetAssignedPlayer() const { return ObjectAccessor::FindConnectedPlayer(_assignedTo); }
     ObjectGuid GetAssignedToGUID() const { return _assignedTo; }
     std::string GetAssignedToName() const
     {
@@ -105,12 +77,11 @@ public:
 
         return name;
     }
-    std::string const& GetComment() { return _comment; }
+    std::string const& GetComment() const { return _comment; }
 
-    virtual void SetAssignedTo(ObjectGuid guid) { _assignedTo = guid; }
-    virtual void SetAssignedTo(ObjectGuid /*guid*/, bool /*isAdmin*/) { }
+    virtual void SetAssignedTo(ObjectGuid guid, bool /*isAdmin*/ = false) { _assignedTo = guid; }
     virtual void SetUnassigned() { _assignedTo.Clear(); }
-    void SetClosedBy(ObjectGuid value) { _closedBy = value; }    
+    void SetClosedBy(ObjectGuid value) { _closedBy = value; }
     void SetComment(std::string const& comment) { _comment = comment; }
     void SetPosition(uint32 mapId, G3D::Vector3& pos)
     {
@@ -119,13 +90,13 @@ public:
     }
 
     virtual void LoadFromDB(Field* fields) = 0;
-    virtual void SaveToDB(SQLTransaction& trans) const = 0;
+    virtual void SaveToDB() const = 0;
     virtual void DeleteFromDB() = 0;
 
     void TeleportTo(Player* player) const;
 
     virtual std::string FormatViewMessageString(ChatHandler& handler, bool detailed = false) const = 0;
-    virtual std::string FormatViewMessageString(ChatHandler& handler, const char* szClosedName, const char* szAssignedToName, const char* szUnassignedName, const char* szDeletedName, const char* szCompletedName) const;
+    virtual std::string FormatViewMessageString(ChatHandler& handler, const char* szClosedName, const char* szAssignedToName, const char* szUnassignedName, const char* szDeletedName) const;
 
 protected:
     uint32 _id;
@@ -137,68 +108,6 @@ protected:
     ObjectGuid _assignedTo;
     std::string _comment;
 };
-    
-
-class GmTicket : public Ticket
-{
-public:
-    GmTicket();
-    GmTicket(Player* player);
-    ~GmTicket();
-
-    bool IsCompleted() const { return _completed; }
-    bool IsViewed() const { return _viewed; }
-
-    bool GetNeedMoreHelp() const { return _needMoreHelp; }
-    std::string const& GetDescription() const { return _description; }
-    uint64 GetLastModifiedTime() const { return _lastModifiedTime; }
-    GMTicketEscalationStatus GetEscalatedStatus() const { return _escalatedStatus; }
-    std::string const& GetResponse() const { return _response; }
-
-    void SetAssignedTo(ObjectGuid guid, bool isAdmin) override
-    {
-        _assignedTo = guid;
-        if (isAdmin && _escalatedStatus == TICKET_IN_ESCALATION_QUEUE)
-            _escalatedStatus = TICKET_ESCALATED_ASSIGNED;
-        else if (_escalatedStatus == TICKET_UNASSIGNED)
-            _escalatedStatus = TICKET_ASSIGNED;
-    }
-    void SetEscalatedStatus(GMTicketEscalationStatus escalatedStatus) { _escalatedStatus = escalatedStatus; }
-    void SetCompleted() { _completed = true; }
-    void SetDescription(std::string const& description)
-    {
-        _description = description;
-        _lastModifiedTime = uint64(time(NULL));
-    }
-    void SetViewed() { _viewed = true; }
-    void SetGmAction(uint32 needResponse, bool needMoreHelp);
-    void SetUnassigned() override;
-
-    void AppendResponse(std::string const& response) { _response += response; }
-
-    void SetChatLog(std::list<uint32> time, std::string const& log);
-    std::string const& GetChatLog() const { return _chatLog; }
-
-    void SendResponse(WorldSession* session) const;
-
-    void LoadFromDB(Field* fields) override;
-    void SaveToDB(SQLTransaction& trans) const override;
-    void DeleteFromDB() override;
-
-    std::string FormatViewMessageString(ChatHandler& handler, bool detailed = false) const override;
-    std::string FormatViewMessageString(ChatHandler& handler, const char* szClosedName, const char* szAssignedToName, const char* szUnassignedName, const char* szDeletedName, const char* szCompletedName) const override;
-
-private:
-    std::string _description;
-    uint64 _lastModifiedTime;
-    bool _completed;
-    GMTicketEscalationStatus _escalatedStatus;
-    bool _viewed;
-    bool _needResponse; /// @todo find out the use of this, and then store it in DB
-    bool _needMoreHelp;
-    std::string _response;
-    std::string _chatLog; // No need to store in db, will be refreshed every session client side
-};
 
 class BugTicket : public Ticket
 {
@@ -206,14 +115,14 @@ public:
     BugTicket();
     BugTicket(Player* player);
     ~BugTicket();
-    
+
     std::string const& GetNote() const { return _note; }
 
     void SetFacing(float facing) { _facing = facing; }
     void SetNote(std::string const& note) { _note = note; }
 
     void LoadFromDB(Field* fields) override;
-    void SaveToDB(SQLTransaction& trans) const override;
+    void SaveToDB() const override;
     void DeleteFromDB() override;
 
     using Ticket::FormatViewMessageString;
@@ -246,7 +155,7 @@ public:
 
     void LoadFromDB(Field* fields) override;
     void LoadChatLineFromDB(Field* fields);
-    void SaveToDB(SQLTransaction& trans) const override;
+    void SaveToDB() const override;
     void DeleteFromDB() override;
 
     using Ticket::FormatViewMessageString;
@@ -273,7 +182,7 @@ public:
     void SetFacing(float facing) { _facing = facing; }
 
     void LoadFromDB(Field* fields) override;
-    void SaveToDB(SQLTransaction& trans) const override;
+    void SaveToDB() const override;
     void DeleteFromDB() override;
 
     using Ticket::FormatViewMessageString;
@@ -287,7 +196,6 @@ private:
 typedef std::map<uint32, BugTicket*> BugTicketList;
 typedef std::map<uint32, ComplaintTicket*> ComplaintTicketList;
 typedef std::map<uint32, SuggestionTicket*> SuggestionTicketList;
-typedef std::map<uint32, GmTicket*> GmTicketList;
 
 class SupportMgr
 {
@@ -305,15 +213,6 @@ public:
     template<typename T>
     T* GetTicket(uint32 ticketId);
 
-    GmTicket* GetGmTicketByPlayerGuid(ObjectGuid playerGuid) const
-    {
-        for (auto const& c : _gmTicketList)
-            if (c.second->GetPlayerGuid() == playerGuid && !c.second->IsClosed())
-                return c.second;
-
-        return nullptr;
-    }
-
     ComplaintTicketList GetComplaintsByPlayerGuid(ObjectGuid playerGuid) const
     {
         ComplaintTicketList ret;
@@ -324,22 +223,13 @@ public:
         return ret;
     }
 
-    GmTicket* GetOldestOpenTicket()
-    {
-        for (GmTicketList::const_iterator itr = _gmTicketList.begin(); itr != _gmTicketList.end(); ++itr)
-            if (itr->second && !itr->second->IsClosed() && !itr->second->IsCompleted())
-                return itr->second;
-
-        return nullptr;
-    }
-
     void Initialize();
 
-    bool GetSupportSystemStatus() { return _supportSystemStatus; }
-    bool GetTicketSystemStatus() { return _supportSystemStatus && _ticketSystemStatus; }
-    bool GetBugSystemStatus() { return _supportSystemStatus && _bugSystemStatus; }
-    bool GetComplaintSystemStatus() { return _supportSystemStatus && _complaintSystemStatus; }
-    bool GetSuggestionSystemStatus() { return _supportSystemStatus && _suggestionSystemStatus; }
+    bool GetSupportSystemStatus() const { return _supportSystemStatus; }
+    bool GetTicketSystemStatus() const { return _supportSystemStatus && _ticketSystemStatus; }
+    bool GetBugSystemStatus() const { return _supportSystemStatus && _bugSystemStatus; }
+    bool GetComplaintSystemStatus() const { return _supportSystemStatus && _complaintSystemStatus; }
+    bool GetSuggestionSystemStatus() const { return _supportSystemStatus && _suggestionSystemStatus; }
     uint64 GetLastChange() const { return _lastChange; }
     template<typename T>
     uint32 GetOpenTicketCount() const;
@@ -350,12 +240,10 @@ public:
     void SetComplaintSystemStatus(bool status) { _complaintSystemStatus = status; }
     void SetSuggestionSystemStatus(bool status) { _suggestionSystemStatus = status; }
 
-    void LoadGmTickets();
     void LoadBugTickets();
     void LoadComplaintTickets();
     void LoadSuggestionTickets();
 
-    void AddTicket(GmTicket* ticket);
     void AddTicket(BugTicket* ticket);
     void AddTicket(ComplaintTicket* ticket);
     void AddTicket(SuggestionTicket* ticket);
@@ -378,14 +266,8 @@ public:
     template<typename T>
     void ShowClosedList(ChatHandler& handler) const;
 
-    void ShowGmEscalatedList(ChatHandler& handler) const;
-
     void UpdateLastChange() { _lastChange = uint64(time(nullptr)); }
 
-    void SendGmTicket(WorldSession* session, GmTicket* ticket) const;
-    void SendGmTicketUpdate(WorldSession* session, GMTicketResponse response) const;
-
-    uint32 GenerateGmTicketId() { return ++_lastGmTicketId; }
     uint32 GenerateBugId() { return ++_lastBugId; }
     uint32 GenerateComplaintId() { return ++_lastComplaintId; }
     uint32 GenerateSuggestionId() { return ++_lastSuggestionId; }
@@ -396,19 +278,16 @@ private:
     bool _bugSystemStatus;
     bool _complaintSystemStatus;
     bool _suggestionSystemStatus;
-    GmTicketList _gmTicketList;
     BugTicketList _bugTicketList;
     ComplaintTicketList _complaintTicketList;
     SuggestionTicketList _suggestionTicketList;
-    uint32 _lastGmTicketId;
     uint32 _lastBugId;
     uint32 _lastComplaintId;
     uint32 _lastSuggestionId;
-    uint32 _openGmTicketCount;
+    uint64 _lastChange;
     uint32 _openBugTicketCount;
     uint32 _openComplaintTicketCount;
     uint32 _openSuggestionTicketCount;
-    uint64 _lastChange;
 };
 
 #define sSupportMgr SupportMgr::instance()

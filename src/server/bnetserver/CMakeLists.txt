@@ -73,12 +73,12 @@ include_directories(
   ${ZMQ_INCLUDE_DIR}
 )
 
+GroupSources(${CMAKE_CURRENT_SOURCE_DIR})
+
 add_executable(bnetserver
   ${bnetserver_SRCS}
   ${bnetserver_PCH_SRC}
 )
-
-add_dependencies(bnetserver revision.h)
 
 if( NOT WIN32 )
   set_target_properties(bnetserver PROPERTIES

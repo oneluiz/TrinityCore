@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (C) 2012-2014 Arctium Emulation <http://arctium.org>
  * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
  *
@@ -50,6 +50,7 @@ namespace Connection_Patcher
                     0xF0, 0xB8, 0x32, 0xCB, 0x5B, 0x66, 0xCE, 0x51, 0x54, 0xB4, 0xC3, 0xD3, 0xD4, 0xDC, 0xB3, 0xEE
                 };
             }
+            static const std::string VersionsFile() { return "trinity6.github.io/%s/%s/build/versi"; };
         };
     }
 }

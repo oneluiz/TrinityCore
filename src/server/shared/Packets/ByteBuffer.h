@@ -658,7 +658,7 @@ class ByteBuffer
             put<uint8>(pos, mask);
         }
 
-        size_t PackUInt64(uint64 value, uint8* mask, uint8* result) const
+        static size_t PackUInt64(uint64 value, uint8* mask, uint8* result)
         {
             size_t resultSize = 0;
             *mask = 0;
@@ -812,17 +812,6 @@ template<>
 inline void ByteBuffer::read_skip<std::string>()
 {
     read_skip<char*>();
-}
-
-namespace boost
-{
-    namespace asio
-    {
-        inline const_buffers_1 buffer(ByteBuffer const& packet)
-        {
-            return buffer(packet.contents(), packet.size());
-        }
-    }
 }
 
 #endif

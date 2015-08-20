@@ -24,9 +24,6 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "Item.h"
-#include "UpdateData.h"
-#include "ObjectAccessor.h"
-#include "SpellInfo.h"
 #include "DB2Stores.h"
 #include "NPCPackets.h"
 #include "ItemPackets.h"
@@ -112,23 +109,20 @@ void WorldSession::HandleSwapInvItemOpcode(WorldPackets::Item::SwapInvItem& swap
     _player->SwapItem(src, dst);
 }
 
-void WorldSession::HandleAutoEquipItemSlotOpcode(WorldPacket& recvData)
+void WorldSession::HandleAutoEquipItemSlotOpcode(WorldPackets::Item::AutoEquipItemSlot& autoEquipItemSlot)
 {
-    ObjectGuid itemguid;
-    uint8 dstslot;
-    recvData >> itemguid >> dstslot;
-
     // cheating attempt, client should never send opcode in that case
-    if (!Player::IsEquipmentPos(INVENTORY_SLOT_BAG_0, dstslot))
+    if (autoEquipItemSlot.Inv.Items.size() != 1 || !Player::IsEquipmentPos(INVENTORY_SLOT_BAG_0, autoEquipItemSlot.ItemDstSlot))
         return;
 
-    Item* item = _player->GetItemByGuid(itemguid);
-    uint16 dstpos = dstslot | (INVENTORY_SLOT_BAG_0 << 8);
+    Item* item = _player->GetItemByGuid(autoEquipItemSlot.Item);
+    uint16 dstPos = autoEquipItemSlot.ItemDstSlot | (INVENTORY_SLOT_BAG_0 << 8);
+    uint16 srcPos = autoEquipItemSlot.Inv.Items[0].Slot | (uint32(autoEquipItemSlot.Inv.Items[0].ContainerSlot) << 8);
 
-    if (!item || item->GetPos() == dstpos)
+    if (!item || item->GetPos() != srcPos || srcPos == dstPos)
         return;
 
-    _player->SwapItem(item->GetPos(), dstpos);
+    _player->SwapItem(srcPos, dstPos);
 }
 
 void WorldSession::HandleSwapItem(WorldPackets::Item::SwapItem& swapItem)
@@ -298,7 +292,7 @@ void WorldSession::HandleDestroyItemOpcode(WorldPackets::Item::DestroyItem& dest
         return;
     }
 
-    if (item->GetTemplate()->GetFlags() & ITEM_PROTO_FLAG_INDESTRUCTIBLE)
+    if (item->GetTemplate()->GetFlags() & ITEM_FLAG_INDESTRUCTIBLE)
     {
         _player->SendEquipError(EQUIP_ERR_DROP_BOUND_ITEM, NULL, NULL);
         return;
@@ -313,31 +307,32 @@ void WorldSession::HandleDestroyItemOpcode(WorldPackets::Item::DestroyItem& dest
         _player->DestroyItem(destroyItem.ContainerId, destroyItem.SlotNum, true);
 }
 
-void WorldSession::HandleReadItem(WorldPacket& recvData)
+void WorldSession::HandleReadItem(WorldPackets::Item::ReadItem& readItem)
 {
-    uint8 bag, slot;
-    recvData >> bag >> slot;
-
-    Item* pItem = _player->GetItemByPos(bag, slot);
-
-    if (pItem && pItem->GetTemplate()->GetPageText())
+    Item* item = _player->GetItemByPos(readItem.PackSlot, readItem.Slot);
+    if (item && item->GetTemplate()->GetPageText())
     {
-        WorldPacket data;
-
-        InventoryResult msg = _player->CanUseItem(pItem);
+        InventoryResult msg = _player->CanUseItem(item);
         if (msg == EQUIP_ERR_OK)
         {
-            data.Initialize(SMSG_READ_ITEM_RESULT_OK, 8);
+            WorldPackets::Item::ReadItemResultOK packet;
+            packet.Item = item->GetGUID();
+            SendPacket(packet.Write());
+
             TC_LOG_INFO("network", "STORAGE: Item page sent");
         }
         else
         {
-            data.Initialize(SMSG_READ_ITEM_FAILED, 8);
+            /// @todo: 6.x research new values
+            /*WorldPackets::Item::ReadItemResultFailed packet;
+            packet.Item = item->GetGUID();
+            packet.Subcode = ??;
+            packet.Delay = ??;
+            SendPacket(packet.Write());*/
+
             TC_LOG_INFO("network", "STORAGE: Unable to read item");
-            _player->SendEquipError(msg, pItem, NULL);
+            _player->SendEquipError(msg, item, NULL);
         }
-        data << pItem->GetGUID();
-        SendPacket(&data);
     }
     else
         _player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, NULL, NULL);
@@ -390,7 +385,7 @@ void WorldSession::HandleSellItemOpcode(WorldPackets::Item::SellItem& packet)
         // prevent selling item for sellprice when the item is still refundable
         // this probably happens when right clicking a refundable item, the client sends both
         // CMSG_SELL_ITEM and CMSG_REFUND_ITEM (unverified)
-        if (pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAG_REFUNDABLE))
+        if (pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_REFUNDABLE))
             return; // Therefore, no feedback to client
 
         // special case at auto sell (sell all)
@@ -496,39 +491,6 @@ void WorldSession::HandleBuybackItem(WorldPackets::Item::BuyBackItem& packet)
         _player->SendBuyError(BUY_ERR_CANT_FIND_ITEM, creature, 0, 0);
 }
 
-void WorldSession::HandleBuyItemInSlotOpcode(WorldPacket& recvData)
-{
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_BUY_ITEM_IN_SLOT");
-    ObjectGuid vendorguid, bagguid;
-    uint32 item, slot, count;
-    uint8 bagslot;
-
-    recvData >> vendorguid >> item  >> slot >> bagguid >> bagslot >> count;
-
-    // client expects count starting at 1, and we send vendorslot+1 to client already
-    if (slot > 0)
-        --slot;
-    else
-        return;                                             // cheating
-
-    uint8 bag = NULL_BAG;                                   // init for case invalid bagGUID
-    Item* bagItem = NULL;
-    // find bag slot by bag guid
-    if (bagguid == _player->GetGUID())
-        bag = INVENTORY_SLOT_BAG_0;
-    else
-        bagItem = _player->GetItemByGuid(bagguid);
-
-    if (bagItem && bagItem->IsBag())
-        bag = bagItem->GetSlot();
-
-    // bag not found, cheating?
-    if (bag == NULL_BAG)
-        return;
-
-    GetPlayer()->BuyItemFromVendorSlot(vendorguid, slot, item, count, bag, bagslot);
-}
-
 void WorldSession::HandleBuyItemOpcode(WorldPackets::Item::BuyItem& packet)
 {
     // client expects count starting at 1, and we send vendorslot+1 to client already
@@ -568,8 +530,6 @@ void WorldSession::HandleBuyItemOpcode(WorldPackets::Item::BuyItem& packet)
 
 void WorldSession::HandleListInventoryOpcode(WorldPackets::NPC::Hello& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: Recvd CMSG_LIST_INVENTORY");
-
     if (!GetPlayer()->IsAlive())
         return;
 
@@ -628,8 +588,8 @@ void WorldSession::SendListInventory(ObjectGuid vendorGuid)
                     continue;
 
                 // Only display items in vendor lists for the team the player is on
-                if ((itemTemplate->GetFlags2() & ITEM_FLAGS_EXTRA_HORDE_ONLY && _player->GetTeam() == ALLIANCE) ||
-                    (itemTemplate->GetFlags2() & ITEM_FLAGS_EXTRA_ALLIANCE_ONLY && _player->GetTeam() == HORDE))
+                if ((itemTemplate->GetFlags2() & ITEM_FLAG2_HORDE_ONLY && _player->GetTeam() == ALLIANCE) ||
+                    (itemTemplate->GetFlags2() & ITEM_FLAG2_ALLIANCE_ONLY && _player->GetTeam() == HORDE))
                     continue;
 
                 // Items sold out are not displayed in list
@@ -744,8 +704,8 @@ void WorldSession::HandleAutoStoreBagItemOpcode(WorldPackets::Item::AutoStoreBag
 void WorldSession::SendEnchantmentLog(ObjectGuid target, ObjectGuid caster, uint32 itemId, uint32 enchantId)
 {
     WorldPacket data(SMSG_ENCHANTMENT_LOG, (8+8+4+4));
-    data << target.WriteAsPacked();
-    data << caster.WriteAsPacked();
+    data << target;
+    data << caster;
     data << uint32(itemId);
     data << uint32(enchantId);
     GetPlayer()->SendMessageToSet(&data, true);
@@ -753,48 +713,53 @@ void WorldSession::SendEnchantmentLog(ObjectGuid target, ObjectGuid caster, uint
 
 void WorldSession::SendItemEnchantTimeUpdate(ObjectGuid Playerguid, ObjectGuid Itemguid, uint32 slot, uint32 Duration)
 {
-                                                            // last check 2.0.10
-    WorldPacket data(SMSG_ITEM_ENCHANT_TIME_UPDATE, (8+4+4+8));
-    data << Itemguid;
-    data << uint32(slot);
-    data << uint32(Duration);
-    data << Playerguid;
-    SendPacket(&data);
+    WorldPackets::Item::ItemEnchantTimeUpdate data;
+    data.ItemGuid = Itemguid;
+    data.DurationLeft = Duration;
+    data.Slot = slot;
+    data.OwnerGuid = Playerguid;
+    SendPacket(data.Write());
 }
 
-void WorldSession::HandleWrapItemOpcode(WorldPacket& recvData)
+void WorldSession::HandleWrapItem(WorldPackets::Item::WrapItem& packet)
 {
-    TC_LOG_DEBUG("network", "Received opcode CMSG_WRAP_ITEM");
+    if (packet.Inv.Items.size() != 2)
+    {
+        TC_LOG_ERROR("network", "HandleWrapItem - Invalid itemCount (" SZFMTD ")", packet.Inv.Items.size());
+        return;
+    }
 
-    uint8 gift_bag, gift_slot, item_bag, item_slot;
+    /// @todo: 6.x find better way for read
+    // Gift
+    uint8 giftContainerSlot = packet.Inv.Items[0].ContainerSlot;
+    uint8 giftSlot          = packet.Inv.Items[0].Slot;
+    // Item
+    uint8 itemContainerSlot = packet.Inv.Items[1].ContainerSlot;
+    uint8 itemSlot          = packet.Inv.Items[1].Slot;
 
-    recvData >> gift_bag >> gift_slot;                     // paper
-    recvData >> item_bag >> item_slot;                     // item
+    TC_LOG_DEBUG("network", "HandleWrapItem - Receive giftContainerSlot = %u, giftSlot = %u, itemContainerSlot = %u, itemSlot = %u", giftContainerSlot, giftSlot, itemContainerSlot, itemSlot);
 
-    TC_LOG_DEBUG("network", "WRAP: receive gift_bag = %u, gift_slot = %u, item_bag = %u, item_slot = %u", gift_bag, gift_slot, item_bag, item_slot);
-
-    Item* gift = _player->GetItemByPos(gift_bag, gift_slot);
+    Item* gift = _player->GetItemByPos(giftContainerSlot, giftSlot);
     if (!gift)
     {
         _player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, gift, NULL);
         return;
     }
 
-    if (!(gift->GetTemplate()->GetFlags() & ITEM_PROTO_FLAG_WRAPPER)) // cheating: non-wrapper wrapper
+    if (!(gift->GetTemplate()->GetFlags() & ITEM_FLAG_WRAPPER)) // cheating: non-wrapper wrapper
     {
         _player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, gift, NULL);
         return;
     }
 
-    Item* item = _player->GetItemByPos(item_bag, item_slot);
-
+    Item* item = _player->GetItemByPos(itemContainerSlot, itemSlot);
     if (!item)
     {
         _player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, item, NULL);
         return;
     }
 
-    if (item == gift)                                          // not possable with pacjket from real client
+    if (item == gift) // not possable with pacjket from real client
     {
         _player->SendEquipError(EQUIP_ERR_CANT_WRAP_WRAPPED, item, NULL);
         return;
@@ -806,7 +771,7 @@ void WorldSession::HandleWrapItemOpcode(WorldPacket& recvData)
         return;
     }
 
-    if (!item->GetGuidValue(ITEM_FIELD_GIFTCREATOR).IsEmpty())      // HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAGS_WRAPPED);
+    if (!item->GetGuidValue(ITEM_FIELD_GIFTCREATOR).IsEmpty()) // HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAGS_WRAPPED);
     {
         _player->SendEquipError(EQUIP_ERR_CANT_WRAP_WRAPPED, item, NULL);
         return;
@@ -850,22 +815,35 @@ void WorldSession::HandleWrapItemOpcode(WorldPacket& recvData)
 
     switch (item->GetEntry())
     {
-        case 5042:  item->SetEntry(5043); break;
-        case 5048:  item->SetEntry(5044); break;
-        case 17303: item->SetEntry(17302); break;
-        case 17304: item->SetEntry(17305); break;
-        case 17307: item->SetEntry(17308); break;
-        case 21830: item->SetEntry(21831); break;
+        case 5042:
+            item->SetEntry(5043);
+            break;
+        case 5048:
+            item->SetEntry(5044);
+            break;
+        case 17303:
+            item->SetEntry(17302);
+            break;
+        case 17304:
+            item->SetEntry(17305);
+            break;
+        case 17307:
+            item->SetEntry(17308);
+            break;
+        case 21830:
+            item->SetEntry(21831);
+            break;
     }
+
     item->SetGuidValue(ITEM_FIELD_GIFTCREATOR, _player->GetGUID());
-    item->SetUInt32Value(ITEM_FIELD_FLAGS, ITEM_FLAG_WRAPPED);
+    item->SetUInt32Value(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_WRAPPED);
     item->SetState(ITEM_CHANGED, _player);
 
-    if (item->GetState() == ITEM_NEW)                          // save new item, to have alway for `character_gifts` record in `item_instance`
+    if (item->GetState() == ITEM_NEW) // save new item, to have alway for `character_gifts` record in `item_instance`
     {
         // after save it will be impossible to remove the item from the queue
         item->RemoveFromUpdateQueueOf(_player);
-        item->SaveToDB(trans);                                   // item gave inventory record unchanged and can be save standalone
+        item->SaveToDB(trans); // item gave inventory record unchanged and can be save standalone
     }
     CharacterDatabase.CommitTransaction(trans);
 
@@ -875,8 +853,6 @@ void WorldSession::HandleWrapItemOpcode(WorldPacket& recvData)
 
 void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_SOCKET_GEMS");
-
     ObjectGuid item_guid;
     ObjectGuid gem_guids[MAX_GEM_SOCKETS];
 
@@ -967,7 +943,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
         ItemTemplate const* iGemProto = Gems[i]->GetTemplate();
 
         // unique item (for new and already placed bit removed enchantments
-        if (iGemProto->GetFlags() & ITEM_PROTO_FLAG_UNIQUE_EQUIPPED)
+        if (iGemProto->GetFlags() & ITEM_FLAG_UNIQUE_EQUIPPED)
         {
             for (int j = 0; j < MAX_GEM_SOCKETS; ++j)
             {
@@ -1082,19 +1058,13 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
     itemTarget->SendUpdateSockets();
 }
 
-void WorldSession::HandleCancelTempEnchantmentOpcode(WorldPacket& recvData)
+void WorldSession::HandleCancelTempEnchantmentOpcode(WorldPackets::Item::CancelTempEnchantment& cancelTempEnchantment)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_CANCEL_TEMP_ENCHANTMENT");
-
-    uint32 slot;
-
-    recvData >> slot;
-
     // apply only to equipped item
-    if (!Player::IsEquipmentPos(INVENTORY_SLOT_BAG_0, slot))
+    if (!Player::IsEquipmentPos(INVENTORY_SLOT_BAG_0, cancelTempEnchantment.Slot))
         return;
 
-    Item* item = GetPlayer()->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+    Item* item = GetPlayer()->GetItemByPos(INVENTORY_SLOT_BAG_0, cancelTempEnchantment.Slot);
 
     if (!item)
         return;
@@ -1122,7 +1092,6 @@ void WorldSession::HandleGetItemPurchaseData(WorldPackets::Item::GetItemPurchase
 
 void WorldSession::HandleItemRefund(WorldPacket &recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_ITEM_PURCHASE_REFUND");
     ObjectGuid guid;
     recvData >> guid;                                      // item guid
 
@@ -1140,171 +1109,93 @@ void WorldSession::HandleItemRefund(WorldPacket &recvData)
     GetPlayer()->RefundItem(item);
 }
 
-/**
- * Handles the packet sent by the client when requesting information about item text.
- *
- * This function is called when player clicks on item which has some flag set
- */
-void WorldSession::HandleItemTextQuery(WorldPacket& recvData )
+void WorldSession::HandleTransmogrifyItems(WorldPackets::Item::TransmogrifyItems& transmogrifyItems)
 {
-    ObjectGuid itemGuid;
-    recvData >> itemGuid;
-
-    TC_LOG_DEBUG("network", "CMSG_ITEM_TEXT_QUERY %s", itemGuid.ToString().c_str());
-
-    WorldPacket data(SMSG_QUERY_ITEM_TEXT_RESPONSE, 14);    // guess size
-
-    if (Item* item = _player->GetItemByGuid(itemGuid))
-    {
-        data << uint8(0);                                       // has text
-        data << itemGuid;                                       // item guid
-        data << item->GetText();
-    }
-    else
-    {
-        data << uint8(1);                                       // no text
-    }
-
-    SendPacket(&data);
-}
-
-void WorldSession::HandleTransmogrifyItems(WorldPacket& recvData)
-{
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_TRANSMOGRIFY_ITEMS");
     Player* player = GetPlayer();
-
-    // Read data
-    uint32 count = recvData.ReadBits(22);
-
-    if (count >= EQUIPMENT_SLOT_END)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) sent a wrong count (%u) when transmogrifying items.", player->GetGUID().ToString().c_str(), player->GetName().c_str(), count);
-        recvData.rfinish();
-        return;
-    }
-
-    std::vector<ObjectGuid> itemGuids(count, ObjectGuid());
-    std::vector<uint32> newEntries(count, 0);
-    std::vector<uint32> slots(count, 0);
-
-    for (uint8 i = 0; i < count; ++i)
-    {
-        itemGuids[i][0] = recvData.ReadBit();
-        itemGuids[i][5] = recvData.ReadBit();
-        itemGuids[i][6] = recvData.ReadBit();
-        itemGuids[i][2] = recvData.ReadBit();
-        itemGuids[i][3] = recvData.ReadBit();
-        itemGuids[i][7] = recvData.ReadBit();
-        itemGuids[i][4] = recvData.ReadBit();
-        itemGuids[i][1] = recvData.ReadBit();
-    }
-
-    ObjectGuid npcGuid;
-    npcGuid[7] = recvData.ReadBit();
-    npcGuid[3] = recvData.ReadBit();
-    npcGuid[5] = recvData.ReadBit();
-    npcGuid[6] = recvData.ReadBit();
-    npcGuid[1] = recvData.ReadBit();
-    npcGuid[4] = recvData.ReadBit();
-    npcGuid[0] = recvData.ReadBit();
-    npcGuid[2] = recvData.ReadBit();
-
-    recvData.FlushBits();
-
-    for (uint32 i = 0; i < count; ++i)
-    {
-        recvData >> newEntries[i];
-
-        recvData.ReadByteSeq(itemGuids[i][1]);
-        recvData.ReadByteSeq(itemGuids[i][5]);
-        recvData.ReadByteSeq(itemGuids[i][0]);
-        recvData.ReadByteSeq(itemGuids[i][4]);
-        recvData.ReadByteSeq(itemGuids[i][6]);
-        recvData.ReadByteSeq(itemGuids[i][7]);
-        recvData.ReadByteSeq(itemGuids[i][3]);
-        recvData.ReadByteSeq(itemGuids[i][2]);
-
-        recvData >> slots[i];
-    }
-
-    recvData.ReadByteSeq(npcGuid[7]);
-    recvData.ReadByteSeq(npcGuid[2]);
-    recvData.ReadByteSeq(npcGuid[5]);
-    recvData.ReadByteSeq(npcGuid[4]);
-    recvData.ReadByteSeq(npcGuid[3]);
-    recvData.ReadByteSeq(npcGuid[1]);
-    recvData.ReadByteSeq(npcGuid[6]);
-    recvData.ReadByteSeq(npcGuid[0]);
-
     // Validate
-
-    if (!player->GetNPCIfCanInteractWith(npcGuid, UNIT_NPC_FLAG_TRANSMOGRIFIER))
+    if (!player->GetNPCIfCanInteractWith(transmogrifyItems.Npc, UNIT_NPC_FLAG_TRANSMOGRIFIER))
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - %s not found or player can't interact with it.", npcGuid.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - %s not found or player can't interact with it.", transmogrifyItems.Npc.ToString().c_str());
         return;
     }
 
     int64 cost = 0;
-    std::vector<Item*> transmogrifier(count, NULL);
-    std::vector<Item*> transmogrified(count, NULL);
+    std::unordered_map<Item*, Item*> transmogItems;
+    std::unordered_map<Item*, std::pair<VoidStorageItem*, BonusData>> transmogVoidItems;
+    std::vector<Item*> resetAppearanceItems;
 
-    for (uint8 i = 0; i < count; ++i)
+    for (WorldPackets::Item::TransmogrifyItem const& transmogItem : transmogrifyItems.Items)
     {
         // slot of the transmogrified item
-        if (slots[i] >= EQUIPMENT_SLOT_END)
+        if (transmogItem.Slot >= EQUIPMENT_SLOT_END)
         {
-            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify %s with a wrong slot (%u) when transmogrifying items.", player->GetGUID().ToString().c_str(), player->GetName().c_str(), itemGuids[i].ToString().c_str(), slots[i]);
+            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify wrong slot (%u) when transmogrifying items.", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.Slot);
             return;
         }
 
         // transmogrified item
-        Item* itemTransmogrified = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slots[i]);
+        Item* itemTransmogrified = player->GetItemByPos(INVENTORY_SLOT_BAG_0, transmogItem.Slot);
         if (!itemTransmogrified)
         {
-            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify an invalid item in a valid slot (slot: %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), slots[i]);
+            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify an invalid item in a valid slot (slot: %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.Slot);
             return;
         }
 
-        // if not resetting look
-        Item* itemTransmogrifier = NULL;
-        if (newEntries[i])
+        WorldPackets::Item::ItemInstance itemInstance;
+        BonusData const* bonus = nullptr;
+        if (transmogItem.SrcItemGUID)
         {
-            // entry of the transmogrifier item
-            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(newEntries[i]);
-            if (!proto)
-            {
-                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify to an invalid item (entry: %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), newEntries[i]);
-                return;
-            }
-
             // guid of the transmogrifier item
-            itemTransmogrifier = player->GetItemByGuid(itemGuids[i]);
+            Item* itemTransmogrifier = player->GetItemByGuid(*transmogItem.SrcItemGUID);
             if (!itemTransmogrifier)
             {
-                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), itemGuids[i].ToString().c_str());
+                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcItemGUID->ToString().c_str());
                 return;
             }
 
-            // entry of transmogrifier and from packet
-            if (itemTransmogrifier->GetEntry() != newEntries[i])
+            itemInstance.Initialize(itemTransmogrifier);
+            bonus = itemTransmogrifier->GetBonus();
+            transmogItems[itemTransmogrified] = itemTransmogrifier;
+        }
+        else if (transmogItem.SrcVoidItemGUID)
+        {
+            // guid of the transmogrifier item
+            uint8 slot;
+            VoidStorageItem* itemTransmogrifier = player->GetVoidStorageItem(transmogItem.SrcVoidItemGUID->GetCounter(), slot);
+            if (!itemTransmogrifier)
             {
-                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid entry (entry: %u) for %s.", player->GetGUID().ToString().c_str(), player->GetName().c_str(), newEntries[i], itemGuids[i].ToString().c_str());
+                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid void storage item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcVoidItemGUID->ToString().c_str());
                 return;
             }
 
-            // validity of the transmogrification items
-            if (!Item::CanTransmogrifyItemWithItem(itemTransmogrified, itemTransmogrifier))
-            {
-                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) failed CanTransmogrifyItemWithItem (%u with %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), itemTransmogrified->GetEntry(), itemTransmogrifier->GetEntry());
-                return;
-            }
-
-            // add cost
-            cost += itemTransmogrified->GetSpecialPrice();
+            itemInstance.Initialize(itemTransmogrifier);
+            std::pair<VoidStorageItem*, BonusData>& transmogData = transmogVoidItems[itemTransmogrified];
+            transmogData.first = itemTransmogrifier;
+            transmogData.second.Initialize(itemInstance);
+            bonus = &transmogData.second;
+        }
+        else
+        {
+            resetAppearanceItems.push_back(itemTransmogrified);
+            continue;
         }
 
-        transmogrifier[i] = itemTransmogrifier;
-        transmogrified[i] = itemTransmogrified;
+        // entry of transmogrifier and from packet
+        if (itemInstance != transmogItem.Item)
+        {
+            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid item instance data for %s.", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcItemGUID->ToString().c_str());
+            return;
+        }
+
+        // validity of the transmogrification items
+        if (!Item::CanTransmogrifyItemWithItem(itemTransmogrified, transmogItem.Item, bonus))
+        {
+            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) failed CanTransmogrifyItemWithItem (%u with %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), itemTransmogrified->GetEntry(), transmogItem.Item.ItemID);
+            return;
+        }
+
+        // add cost
+        cost += itemTransmogrified->GetSpecialPrice();
     }
 
     if (cost) // 0 cost if reverting look
@@ -1315,34 +1206,44 @@ void WorldSession::HandleTransmogrifyItems(WorldPacket& recvData)
     }
 
     // Everything is fine, proceed
-
-    for (uint8 i = 0; i < count; ++i)
+    for (auto& transmogPair : transmogItems)
     {
-        if (transmogrifier[i])
-        {
-            // Transmogrify
-            transmogrified[i]->SetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID, newEntries[i]);
-            player->SetVisibleItemSlot(slots[i], transmogrified[i]);
+        Item* transmogrified = transmogPair.first;
+        Item* transmogrifier = transmogPair.second;
 
-            transmogrified[i]->UpdatePlayedTime(player);
+        transmogrified->SetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID, transmogrifier->GetEntry());
+        transmogrified->SetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_MOD, transmogrifier->GetAppearanceModId());
+        player->SetVisibleItemSlot(transmogrified->GetSlot(), transmogrified);
 
-            transmogrified[i]->SetOwnerGUID(player->GetGUID());
-            transmogrified[i]->SetNotRefundable(player);
-            transmogrified[i]->ClearSoulboundTradeable(player);
+        transmogrified->SetNotRefundable(player);
+        transmogrified->ClearSoulboundTradeable(player);
 
-            if (transmogrifier[i]->GetTemplate()->GetBonding() == BIND_WHEN_EQUIPED || transmogrifier[i]->GetTemplate()->GetBonding() == BIND_WHEN_USE)
-                transmogrifier[i]->SetBinding(true);
+        transmogrifier->SetNotRefundable(player);
+        transmogrifier->ClearSoulboundTradeable(player);
 
-            transmogrifier[i]->SetOwnerGUID(player->GetGUID());
-            transmogrifier[i]->SetNotRefundable(player);
-            transmogrifier[i]->ClearSoulboundTradeable(player);
-        }
-        else
-        {
-            // Reset
-            transmogrified[i]->SetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID, 0);
-            player->SetVisibleItemSlot(slots[i], transmogrified[i]);
-        }
+        if (transmogrifier->GetTemplate()->GetBonding() == BIND_WHEN_EQUIPED || transmogrifier->GetTemplate()->GetBonding() == BIND_WHEN_USE)
+            transmogrifier->SetBinding(true);
+    }
+
+    for (auto& transmogVoirPair : transmogVoidItems)
+    {
+        Item* transmogrified = transmogVoirPair.first;
+        VoidStorageItem* transmogrifier = transmogVoirPair.second.first;
+        BonusData& bonus = transmogVoirPair.second.second;
+
+        transmogrified->SetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID, transmogrifier->ItemEntry);
+        transmogrified->SetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_MOD, bonus.AppearanceModID);
+        player->SetVisibleItemSlot(transmogrified->GetSlot(), transmogrified);
+
+        transmogrified->SetNotRefundable(player);
+        transmogrified->ClearSoulboundTradeable(player);
+    }
+
+    for (Item* item : resetAppearanceItems)
+    {
+        item->SetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID, 0);
+        item->SetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_MOD, 0);
+        player->SetVisibleItemSlot(item->GetSlot(), item);
     }
 }
 

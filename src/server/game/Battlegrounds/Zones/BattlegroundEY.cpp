@@ -17,8 +17,6 @@
  */
 
 #include "BattlegroundEY.h"
-#include "ObjectMgr.h"
-#include "World.h"
 #include "WorldPacket.h"
 #include "BattlegroundMgr.h"
 #include "Creature.h"
@@ -117,6 +115,20 @@ void BattlegroundEY::PostUpdateImpl(uint32 diff)
     }
 }
 
+void BattlegroundEY::GetPlayerPositionData(std::vector<WorldPackets::Battleground::BattlegroundPlayerPosition>* positions) const
+{
+    if (Player* player = ObjectAccessor::GetPlayer(GetBgMap(), m_FlagKeeper))
+    {
+        WorldPackets::Battleground::BattlegroundPlayerPosition position;
+        position.Guid = player->GetGUID();
+        position.Pos.x = player->GetPositionX();
+        position.Pos.y = player->GetPositionY();
+        position.IconID = player->GetTeam() == ALLIANCE ? PLAYER_POSITION_ICON_ALLIANCE_FLAG : PLAYER_POSITION_ICON_HORDE_FLAG;
+        position.ArenaSlot = PLAYER_POSITION_ARENA_SLOT_NONE;
+        positions->push_back(position);
+    }
+}
+
 void BattlegroundEY::StartingEventCloseDoors()
 {
     SpawnBGObject(BG_EY_OBJECT_DOOR_A, RESPAWN_IMMEDIATELY);
@@ -162,7 +174,7 @@ void BattlegroundEY::CheckSomeoneJoinedPoint()
     GameObject* obj = NULL;
     for (uint8 i = 0; i < EY_POINTS_MAX; ++i)
     {
-        obj = HashMapHolder<GameObject>::Find(BgObjects[BG_EY_OBJECT_TOWER_CAP_FEL_REAVER + i]);
+        obj = GetBgMap()->GetGameObject(BgObjects[BG_EY_OBJECT_TOWER_CAP_FEL_REAVER + i]);
         if (obj)
         {
             uint8 j = 0;
@@ -202,7 +214,7 @@ void BattlegroundEY::CheckSomeoneLeftPoint()
     GameObject* obj = NULL;
     for (uint8 i = 0; i < EY_POINTS_MAX; ++i)
     {
-        obj = HashMapHolder<GameObject>::Find(BgObjects[BG_EY_OBJECT_TOWER_CAP_FEL_REAVER + i]);
+        obj = GetBgMap()->GetGameObject(BgObjects[BG_EY_OBJECT_TOWER_CAP_FEL_REAVER + i]);
         if (obj)
         {
             uint8 j = 0;
@@ -392,7 +404,7 @@ void BattlegroundEY::RemovePlayer(Player* player, ObjectGuid guid, uint32 /*team
     }
 }
 
-void BattlegroundEY::HandleAreaTrigger(Player* player, uint32 trigger)
+void BattlegroundEY::HandleAreaTrigger(Player* player, uint32 trigger, bool entered)
 {
     if (GetStatus() != STATUS_IN_PROGRESS)
         return;
@@ -435,7 +447,7 @@ void BattlegroundEY::HandleAreaTrigger(Player* player, uint32 trigger)
         case 5866:
             break;
         default:
-            Battleground::HandleAreaTrigger(player, trigger);
+            Battleground::HandleAreaTrigger(player, trigger, entered);
             break;
     }
 }
@@ -589,7 +601,7 @@ void BattlegroundEY::RespawnFlagAfterDrop()
 {
     RespawnFlag(true);
 
-    GameObject* obj = HashMapHolder<GameObject>::Find(GetDroppedFlagGUID());
+    GameObject* obj = GetBgMap()->GetGameObject(GetDroppedFlagGUID());
     if (obj)
         obj->Delete();
     else

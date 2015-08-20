@@ -18,7 +18,6 @@
 
 #include "BattlegroundDS.h"
 #include "Creature.h"
-#include "GameObject.h"
 #include "Player.h"
 #include "WorldPacket.h"
 
@@ -122,7 +121,7 @@ void BattlegroundDS::StartingEventOpenDoors()
             player->RemoveAurasDueToSpell(SPELL_WARL_DEMONIC_CIRCLE);
 }
 
-void BattlegroundDS::HandleAreaTrigger(Player* player, uint32 trigger)
+void BattlegroundDS::HandleAreaTrigger(Player* player, uint32 trigger, bool entered)
 {
     if (GetStatus() != STATUS_IN_PROGRESS)
         return;
@@ -140,7 +139,7 @@ void BattlegroundDS::HandleAreaTrigger(Player* player, uint32 trigger)
                 _pipeKnockBackCount = 0;
             break;
         default:
-            Battleground::HandleAreaTrigger(player, trigger);
+            Battleground::HandleAreaTrigger(player, trigger, entered);
             break;
     }
 }

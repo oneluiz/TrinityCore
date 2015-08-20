@@ -29,7 +29,7 @@ namespace WorldPackets
         class AttackSwing final : public ClientPacket
         {
         public:
-            AttackSwing(WorldPacket&& packet) : ClientPacket(CMSG_ATTACKSWING, std::move(packet)) { }
+            AttackSwing(WorldPacket&& packet) : ClientPacket(CMSG_ATTACK_SWING, std::move(packet)) { }
 
             void Read() override;
 
@@ -39,8 +39,8 @@ namespace WorldPackets
         class AttackSwingError final : public ServerPacket
         {
         public:
-            AttackSwingError() : ServerPacket(SMSG_ATTACKSWING_ERROR, 4) { }
-            AttackSwingError(AttackSwingErr reason) : ServerPacket(SMSG_ATTACKSWING_ERROR, 4), Reason(reason) { }
+            AttackSwingError() : ServerPacket(SMSG_ATTACK_SWING_ERROR, 4) { }
+            AttackSwingError(AttackSwingErr reason) : ServerPacket(SMSG_ATTACK_SWING_ERROR, 4), Reason(reason) { }
 
             WorldPacket const* Write() override;
 
@@ -50,7 +50,7 @@ namespace WorldPackets
         class AttackStop final : public ClientPacket
         {
         public:
-            AttackStop(WorldPacket&& packet) : ClientPacket(CMSG_ATTACKSTOP, std::move(packet)) { }
+            AttackStop(WorldPacket&& packet) : ClientPacket(CMSG_ATTACK_STOP, std::move(packet)) { }
 
             void Read() override { }
         };
@@ -58,7 +58,7 @@ namespace WorldPackets
         class AttackStart final : public ServerPacket
         {
         public:
-            AttackStart() : ServerPacket(SMSG_ATTACKSTART, 16) { }
+            AttackStart() : ServerPacket(SMSG_ATTACK_START, 16) { }
 
             WorldPacket const* Write() override;
 
@@ -69,7 +69,7 @@ namespace WorldPackets
         class SAttackStop final : public ServerPacket
         {
         public:
-            SAttackStop() : ServerPacket(SMSG_ATTACKSTOP, 16 + 16 + 1) { }
+            SAttackStop() : ServerPacket(SMSG_ATTACK_STOP, 16 + 16 + 1) { }
             SAttackStop(Unit const* attacker, Unit const* victim);
 
             WorldPacket const* Write() override;
@@ -130,54 +130,6 @@ namespace WorldPackets
             uint32 Reaction = 0;
         };
 
-        struct SubDamage
-        {
-            int32 SchoolMask    = 0;
-            float FDamage       = 0.0f; // Float damage (Most of the time equals to Damage)
-            int32 Damage        = 0;
-            int32 Absorbed      = 0;
-            int32 Resisted      = 0;
-        };
-
-        struct UnkAttackerState
-        {
-            int32 State1 = 0;
-            float State2 = 0.0f;
-            float State3 = 0.0f;
-            float State4 = 0.0f;
-            float State5 = 0.0f;
-            float State6 = 0.0f;
-            float State7 = 0.0f;
-            float State8 = 0.0f;
-            float State9 = 0.0f;
-            float State10 = 0.0f;
-            float State11 = 0.0f;
-            int32 State12 = 0;
-        };
-
-        class AttackerStateUpdate final : public ServerPacket
-        {
-        public:
-            AttackerStateUpdate() : ServerPacket(SMSG_ATTACKERSTATEUPDATE, 70) { }
-
-            WorldPacket const* Write() override;
-
-            Optional<Spells::SpellCastLogData> LogData;
-            uint32 HitInfo          = 0; // Flags
-            ObjectGuid AttackerGUID;
-            ObjectGuid VictimGUID;
-            int32 Damage            = 0;
-            int32 OverDamage        = -1; // (damage - health) or -1 if unit is still alive
-            Optional<SubDamage> SubDmg;
-            uint8 VictimState       = 0;
-            int32 AttackerState     = -1;
-            int32 MeleeSpellID      = 0;
-            int32 BlockAmount       = 0;
-            int32 RageGained        = 0;
-            UnkAttackerState UnkState;
-            float Unk               = 0.0f;
-        };
-
         class CancelCombat final : public ServerPacket
         {
         public:
@@ -235,6 +187,38 @@ namespace WorldPackets
 
             ObjectGuid Guid;
             int32 Health = 0;
+        };
+
+        class ThreatClear final : public ServerPacket
+        {
+        public:
+            ThreatClear() : ServerPacket(SMSG_THREAT_CLEAR, 16) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid UnitGUID;
+        };
+
+        class PvPCredit final : public ServerPacket
+        {
+        public:
+            PvPCredit() : ServerPacket(SMSG_PVP_CREDIT, 4 + 16 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Target;
+            int32 Honor = 0;
+            int32 Rank = 0;
+        };
+
+        class BreakTarget final : public ServerPacket
+        {
+        public:
+            BreakTarget() : ServerPacket(SMSG_BREAK_TARGET, 16) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid UnitGUID;
         };
     }
 }

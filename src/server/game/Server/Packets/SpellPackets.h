@@ -38,6 +38,30 @@ namespace WorldPackets
             int32 SpellID = 0;
         };
 
+        class CancelGrowthAura final : public ClientPacket
+        {
+        public:
+            CancelGrowthAura(WorldPacket&& packet) : ClientPacket(CMSG_CANCEL_GROWTH_AURA, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class CancelMountAura final : public ClientPacket
+        {
+        public:
+            CancelMountAura(WorldPacket&& packet) : ClientPacket(CMSG_CANCEL_MOUNT_AURA, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class RequestCategoryCooldowns final : public ClientPacket
+        {
+        public:
+            RequestCategoryCooldowns(WorldPacket&& packet) : ClientPacket(CMSG_REQUEST_CATEGORY_COOLDOWNS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
         class CategoryCooldown final : public ServerPacket
         {
         public:
@@ -50,7 +74,7 @@ namespace WorldPackets
                 int32 ModCooldown = 0; ///< Reduced Cooldown in ms
             };
 
-            CategoryCooldown() : ServerPacket(SMSG_SPELL_CATEGORY_COOLDOWN, 4) { }
+            CategoryCooldown() : ServerPacket(SMSG_CATEGORY_COOLDOWN, 4) { }
 
             WorldPacket const* Write() override;
 
@@ -60,7 +84,7 @@ namespace WorldPackets
         class SendKnownSpells final : public ServerPacket
         {
         public:
-            SendKnownSpells() : ServerPacket(SMSG_INITIAL_SPELLS, 5) { }
+            SendKnownSpells() : ServerPacket(SMSG_SEND_KNOWN_SPELLS, 5) { }
 
             WorldPacket const* Write() override;
 
@@ -71,7 +95,7 @@ namespace WorldPackets
         class UpdateActionButtons final : public ServerPacket
         {
         public:
-            UpdateActionButtons() : ServerPacket(SMSG_ACTION_BUTTONS, MAX_ACTION_BUTTONS * 8 + 1)
+            UpdateActionButtons() : ServerPacket(SMSG_UPDATE_ACTION_BUTTONS, MAX_ACTION_BUTTONS * 8 + 1)
             {
                 std::memset(ActionButtons, 0, sizeof(ActionButtons));
             }
@@ -111,6 +135,8 @@ namespace WorldPackets
 
         struct SpellLogPowerData
         {
+            SpellLogPowerData(int32 powerType, int32 amount) : PowerType(powerType), Amount(amount) { }
+
             int32 PowerType = 0;
             int32 Amount    = 0;
         };
@@ -121,11 +147,14 @@ namespace WorldPackets
             int32 AttackPower   = 0;
             int32 SpellPower    = 0;
             std::vector<SpellLogPowerData> PowerData;
+
+            void Initialize(Unit const* unit);
         };
 
         struct AuraDataInfo
         {
             int32 SpellID = 0;
+            uint32 SpellXSpellVisualID = 0;
             uint8 Flags = 0;
             uint32 ActiveFlags = 0;
             uint16 CastLevel = 1;
@@ -189,13 +218,14 @@ namespace WorldPackets
         {
             uint8 CastID = 0;
             int32 SpellID = 0;
-            int32 Misc = 0;
+            uint32 SpellXSpellVisualID = 0;
             uint8 SendCastFlags = 0;
             SpellTargetData Target;
             MissileTrajectoryRequest MissileTrajectory;
             Optional<MovementInfo> MoveUpdate;
             std::vector<SpellWeight> Weight;
             ObjectGuid Charmer;
+            int32 Misc[2] = { };
         };
 
         class CastSpell final : public ClientPacket
@@ -263,11 +293,6 @@ namespace WorldPackets
             int8 InventoryType = 0;
         };
 
-        struct ProjectileVisualData
-        {
-            int32 ID[2];
-        };
-
         struct CreatureImmunities
         {
             uint32 School = 0;
@@ -287,6 +312,7 @@ namespace WorldPackets
             ObjectGuid CasterUnit;
             uint8 CastID        = 0;
             int32 SpellID       = 0;
+            uint32 SpellXSpellVisualID = 0;
             uint32 CastFlags    = 0;
             uint32 CastFlagsEx  = 0;
             uint32 CastTime     = 0;
@@ -298,7 +324,6 @@ namespace WorldPackets
             Optional<RuneData> RemainingRunes;
             MissileTrajectoryResult MissileTrajectory;
             SpellAmmo Ammo;
-            Optional<ProjectileVisualData> ProjectileVisual;
             uint8 DestLocSpellCastIndex = 0;
             std::vector<TargetLocation> TargetPoints;
             CreatureImmunities Immunities;
@@ -346,6 +371,7 @@ namespace WorldPackets
 
             ObjectGuid CasterUnit;
             uint32 SpellID  = 0;
+            uint32 SpelXSpellVisualID = 0;
             uint16 Reason   = 0;
             uint8 CastID    = 0;
         };
@@ -407,51 +433,52 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             std::vector<uint32> SpellID;
+            bool SuppressMessaging = false;
         };
 
         class CooldownEvent final : public ServerPacket
         {
         public:
-            CooldownEvent() : ServerPacket(SMSG_COOLDOWN_EVENT, 16 + 4) { }
-            CooldownEvent(ObjectGuid casterGuid, int32 spellId) : ServerPacket(SMSG_COOLDOWN_EVENT, 16 + 4), CasterGUID(casterGuid), SpellID(spellId) { }
+            CooldownEvent() : ServerPacket(SMSG_COOLDOWN_EVENT, 1 + 4) { }
+            CooldownEvent(bool isPet, int32 spellId) : ServerPacket(SMSG_COOLDOWN_EVENT, 16 + 4), IsPet(isPet), SpellID(spellId) { }
 
             WorldPacket const* Write() override;
 
-            ObjectGuid CasterGUID;
+            bool IsPet = false;
             int32 SpellID;
         };
 
         class ClearCooldowns final : public ServerPacket
         {
         public:
-            ClearCooldowns() : ServerPacket(SMSG_CLEAR_COOLDOWNS, 4 + 16) { }
+            ClearCooldowns() : ServerPacket(SMSG_CLEAR_COOLDOWNS, 4 + 1) { }
 
             WorldPacket const* Write() override;
 
             std::vector<int32> SpellID;
-            ObjectGuid Guid;
+            bool IsPet = false;
         };
 
         class ClearCooldown final : public ServerPacket
         {
         public:
-            ClearCooldown() : ServerPacket(SMSG_CLEAR_COOLDOWN, 16 + 4 + 1) { }
+            ClearCooldown() : ServerPacket(SMSG_CLEAR_COOLDOWN, 1 + 4 + 1) { }
 
             WorldPacket const* Write() override;
 
+            bool IsPet = false;
             int32 SpellID = 0;
             bool ClearOnHold = false;
-            bool Unk20 = false;
         };
 
         class ModifyCooldown final : public ServerPacket
         {
         public:
-            ModifyCooldown() : ServerPacket(SMSG_MODIFY_COOLDOWN, 16 + 4 + 4) { }
+            ModifyCooldown() : ServerPacket(SMSG_MODIFY_COOLDOWN, 1 + 4 + 4) { }
 
             WorldPacket const* Write() override;
 
-            ObjectGuid UnitGUID;
+            bool IsPet = false;
             int32 DeltaTime = 0;
             int32 SpellID = 0;
         };
@@ -500,21 +527,21 @@ namespace WorldPackets
         class ClearAllSpellCharges final : public ServerPacket
         {
         public:
-            ClearAllSpellCharges() : ServerPacket(SMSG_CLEAR_ALL_SPELL_CHARGES, 16) { }
+            ClearAllSpellCharges() : ServerPacket(SMSG_CLEAR_ALL_SPELL_CHARGES, 1) { }
 
             WorldPacket const* Write() override;
 
-            ObjectGuid Unit;
+            bool IsPet = false;
         };
 
         class ClearSpellCharges final : public ServerPacket
         {
         public:
-            ClearSpellCharges() : ServerPacket(SMSG_CLEAR_SPELL_CHARGES, 20) { }
+            ClearSpellCharges() : ServerPacket(SMSG_CLEAR_SPELL_CHARGES, 1 + 4) { }
 
             WorldPacket const* Write() override;
 
-            ObjectGuid Unit;
+            bool IsPet = false;
             int32 Category = 0;
         };
 
@@ -526,8 +553,9 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             bool IsPet = false;
-            float Count = 0.0f;
-            int32 Category = 0;
+            uint32 Category = 0;
+            uint32 NextRecoveryTime = 0;
+            uint8 ConsumedCharges = 0;
         };
 
         struct SpellChargeEntry
@@ -598,6 +626,159 @@ namespace WorldPackets
 
             uint8 Slot = 0;
             uint8 PackSlot = 0;
+        };
+
+        struct SpellChannelStartInterruptImmunities
+        {
+            int32 SchoolImmunities = 0;
+            int32 Immunities = 0;
+        };
+
+        struct SpellTargetedHealPrediction
+        {
+            ObjectGuid TargetGUID;
+            SpellHealPrediction Predict;
+        };
+
+        class SpellChannelStart final : public ServerPacket
+        {
+        public:
+            SpellChannelStart() : ServerPacket(SMSG_SPELL_CHANNEL_START, 4 + 16 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            int32 SpellID = 0;
+            Optional<SpellChannelStartInterruptImmunities> InterruptImmunities;
+            ObjectGuid CasterGUID;
+            Optional<SpellTargetedHealPrediction> HealPrediction;
+            uint32 ChannelDuration = 0;
+        };
+
+        class SpellChannelUpdate final : public ServerPacket
+        {
+        public:
+            SpellChannelUpdate() : ServerPacket(SMSG_SPELL_CHANNEL_UPDATE, 16 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid CasterGUID;
+            int32 TimeRemaining = 0;
+        };
+
+        class ResurrectRequest final : public ServerPacket
+        {
+        public:
+            ResurrectRequest() : ServerPacket(SMSG_RESURRECT_REQUEST, 16 + 4 + 4 + 4 + 1) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid ResurrectOffererGUID;
+            uint32 ResurrectOffererVirtualRealmAddress  = 0;
+            uint32 PetNumber                            = 0;
+            int32 SpellID                               = 0;
+            bool UseTimer                               = false;
+            bool Sickness                               = false;
+            std::string Name;
+        };
+
+        class UnlearnSkill final : public ClientPacket
+        {
+        public:
+            UnlearnSkill(WorldPacket&& packet) : ClientPacket(CMSG_UNLEARN_SKILL, std::move(packet)) { }
+
+            void Read() override;
+
+            uint32 SkillLine = 0;
+        };
+
+        class SelfRes final : public ClientPacket
+        {
+        public:
+            SelfRes(WorldPacket&& packet) : ClientPacket(CMSG_SELF_RES, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class GetMirrorImageData final : public ClientPacket
+        {
+        public:
+            GetMirrorImageData(WorldPacket&& packet) : ClientPacket(CMSG_GET_MIRROR_IMAGE_DATA, std::move(packet)) {}
+
+            void Read() override;
+
+            ObjectGuid UnitGUID;
+            uint32 DisplayID = 0;
+        };
+
+        class MirrorImageComponentedData final : public ServerPacket
+        {
+        public:
+            MirrorImageComponentedData() : ServerPacket(SMSG_MIRROR_IMAGE_COMPONENTED_DATA, 8 + 4 + 8 * 1 + 8 + 11 * 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid UnitGUID;
+            uint32 DisplayID = 0;
+            uint8 RaceID = 0;
+            uint8 Gender = 0;
+            uint8 ClassID = 0;
+            uint8 SkinColor = 0;
+            uint8 FaceVariation = 0;
+            uint8 HairVariation = 0;
+            uint8 HairColor = 0;
+            uint8 BeardVariation = 0;
+            ObjectGuid GuildGUID;
+
+            std::vector<uint32> ItemDisplayID;
+        };
+
+        class MirrorImageCreatureData final : public ServerPacket
+        {
+        public:
+            MirrorImageCreatureData() : ServerPacket(SMSG_MIRROR_IMAGE_CREATURE_DATA, 8 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid UnitGUID;
+            uint32 DisplayID = 0;
+        };
+
+        class SpellClick final : public ClientPacket
+        {
+        public:
+            SpellClick(WorldPacket&& packet) : ClientPacket(CMSG_SPELL_CLICK, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid SpellClickUnitGuid;
+            bool TryAutoDismount = false;
+        };
+
+        class ConvertRune final : public ServerPacket
+        {
+        public:
+            ConvertRune() : ServerPacket(SMSG_CONVERT_RUNE, 1 + 1) { }
+
+            WorldPacket const* Write() override;
+
+            uint8 Index = 0;
+            uint8 Rune = 0;
+        };
+
+        class ResyncRunes final : public ServerPacket
+        {
+        public:
+            struct ResyncRune
+            {
+                uint8 RuneType = 0;
+                uint8 Cooldown = 0;
+            };
+
+            ResyncRunes(size_t size) : ServerPacket(SMSG_RESYNC_RUNES, 4 + 2 * size) { }
+
+            WorldPacket const* Write() override;
+
+            std::vector<ResyncRune> Runes;
         };
     }
 }

@@ -20,9 +20,6 @@
 #include "MoveSpline.h"
 #include "Unit.h"
 #include "Transport.h"
-#include "Vehicle.h"
-#include "WorldPacket.h"
-#include "Opcodes.h"
 #include "MovementPackets.h"
 
 namespace Movement
@@ -119,6 +116,12 @@ namespace Movement
         packet.MoverGUID = unit->GetGUID();
         packet.Pos = real_position;
         packet.InitializeSplineData(move_spline);
+        if (transport)
+        {
+            packet.SplineData.Move.TransportGUID = unit->GetTransGUID();
+            packet.SplineData.Move.VehicleSeat = unit->GetTransSeat();
+        }
+
         unit->SendMessageToSet(packet.Write(), true);
 
         return move_spline.Duration();

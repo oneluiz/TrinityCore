@@ -54,7 +54,7 @@ namespace WorldPackets
         class ClientCacheVersion final : public ServerPacket
         {
         public:
-            ClientCacheVersion() : ServerPacket(SMSG_CLIENTCACHE_VERSION, 4) { }
+            ClientCacheVersion() : ServerPacket(SMSG_CACHE_VERSION, 4) { }
 
             WorldPacket const* Write() override;
 
@@ -98,6 +98,16 @@ namespace WorldPackets
             uint32 Size    = 0; ///< decompressed size
             uint8 DataType = 0; ///< @see enum AccountDataType
             ByteBuffer CompressedData;
+        };
+
+        class SetAdvancedCombatLogging final : public ClientPacket
+        {
+        public:
+            SetAdvancedCombatLogging(WorldPacket&& packet) : ClientPacket(CMSG_SET_ADVANCED_COMBAT_LOGGING, std::move(packet)) { }
+
+            void Read() override;
+
+            bool Enable = false;
         };
     }
 }

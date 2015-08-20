@@ -202,6 +202,7 @@ void AuraApplication::BuildUpdatePacket(WorldPackets::Spells::AuraInfo& auraInfo
 
     WorldPackets::Spells::AuraDataInfo auraData;
     auraData.SpellID = aura->GetId();
+    auraData.SpellXSpellVisualID = aura->GetSpellInfo()->GetSpellXSpellVisualId(_target->GetMap()->GetDifficultyID());
     auraData.Flags = GetFlags();
     if (aura->GetMaxDuration() > 0 && !(aura->GetSpellInfo()->AttributesEx5 & SPELL_ATTR5_HIDE_DURATION))
         auraData.Flags |= AFLAG_DURATION;
@@ -213,12 +214,12 @@ void AuraApplication::BuildUpdatePacket(WorldPackets::Spells::AuraInfo& auraInfo
     // stack amount has priority over charges (checked on retail with spell 50262)
     auraData.Applications = aura->GetSpellInfo()->StackAmount ? aura->GetStackAmount() : aura->GetCharges();
     if (!(auraData.Flags & AFLAG_NOCASTER))
-        auraData.CastUnit.Set(aura->GetCasterGUID());
+        auraData.CastUnit = aura->GetCasterGUID();
 
     if (auraData.Flags & AFLAG_DURATION)
     {
-        auraData.Duration.Set(aura->GetMaxDuration());
-        auraData.Remaining.Set(aura->GetDuration());
+        auraData.Duration = aura->GetMaxDuration();
+        auraData.Remaining = aura->GetDuration();
     }
 
     if (auraData.Flags & AFLAG_SCALABLE)
@@ -229,7 +230,7 @@ void AuraApplication::BuildUpdatePacket(WorldPackets::Spells::AuraInfo& auraInfo
                 auraData.Points[effect->GetEffIndex()] = float(effect->GetAmount());
     }
 
-    auraInfo.AuraData.Set(auraData);
+    auraInfo.AuraData = auraData;
 }
 
 void AuraApplication::ClientUpdate(bool remove)
@@ -331,9 +332,6 @@ Aura* Aura::Create(SpellInfo const* spellproto, uint32 effMask, WorldObject* own
     }
     else
         casterGUID = caster->GetGUID();
-
-    // at this point of Aura::Create() there MUST be a valid caster
-    ASSERT(caster);
 
     // check if aura can be owned by owner
     if (owner->isType(TYPEMASK_UNIT))
@@ -1115,9 +1113,6 @@ void Aura::UnregisterSingleTarget()
 {
     ASSERT(m_isSingleTarget);
     Unit* caster = GetCaster();
-    /// @todo find a better way to do this.
-    if (!caster)
-        caster = ObjectAccessor::GetObjectInOrOutOfWorld(GetCasterGUID(), (Unit*)NULL);
     ASSERT(caster);
     caster->GetSingleCastAuras().remove(this);
     SetIsSingleTarget(false);
@@ -1359,19 +1354,6 @@ void Aura::HandleAuraSpecificMods(AuraApplication const* aurApp, Unit* caster, b
             case SPELLFAMILY_MAGE:
                 if (!caster)
                     break;
-                /// @todo This should be moved to similar function in spell::hit
-                if (GetSpellInfo()->SpellFamilyFlags[0] & 0x01000000)
-                {
-                    // Polymorph Sound - Sheep && Penguin
-                    if (GetSpellInfo()->SpellIconID == 82 && GetSpellInfo()->SpellVisual[0] == 12978)
-                    {
-                        // Glyph of the Penguin
-                        if (caster->HasAura(52648))
-                            caster->CastSpell(target, 61635, true);
-                        else
-                            caster->CastSpell(target, 61634, true);
-                    }
-                }
                 switch (GetId())
                 {
                     case 12536: // Clearcasting
@@ -1406,6 +1388,7 @@ void Aura::HandleAuraSpecificMods(AuraApplication const* aurApp, Unit* caster, b
                     if (AuraEffect const* aurEff = caster->GetDummyAuraEffect(SPELLFAMILY_PRIEST, 3790, 0))
                     {
                         uint32 damage = caster->SpellDamageBonusDone(target, GetSpellInfo(), GetEffect(0)->GetAmount(), DOT, GetEffect(0)->GetSpellEffectInfo());
+                        damage *= caster->SpellDamagePctDone(target, GetSpellInfo(), SPELL_DIRECT_DAMAGE);
                         damage = target->SpellDamageBonusTaken(caster, GetSpellInfo(), damage, DOT, GetEffect(0)->GetSpellEffectInfo());
                         int32 basepoints0 = aurEff->GetAmount() * GetEffect(0)->GetTotalTicks() * int32(damage) / 100;
                         int32 heal = int32(CalculatePct(basepoints0, 15));
@@ -1522,7 +1505,7 @@ void Aura::HandleAuraSpecificMods(AuraApplication const* aurApp, Unit* caster, b
             case SPELLFAMILY_ROGUE:
                 // Remove Vanish on stealth remove
                 if (GetId() == 1784)
-                    target->RemoveAurasWithFamily(SPELLFAMILY_ROGUE, 0x0000800, 0, 0, target->GetGUID());
+                    target->RemoveAurasWithFamily(SPELLFAMILY_ROGUE, flag128(0x0000800, 0, 0, 0), target->GetGUID());
                 break;
             case SPELLFAMILY_PALADIN:
                 // Remove the immunity shield marker on Forbearance removal if AW marker is not present

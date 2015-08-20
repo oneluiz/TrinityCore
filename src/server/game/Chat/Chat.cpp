@@ -19,7 +19,6 @@
 #include "Common.h"
 #include "ObjectMgr.h"
 #include "World.h"
-#include "WorldPacket.h"
 #include "WorldSession.h"
 #include "DatabaseEnv.h"
 
@@ -29,13 +28,9 @@
 #include "GridNotifiersImpl.h"
 #include "Language.h"
 #include "Log.h"
-#include "Opcodes.h"
 #include "Player.h"
-#include "UpdateMask.h"
-#include "SpellMgr.h"
 #include "ScriptMgr.h"
 #include "ChatLink.h"
-#include "Guild.h"
 #include "Group.h"
 
 bool ChatHandler::load_command_table = true;
@@ -81,6 +76,7 @@ ChatCommand* ChatHandler::getCommandTable()
 
             // cache top-level commands
             size_t added = 0;
+            free(commandTableCache);
             commandTableCache = (ChatCommand*)malloc(sizeof(ChatCommand) * total);
             ASSERT(commandTableCache);
             memset(commandTableCache, 0, sizeof(ChatCommand) * total);
@@ -201,7 +197,7 @@ void ChatHandler::SendSysMessage(const char *str)
 
     while (char* line = LineFromMessage(pos))
     {
-        packet.Initalize(CHAT_MSG_SYSTEM, LANG_UNIVERSAL, nullptr, nullptr, line);
+        packet.Initialize(CHAT_MSG_SYSTEM, LANG_UNIVERSAL, nullptr, nullptr, line);
         m_session->SendPacket(packet.Write());
     }
 
@@ -219,7 +215,7 @@ void ChatHandler::SendGlobalSysMessage(const char *str)
 
     while (char* line = LineFromMessage(pos))
     {
-        packet.Initalize(CHAT_MSG_SYSTEM, LANG_UNIVERSAL, nullptr, nullptr, line);
+        packet.Initialize(CHAT_MSG_SYSTEM, LANG_UNIVERSAL, nullptr, nullptr, line);
         sWorld->SendGlobalMessage(packet.Write());
     }
 
@@ -237,7 +233,7 @@ void ChatHandler::SendGlobalGMSysMessage(const char *str)
 
     while (char* line = LineFromMessage(pos))
     {
-        packet.Initalize(CHAT_MSG_SYSTEM, LANG_UNIVERSAL, nullptr, nullptr, line);
+        packet.Initialize(CHAT_MSG_SYSTEM, LANG_UNIVERSAL, nullptr, nullptr, line);
         sWorld->SendGlobalGMMessage(packet.Write());
     }
 
@@ -321,9 +317,9 @@ bool ChatHandler::ExecuteCommandInTable(ChatCommand* table, const char* text, st
                 std::string zoneName = "Unknown";
                 if (AreaTableEntry const* area = GetAreaEntryByAreaID(areaId))
                 {
-                    areaName = area->ZoneName;
+                    areaName = area->AreaName_lang;
                     if (AreaTableEntry const* zone = GetAreaEntryByAreaID(area->ParentAreaID))
-                        zoneName = zone->ZoneName;
+                        zoneName = zone->AreaName_lang;
                 }
 
                 sLog->outCommand(m_session->GetAccountId(), "Command: %s [Player: %s (%s) (Account: %u) X: %f Y: %f Z: %f Map: %u (%s) Area: %u (%s) Zone: %s Selected: %s (%s)]",
@@ -796,15 +792,11 @@ GameObject* ChatHandler::GetObjectGlobalyWithGuidOrNearWithDbGuid(ObjectGuid::Lo
 
     if (!obj && sObjectMgr->GetGOData(lowguid))                   // guid is DB guid of object
     {
-        // search near player then
-        CellCoord p(Trinity::ComputeCellCoord(pl->GetPositionX(), pl->GetPositionY()));
-        Cell cell(p);
+        auto bounds = pl->GetMap()->GetGameObjectBySpawnIdStore().equal_range(lowguid);
+        if (bounds.first == bounds.second)
+            return nullptr;
 
-        Trinity::GameObjectWithDbGUIDCheck go_check(*pl, lowguid);
-        Trinity::GameObjectSearcher<Trinity::GameObjectWithDbGUIDCheck> checker(pl, obj, go_check);
-
-        TypeContainerVisitor<Trinity::GameObjectSearcher<Trinity::GameObjectWithDbGUIDCheck>, GridTypeMapContainer > object_checker(checker);
-        cell.Visit(p, object_checker, *pl->GetMap(), *pl, pl->GetGridActivationRange());
+        return bounds.first->second;
     }
 
     return obj;

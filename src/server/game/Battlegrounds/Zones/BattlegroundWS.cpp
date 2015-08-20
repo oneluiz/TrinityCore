@@ -17,14 +17,11 @@
  */
 
 #include "BattlegroundWS.h"
-#include "Creature.h"
 #include "GameObject.h"
 #include "Language.h"
 #include "Object.h"
-#include "ObjectMgr.h"
 #include "BattlegroundMgr.h"
 #include "Player.h"
-#include "World.h"
 #include "WorldPacket.h"
 
 // these variables aren't used outside of this file, so declare them only here
@@ -159,7 +156,7 @@ void BattlegroundWS::PostUpdateImpl(uint32 diff)
                     player->CastSpell(player, WS_SPELL_FOCUSED_ASSAULT, true);
                 _flagDebuffState = 1;
             }
-            else if (_flagDebuffState == 1 && _flagSpellForceTimer >= 900000) //15 minutes
+            else if (_flagDebuffState == 1 && _flagSpellForceTimer >= 15*MINUTE*IN_MILLISECONDS) //15 minutes
             {
                 if (Player* player = ObjectAccessor::FindPlayer(m_FlagKeepers[0]))
                 {
@@ -190,6 +187,31 @@ void BattlegroundWS::PostUpdateImpl(uint32 diff)
             _flagSpellForceTimer = 0; //reset timer.
             _flagDebuffState = 0;
         }
+    }
+}
+
+void BattlegroundWS::GetPlayerPositionData(std::vector<WorldPackets::Battleground::BattlegroundPlayerPosition>* positions) const
+{
+    if (Player* player = ObjectAccessor::GetPlayer(GetBgMap(), m_FlagKeepers[TEAM_ALLIANCE]))
+    {
+        WorldPackets::Battleground::BattlegroundPlayerPosition position;
+        position.Guid = player->GetGUID();
+        position.Pos.x = player->GetPositionX();
+        position.Pos.y = player->GetPositionY();
+        position.IconID = PLAYER_POSITION_ICON_ALLIANCE_FLAG;
+        position.ArenaSlot = PLAYER_POSITION_ARENA_SLOT_NONE;
+        positions->push_back(position);
+    }
+
+    if (Player* player = ObjectAccessor::GetPlayer(GetBgMap(), m_FlagKeepers[TEAM_HORDE]))
+    {
+        WorldPackets::Battleground::BattlegroundPlayerPosition position;
+        position.Guid = player->GetGUID();
+        position.Pos.x = player->GetPositionX();
+        position.Pos.y = player->GetPositionY();
+        position.IconID = PLAYER_POSITION_ICON_HORDE_FLAG;
+        position.ArenaSlot = PLAYER_POSITION_ARENA_SLOT_NONE;
+        positions->push_back(position);
     }
 }
 
@@ -626,7 +648,7 @@ void BattlegroundWS::UpdateTeamScore(uint32 team)
         UpdateWorldState(BG_WS_FLAG_CAPTURES_HORDE, GetTeamScore(team));
 }
 
-void BattlegroundWS::HandleAreaTrigger(Player* player, uint32 trigger)
+void BattlegroundWS::HandleAreaTrigger(Player* player, uint32 trigger, bool entered)
 {
     if (GetStatus() != STATUS_IN_PROGRESS)
         return;
@@ -669,7 +691,7 @@ void BattlegroundWS::HandleAreaTrigger(Player* player, uint32 trigger)
         case 4629:                                          // unk4
             break;
         default:
-            Battleground::HandleAreaTrigger(player, trigger);
+            Battleground::HandleAreaTrigger(player, trigger, entered);
             break;
     }
 

@@ -34,6 +34,7 @@
 #include "SpellInfo.h"
 #include "Player.h"
 #include "SpellPackets.h"
+#include "QueryPackets.h"
 
 void WorldSession::HandleDismissCritter(WorldPacket& recvData)
 {
@@ -413,48 +414,34 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid guid1, uint32 spe
     }
 }
 
-void WorldSession::HandlePetNameQuery(WorldPacket& recvData)
+void WorldSession::HandleQueryPetName(WorldPackets::Query::QueryPetName& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_NAME_QUERY");
-
-    uint32 petnumber;
-    ObjectGuid petguid;
-
-    recvData >> petnumber;
-    recvData >> petguid;
-
-    SendPetNameQuery(petguid, petnumber);
+    SendQueryPetNameResponse(packet.UnitGUID);
 }
 
-void WorldSession::SendPetNameQuery(ObjectGuid petguid, uint32 petnumber)
+void WorldSession::SendQueryPetNameResponse(ObjectGuid guid)
 {
-    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, petguid);
-    if (!pet)
+    WorldPackets::Query::QueryPetNameResponse response;
+
+    response.UnitGUID = guid;
+
+    if (Creature* unit = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, guid))
     {
-        WorldPacket data(SMSG_PET_NAME_QUERY_RESPONSE, (4+1+4+1));
-        data << uint32(petnumber);
-        data << uint8(0);
-        data << uint32(0);
-        data << uint8(0);
-        _player->GetSession()->SendPacket(&data);
-        return;
+        response.Allow = true;
+        response.Timestamp = unit->GetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP);
+        response.Name = unit->GetName();
+
+        if (Pet* pet = unit->ToPet())
+        {
+            if (DeclinedName const* names = pet->GetDeclinedNames())
+            {
+                response.HasDeclined = true;
+                response.DeclinedNames = *names;
+            }
+        }
     }
 
-    WorldPacket data(SMSG_PET_NAME_QUERY_RESPONSE, (4+4+pet->GetName().size()+1));
-    data << uint32(petnumber);
-    data << pet->GetName();
-    data << uint32(pet->GetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP));
-
-    if (pet->IsPet() && ((Pet*)pet)->GetDeclinedNames())
-    {
-        data << uint8(1);
-        for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
-            data << ((Pet*)pet)->GetDeclinedNames()->name[i];
-    }
-    else
-        data << uint8(0);
-
-    _player->GetSession()->SendPacket(&data);
+    _player->GetSession()->SendPacket(response.Write());
 }
 
 bool WorldSession::CheckStableMaster(ObjectGuid guid)
@@ -482,8 +469,6 @@ bool WorldSession::CheckStableMaster(ObjectGuid guid)
 
 void WorldSession::HandlePetSetAction(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_SET_ACTION");
-
     ObjectGuid petguid;
     uint8  count;
 
@@ -599,8 +584,6 @@ void WorldSession::HandlePetSetAction(WorldPacket& recvData)
 
 void WorldSession::HandlePetRename(WorldPacket& recvData)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_RENAME");
-
     ObjectGuid petguid;
     uint8 isdeclined;
 
@@ -611,7 +594,7 @@ void WorldSession::HandlePetRename(WorldPacket& recvData)
     recvData >> name;
     recvData >> isdeclined;
 
-    Pet* pet = ObjectAccessor::FindPet(petguid);
+    Pet* pet = ObjectAccessor::GetPet(*_player, petguid);
                                                             // check it!
     if (!pet || !pet->IsPet() || ((Pet*)pet)->getPetType()!= HUNTER_PET ||
         !pet->HasByteFlag(UNIT_FIELD_BYTES_2, 2, UNIT_CAN_BE_RENAMED) ||
@@ -633,8 +616,7 @@ void WorldSession::HandlePetRename(WorldPacket& recvData)
 
     pet->SetName(name);
 
-    if (pet->GetOwner()->GetGroup())
-        pet->GetOwner()->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_NAME);
+    pet->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_NAME);
 
     pet->RemoveByteFlag(UNIT_FIELD_BYTES_2, 2, UNIT_CAN_BE_RENAMED);
 
@@ -706,7 +688,6 @@ void WorldSession::HandlePetAbandon(WorldPacket& recvData)
 
 void WorldSession::HandlePetSpellAutocastOpcode(WorldPacket& recvPacket)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PET_SPELL_AUTOCAST");
     ObjectGuid guid;
     uint32 spellid;
     uint8  state;                                           //1 for on, 0 for off
@@ -783,7 +764,8 @@ void WorldSession::HandlePetCastSpellOpcode(WorldPackets::Spells::PetCastSpell& 
 
     Spell* spell = new Spell(caster, spellInfo, TRIGGERED_NONE);
     spell->m_cast_count = petCastSpell.Cast.CastID;
-    spell->m_misc.Data = petCastSpell.Cast.Misc;
+    spell->m_misc.Raw.Data[0] = petCastSpell.Cast.Misc[0];
+    spell->m_misc.Raw.Data[1] = petCastSpell.Cast.Misc[1];
     spell->m_targets = targets;
 
     SpellCastResult result = spell->CheckPetCast(NULL);

@@ -15,6 +15,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "MapManager.h"
 #include "ScriptMgr.h"
 #include "OutdoorPvPTF.h"
 #include "OutdoorPvPMgr.h"
@@ -60,7 +61,7 @@ void OutdoorPvPTF::FillInitialWorldStates(WorldPackets::WorldState::InitWorldSta
     packet.Worldstates.emplace_back(uint32(TF_UI_LOCKED_TIME_MINUTES_FIRST_DIGIT), int32(first_digit));
     packet.Worldstates.emplace_back(uint32(TF_UI_LOCKED_TIME_MINUTES_SECOND_DIGIT), int32(second_digit));
     packet.Worldstates.emplace_back(uint32(TF_UI_LOCKED_TIME_HOURS), int32(hours_left));
-    
+
     packet.Worldstates.emplace_back(uint32(TF_UI_LOCKED_DISPLAY_NEUTRAL), int32(m_IsLocked && !m_HordeTowersControlled && !m_AllianceTowersControlled));
     packet.Worldstates.emplace_back(uint32(TF_UI_LOCKED_DISPLAY_HORDE), int32(m_IsLocked && (m_HordeTowersControlled > m_AllianceTowersControlled)));
     packet.Worldstates.emplace_back(uint32(TF_UI_LOCKED_DISPLAY_ALLIANCE), int32(m_IsLocked && (m_HordeTowersControlled < m_AllianceTowersControlled)));
@@ -224,6 +225,8 @@ bool OutdoorPvPTF::SetupOutdoorPvP()
     second_digit = 0;
     first_digit = 0;
 
+    SetMapFromZone(OutdoorPvPTFBuffZones[0]);
+
     // add the zones affected by the pvp buff
     for (uint8 i = 0; i < OutdoorPvPTFBuffZonesNum; ++i)
         RegisterZone(OutdoorPvPTFBuffZones[i]);
@@ -307,9 +310,9 @@ void OPvPCapturePointTF::ChangeState()
         break;
     }
 
-    GameObject* flag = HashMapHolder<GameObject>::Find(m_capturePointGUID);
-    if (flag)
-        flag->SetGoArtKit(artkit);
+    auto bounds = sMapMgr->FindMap(530, 0)->GetGameObjectBySpawnIdStore().equal_range(m_capturePointSpawnId);
+    for (auto itr = bounds.first; itr != bounds.second; ++itr)
+        itr->second->SetGoArtKit(artkit);
 
     UpdateTowerState();
 }

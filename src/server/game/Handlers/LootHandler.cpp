@@ -26,16 +26,13 @@
 #include "LootMgr.h"
 #include "ObjectAccessor.h"
 #include "Object.h"
-#include "Opcodes.h"
 #include "Player.h"
-#include "World.h"
 #include "WorldPacket.h"
 #include "LootPackets.h"
 #include "WorldSession.h"
 
-void WorldSession::HandleAutostoreLootItemOpcode(WorldPackets::Loot::AutoStoreLootItem& packet)
+void WorldSession::HandleAutostoreLootItemOpcode(WorldPackets::Loot::LootItem& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_AUTOSTORE_LOOT_ITEM");
     Player* player = GetPlayer();
     ObjectGuid lguid = player->GetLootGUID();
 
@@ -105,8 +102,6 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPackets::Loot::AutoStoreLo
 
 void WorldSession::HandleLootMoneyOpcode(WorldPackets::Loot::LootMoney& /*packet*/)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_LOOT_MONEY");
-
     Player* player = GetPlayer();
     ObjectGuid guid = player->GetLootGUID();
     if (!guid)
@@ -181,7 +176,7 @@ void WorldSession::HandleLootMoneyOpcode(WorldPackets::Loot::LootMoney& /*packet
                 if (!member)
                     continue;
 
-                if (player->IsWithinDistInMap(member, sWorld->getFloatConfig(CONFIG_GROUP_XP_DISTANCE), false))
+                if (player->IsAtGroupRewardDistance(member))
                     playersNear.push_back(member);
             }
 
@@ -231,8 +226,6 @@ void WorldSession::HandleLootMoneyOpcode(WorldPackets::Loot::LootMoney& /*packet
 
 void WorldSession::HandleLootOpcode(WorldPackets::Loot::LootUnit& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_LOOT");
-
     // Check possible cheat
     if (!GetPlayer()->IsAlive() || !packet.Unit.IsCreatureOrVehicle())
         return;
@@ -246,8 +239,6 @@ void WorldSession::HandleLootOpcode(WorldPackets::Loot::LootUnit& packet)
 
 void WorldSession::HandleLootReleaseOpcode(WorldPackets::Loot::LootRelease& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_LOOT_RELEASE");
-
     // cheaters can modify lguid to prevent correct apply loot release code and re-loot
     // use internal stored guid
     ObjectGuid lguid = GetPlayer()->GetLootGUID();
@@ -332,7 +323,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         ItemTemplate const* proto = pItem->GetTemplate();
 
         // destroy only 5 items from stack in case prospecting and milling
-        if (proto->GetFlags() & (ITEM_PROTO_FLAG_PROSPECTABLE | ITEM_PROTO_FLAG_MILLABLE))
+        if (proto->GetFlags() & (ITEM_FLAG_PROSPECTABLE | ITEM_FLAG_MILLABLE))
         {
             pItem->m_lootGenerated = false;
             pItem->loot.clear();
@@ -348,7 +339,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         else
         {
             // Only delete item if no loot or money (unlooted loot is saved to db) or if it isn't an openable item
-            if (pItem->loot.isLooted() || !(proto->GetFlags() & ITEM_PROTO_FLAG_OPENABLE))
+            if (pItem->loot.isLooted() || !(proto->GetFlags() & ITEM_FLAG_OPENABLE))
                 player->DestroyItem(pItem->GetBagSlot(), pItem->GetSlot(), true);
         }
         return;                                             // item can be looted only single player
@@ -490,4 +481,18 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recvData)
 
     loot->NotifyItemRemoved(slotid);
     --loot->unlootedCount;
+}
+
+void WorldSession::HandleSetLootSpecialization(WorldPackets::Loot::SetLootSpecialization& packet)
+{
+    if (packet.SpecID)
+    {
+        if (ChrSpecializationEntry const* chrSpec = sChrSpecializationStore.LookupEntry(packet.SpecID))
+        {
+            if (chrSpec->ClassID == GetPlayer()->getClass())
+                GetPlayer()->SetLootSpecId(packet.SpecID);
+        }
+    }
+    else
+        GetPlayer()->SetLootSpecId(packet.SpecID);
 }

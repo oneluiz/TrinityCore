@@ -23,6 +23,7 @@
 #include "Appender.h"
 #include "Logger.h"
 #include "StringFormat.h"
+#include "Common.h"
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/strand.hpp>
 
@@ -43,41 +44,36 @@ class Log
 
     public:
 
-        static Log* instance(boost::asio::io_service* ioService = nullptr)
+        static Log* instance()
         {
             static Log instance;
-
-            if (ioService != nullptr)
-            {
-                instance._ioService = ioService;
-                instance._strand = new boost::asio::strand(*ioService);
-            }
-
             return &instance;
         }
 
+        void Initialize(boost::asio::io_service* ioService);
         void LoadFromConfig();
         void Close();
         bool ShouldLog(std::string const& type, LogLevel level) const;
         bool SetLogLevel(std::string const& name, char const* level, bool isLogger = true);
 
-        template<typename... Args>
-        inline void outMessage(std::string const& filter, LogLevel const level, const char* fmt, Args const&... args)
+        template<typename Format, typename... Args>
+        inline void outMessage(std::string const& filter, LogLevel const level, Format&& fmt, Args&&... args)
         {
-            write(std::move(std::unique_ptr<LogMessage>(new LogMessage(level, filter, std::move(Trinity::StringFormat(fmt, args...))))));
+            write(Trinity::make_unique<LogMessage>(level, filter,
+                Trinity::StringFormat(std::forward<Format>(fmt), std::forward<Args>(args)...)));
         }
 
-        template<typename... Args>
-        void outCommand(uint32 account, const char* fmt, Args const&... args)
+        template<typename Format, typename... Args>
+        void outCommand(uint32 account, Format&& fmt, Args&&... args)
         {
             if (!ShouldLog("commands.gm", LOG_LEVEL_INFO))
                 return;
 
-            std::unique_ptr<LogMessage> msg(new LogMessage(LOG_LEVEL_INFO, "commands.gm", std::move(Trinity::StringFormat(fmt, args...))));
+            std::unique_ptr<LogMessage> msg =
+                Trinity::make_unique<LogMessage>(LOG_LEVEL_INFO, "commands.gm",
+                    Trinity::StringFormat(std::forward<Format>(fmt), std::forward<Args>(args)...));
 
-            std::ostringstream ss;
-            ss << account;
-            msg->param1 = ss.str();
+            msg->param1 = std::to_string(account);
 
             write(std::move(msg));
         }
@@ -85,6 +81,18 @@ class Log
         void outCharDump(char const* str, uint32 account_id, uint64 guid, char const* name);
 
         void SetRealmId(uint32 id);
+
+        template<class AppenderImpl>
+        void RegisterAppender()
+        {
+            using Index = typename AppenderImpl::TypeIndex;
+            auto itr = appenderFactory.find(Index::value);
+            ASSERT(itr == appenderFactory.end());
+            appenderFactory[Index::value] = &CreateAppender<AppenderImpl>;
+        }
+
+        std::string const& GetLogsDir() const { return m_logsDir; }
+        std::string const& GetLogsTimestamp() const { return m_logsTimestamp; }
 
     private:
         static std::string GetTimestampStr();
@@ -98,6 +106,7 @@ class Log
         void ReadAppendersFromConfig();
         void ReadLoggersFromConfig();
 
+        AppenderCreatorMap appenderFactory;
         AppenderMap appenders;
         LoggerMap loggers;
         uint8 AppenderId;
@@ -161,7 +170,8 @@ inline bool Log::ShouldLog(std::string const& type, LogLevel level) const
     }
 
 #if PLATFORM != PLATFORM_WINDOWS
-void check_args(const char* format, ...) ATTR_PRINTF(1, 2);
+void check_args(const char*, ...) ATTR_PRINTF(1, 2);
+void check_args(std::string const&, ...);
 
 // This will catch format errors on build time
 #define TC_LOG_MESSAGE_BODY(filterType__, level__, ...)                 \

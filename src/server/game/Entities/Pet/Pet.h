@@ -55,10 +55,10 @@ class Pet : public Guardian
 
         bool IsPermanentPetFor(Player* owner) const;        // pet have tab in character windows and set UNIT_FIELD_PETNUMBER
 
-        bool Create(ObjectGuid::LowType guidlow, Map* map, uint32 phaseMask, uint32 Entry);
+        bool Create(ObjectGuid::LowType guidlow, Map* map, uint32 Entry);
         bool CreateBaseAtCreature(Creature* creature);
         bool CreateBaseAtCreatureInfo(CreatureTemplate const* cinfo, Unit* owner);
-        bool CreateBaseAtTamed(CreatureTemplate const* cinfo, Map* map, uint32 phaseMask);
+        bool CreateBaseAtTamed(CreatureTemplate const* cinfo, Map* map);
         bool LoadPetFromDB(Player* owner, uint32 petentry = 0, uint32 petnumber = 0, bool current = false);
         bool IsLoading() const override { return m_loading;}
         void SavePetToDB(PetSaveMode mode);
@@ -128,15 +128,15 @@ class Pet : public Guardian
         static void resetTalentsForAllPetsOf(Player* owner, Pet* online_pet = nullptr);
         void InitTalentForLevel();
 
-        uint8 GetMaxTalentPointsForLevel(uint8 level);
-        uint8 GetFreeTalentPoints() { return GetByteValue(UNIT_FIELD_BYTES_1, 1); }
+        uint8 GetMaxTalentPointsForLevel(uint8 level) const;
+        uint8 GetFreeTalentPoints() const { return GetByteValue(UNIT_FIELD_BYTES_1, 1); }
         void SetFreeTalentPoints(uint8 points) { SetByteValue(UNIT_FIELD_BYTES_1, 1, points); }
 
         uint32  m_usedTalentCount;
 
-        uint64 GetAuraUpdateMaskForRaid() const { return m_auraRaidUpdateMask; }
-        void SetAuraUpdateMaskForRaid(uint8 slot) { m_auraRaidUpdateMask |= (uint64(1) << slot); }
-        void ResetAuraUpdateMaskForRaid() { m_auraRaidUpdateMask = 0; }
+        uint32 GetGroupUpdateFlag() const { return m_groupUpdateMask; }
+        void SetGroupUpdateFlag(uint32 flag);
+        void ResetGroupUpdateFlag();
 
         DeclinedName const* GetDeclinedNames() const { return m_declinedname; }
 
@@ -147,9 +147,9 @@ class Pet : public Guardian
     protected:
         PetType m_petType;
         int32   m_duration;                                 // time until unsummon (used mostly for summoned guardians and not used for controlled pets)
-        uint64  m_auraRaidUpdateMask;
         bool    m_loading;
         uint32  m_regenTimer;
+        uint32  m_groupUpdateMask;
 
         DeclinedName *m_declinedname;
 

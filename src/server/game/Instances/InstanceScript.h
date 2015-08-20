@@ -178,11 +178,11 @@ class InstanceScript : public ZoneScript
 
         inline Creature* GetCreature(uint32 type)
         {
-            return ObjectAccessor::GetObjectInMap<Creature>(GetObjectGuid(type), instance, nullptr);
+            return instance->GetCreature(GetObjectGuid(type));
         }
         inline GameObject* GetGameObject(uint32 type)
         {
-            return ObjectAccessor::GetObjectInMap<GameObject>(GetObjectGuid(type), instance, nullptr);
+            return instance->GetGameObject(GetObjectGuid(type));
         }
 
         // Called when a player successfully enters the instance.
@@ -195,6 +195,7 @@ class InstanceScript : public ZoneScript
 
         // Change active state of doors or buttons
         void DoUseDoorOrButton(ObjectGuid guid, uint32 withRestoreTime = 0, bool useAlternativeState = false);
+        void DoCloseDoorOrButton(ObjectGuid guid);
 
         // Respawns a GO having negative spawntimesecs in gameobject-table
         void DoRespawnGameObject(ObjectGuid guid, uint32 timeToDespawn = MINUTE);

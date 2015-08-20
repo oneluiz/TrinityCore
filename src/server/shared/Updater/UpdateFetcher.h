@@ -35,8 +35,8 @@ public:
         std::function<void(Path const& path)> const& applyFile,
         std::function<QueryResult(std::string const&)> const& retrieve);
 
-    uint32 Update(bool const redundancyChecks, bool const allowRehash,
-                  bool const archivedRedundancy, bool const cleanDeadReferences) const;
+    UpdateResult Update(bool const redundancyChecks, bool const allowRehash,
+                  bool const archivedRedundancy, int32 const cleanDeadReferencesMaxCount) const;
 
 private:
     enum UpdateMode

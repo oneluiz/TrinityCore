@@ -101,7 +101,7 @@ UpdateFetcher::DirectoryStorage UpdateFetcher::ReceiveIncludedDirectories() cons
 
         if (!is_directory(p))
         {
-            TC_LOG_ERROR("sql.updates", "DBUpdater: Given update include directory \"%s\" isn't existing, skipped!", p.generic_string().c_str());
+            TC_LOG_WARN("sql.updates", "DBUpdater: Given update include directory \"%s\" isn't existing, skipped!", p.generic_string().c_str());
             continue;
         }
 
@@ -154,17 +154,27 @@ UpdateFetcher::SQLUpdate UpdateFetcher::ReadSQLUpdate(boost::filesystem::path co
     return update;
 }
 
-uint32 UpdateFetcher::Update(bool const redundancyChecks, bool const allowRehash, bool const archivedRedundancy, bool const cleanDeadReferences) const
+UpdateResult UpdateFetcher::Update(bool const redundancyChecks, bool const allowRehash, bool const archivedRedundancy, int32 const cleanDeadReferencesMaxCount) const
 {
     LocaleFileStorage const available = GetFileList();
     AppliedFileStorage applied = ReceiveAppliedFiles();
-    
+
+    size_t countRecentUpdates = 0;
+    size_t countArchivedUpdates = 0;
+
+    // Count updates
+    for (auto const& entry : applied)
+        if (entry.second.state == RELEASED)
+            ++countRecentUpdates;
+        else
+            ++countArchivedUpdates;
+
     // Fill hash to name cache
     HashToFileNameStorage hashToName;
     for (auto entry : applied)
         hashToName.insert(std::make_pair(entry.second.hash, entry.first));
 
-    uint32 importedUpdates = 0;
+    size_t importedUpdates = 0;
 
     for (auto const& availableQuery : available)
     {
@@ -291,16 +301,30 @@ uint32 UpdateFetcher::Update(bool const redundancyChecks, bool const allowRehash
             ++importedUpdates;
     }
 
-    for (auto const& entry : applied)
+    // Cleanup up orphaned entries if enabled
+    if (!applied.empty())
     {
-        TC_LOG_WARN("sql.updates", ">> File \'%s\' was applied to the database but is missing in" \
-            " your update directory now!%s", entry.first.c_str(), cleanDeadReferences ? " Deleting orphaned entry..." : "");
+        bool const doCleanup = (cleanDeadReferencesMaxCount < 0) || (applied.size() <= static_cast<size_t>(cleanDeadReferencesMaxCount));
+
+        for (auto const& entry : applied)
+        {
+            TC_LOG_WARN("sql.updates", ">> File \'%s\' was applied to the database but is missing in" \
+                " your update directory now!", entry.first.c_str());
+
+            if (doCleanup)
+                TC_LOG_INFO("sql.updates", "Deleting orphaned entry \'%s\'...", entry.first.c_str());
+        }
+
+        if (doCleanup)
+            CleanUp(applied);
+        else
+        {
+            TC_LOG_ERROR("sql.updates", "Cleanup is disabled! There are " SZFMTD " dirty files that were applied to your database " \
+                "but are now missing in your source directory!", applied.size());
+        }
     }
 
-    if (cleanDeadReferences)
-        CleanUp(applied);
-
-    return importedUpdates;
+    return UpdateResult(importedUpdates, countRecentUpdates, countArchivedUpdates);
 }
 
 std::string UpdateFetcher::CalculateHash(SQLUpdate const& query) const
@@ -315,7 +339,6 @@ std::string UpdateFetcher::CalculateHash(SQLUpdate const& query) const
 uint32 UpdateFetcher::Apply(Path const& path) const
 {
     using Time = std::chrono::high_resolution_clock;
-    using ms = std::chrono::milliseconds;
 
     // Benchmark query speed
     auto const begin = Time::now();
@@ -324,7 +347,7 @@ uint32 UpdateFetcher::Apply(Path const& path) const
     _applyFile(path);
 
     // Return time the query took to apply
-    return std::chrono::duration_cast<ms>(Time::now() - begin).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(Time::now() - begin).count();
 }
 
 void UpdateFetcher::UpdateEntry(AppliedFileEntry const& entry, uint32 const speed) const

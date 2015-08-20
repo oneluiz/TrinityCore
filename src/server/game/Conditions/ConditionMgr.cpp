@@ -27,7 +27,6 @@
 #include "ScriptMgr.h"
 #include "SpellAuras.h"
 #include "SpellMgr.h"
-#include "Spell.h"
 
 char const* ConditionMgr::StaticSourceTypeData[CONDITION_SOURCE_TYPE_MAX] =
 {
@@ -56,7 +55,8 @@ char const* ConditionMgr::StaticSourceTypeData[CONDITION_SOURCE_TYPE_MAX] =
     "SmartScript",
     "Npc Vendor",
     "Spell Proc",
-    "Phase Def"
+    "Terrain Swap",
+    "Phase"
 };
 
 ConditionMgr::ConditionTypeInfo const ConditionMgr::StaticConditionTypeData[CONDITION_MAX] =
@@ -99,8 +99,10 @@ ConditionMgr::ConditionTypeInfo const ConditionMgr::StaticConditionTypeData[COND
     { "Distance",             true, true,  true  },
     { "Alive",               false, false, false },
     { "Health Value",         true, true,  false },
-    { "Health Pct",           true, true, false  },
-    { "Realm Achievement",    true, false, false }
+    { "Health Pct",           true, true,  false },
+    { "Realm Achievement",    true, false, false },
+    { "In Water",            false, false, false },
+    { "Terrain Swap",         true, false, false }
 };
 
 // Checks if object meets the condition
@@ -299,10 +301,10 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo)
                     switch (object->GetTypeId())
                     {
                         case TYPEID_UNIT:
-                            condMeets &= object->ToCreature()->GetDBTableGUIDLow() == ConditionValue3;
+                            condMeets &= object->ToCreature()->GetSpawnId() == ConditionValue3;
                             break;
                         case TYPEID_GAMEOBJECT:
-                            condMeets &= object->ToGameObject()->GetDBTableGUIDLow() == ConditionValue3;
+                            condMeets &= object->ToGameObject()->GetSpawnId() == ConditionValue3;
                             break;
                         default:
                             break;
@@ -422,6 +424,17 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo)
             AchievementEntry const* achievement = sAchievementMgr->GetAchievement(ConditionValue1);
             if (achievement && sAchievementMgr->IsRealmCompleted(achievement, std::numeric_limits<uint32>::max()))
                 condMeets = true;
+            break;
+        }
+        case CONDITION_IN_WATER:
+        {
+            if (Unit* unit = object->ToUnit())
+                condMeets = unit->IsInWater();
+            break;
+        }
+        case CONDITION_TERRAIN_SWAP:
+        {
+            condMeets = object->IsInTerrainSwap(ConditionValue1);
             break;
         }
         default:
@@ -594,6 +607,12 @@ uint32 Condition::GetSearcherTypeMaskForCondition()
             mask |= GRID_MAP_TYPE_MASK_CREATURE;
             break;
         case CONDITION_REALM_ACHIEVEMENT:
+            mask |= GRID_MAP_TYPE_MASK_ALL;
+            break;
+        case CONDITION_IN_WATER:
+            mask |= GRID_MAP_TYPE_MASK_CREATURE | GRID_MAP_TYPE_MASK_PLAYER;
+            break;
+        case CONDITION_TERRAIN_SWAP:
             mask |= GRID_MAP_TYPE_MASK_ALL;
             break;
         default:
@@ -795,7 +814,6 @@ bool ConditionMgr::CanHaveSourceGroupSet(ConditionSourceType sourceType)
             sourceType == CONDITION_SOURCE_TYPE_SPELL_IMPLICIT_TARGET ||
             sourceType == CONDITION_SOURCE_TYPE_SPELL_CLICK_EVENT ||
             sourceType == CONDITION_SOURCE_TYPE_SMART_EVENT ||
-            sourceType == CONDITION_SOURCE_TYPE_PHASE_DEFINITION ||
             sourceType == CONDITION_SOURCE_TYPE_NPC_VENDOR);
 }
 
@@ -869,22 +887,6 @@ ConditionList ConditionMgr::GetConditionsForSmartEvent(int64 entryOrGuid, uint32
         }
     }
     return cond;
-}
-
-ConditionList const* ConditionMgr::GetConditionsForPhaseDefinition(uint32 zone, uint32 entry)
-{
-    PhaseDefinitionConditionContainer::const_iterator itr = PhaseDefinitionsConditionStore.find(zone);
-    if (itr != PhaseDefinitionsConditionStore.end())
-    {
-        ConditionTypeContainer::const_iterator i = itr->second.find(entry);
-        if (i != itr->second.end())
-        {
-            TC_LOG_DEBUG("condition", "GetConditionsForPhaseDefinition: found conditions for zone %u entry %u", zone, entry);
-            return &i->second;
-        }
-    }
-
-    return NULL;
 }
 
 ConditionList ConditionMgr::GetConditionsForNpcVendorEvent(uint32 creatureId, uint32 itemId)
@@ -1122,13 +1124,6 @@ void ConditionMgr::LoadConditions(bool isReload)
                     //! TODO: PAIR_32 ?
                     std::pair<int32, uint32> key = std::make_pair(cond->SourceEntry, cond->SourceId);
                     SmartEventConditionStore[key][cond->SourceGroup].push_back(cond);
-                    valid = true;
-                    ++count;
-                    continue;
-                }
-                case CONDITION_SOURCE_TYPE_PHASE_DEFINITION:
-                {
-                    PhaseDefinitionsConditionStore[cond->SourceGroup][cond->SourceEntry].push_back(cond);
                     valid = true;
                     ++count;
                     continue;
@@ -1579,6 +1574,9 @@ bool ConditionMgr::isSourceTypeValid(Condition* cond)
                 if (!effect)
                     continue;
 
+                if (effect->ChainTargets > 0)
+                    continue;
+
                 switch (effect->TargetA.GetSelectionCategory())
                 {
                     case TARGET_SELECT_CATEGORY_NEARBY:
@@ -1599,7 +1597,7 @@ bool ConditionMgr::isSourceTypeValid(Condition* cond)
                         break;
                 }
 
-                TC_LOG_ERROR("sql.sql", "SourceEntry %u SourceGroup %u in `condition` table - spell %u does not have implicit targets of types: _AREA_, _CONE_, _NEARBY_ for effect %u, SourceGroup needs correction, ignoring.", cond->SourceEntry, origGroup, cond->SourceEntry, uint32(i));
+                TC_LOG_ERROR("sql.sql", "SourceEntry %u SourceGroup %u in `condition` table - spell %u does not have implicit targets of types: _AREA_, _CONE_, _NEARBY_, __CHAIN__ for effect %u, SourceGroup needs correction, ignoring.", cond->SourceEntry, origGroup, cond->SourceEntry, uint32(i));
                 cond->SourceGroup &= ~(1 << i);
             }
             // all effects were removed, no need to add the condition at all
@@ -1661,13 +1659,6 @@ bool ConditionMgr::isSourceTypeValid(Condition* cond)
                 return false;
             }
             break;
-        case CONDITION_SOURCE_TYPE_PHASE_DEFINITION:
-            /*if (!PhaseMgr::IsConditionTypeSupported(cond->ConditionType))
-            {
-                TC_LOG_ERROR("sql.sql", "Condition source type `CONDITION_SOURCE_TYPE_PHASE_DEFINITION` does not support condition type %u, ignoring.", cond->ConditionType);
-                return false;
-            }*/
-            break;
         case CONDITION_SOURCE_TYPE_NPC_VENDOR:
         {
             if (!sObjectMgr->GetCreatureTemplate(cond->SourceGroup))
@@ -1687,6 +1678,8 @@ bool ConditionMgr::isSourceTypeValid(Condition* cond)
         case CONDITION_SOURCE_TYPE_GOSSIP_MENU_OPTION:
         case CONDITION_SOURCE_TYPE_SMART_EVENT:
         case CONDITION_SOURCE_TYPE_NONE:
+        case CONDITION_SOURCE_TYPE_TERRAIN_SWAP:
+        case CONDITION_SOURCE_TYPE_PHASE:
         default:
             break;
     }
@@ -2137,6 +2130,8 @@ bool ConditionMgr::isConditionTypeValid(Condition* cond)
             }
             break;
         }
+        case CONDITION_IN_WATER:
+            break;
         default:
             break;
     }
@@ -2218,19 +2213,6 @@ void ConditionMgr::Clean()
     }
 
     SpellClickEventConditionStore.clear();
-
-    for (PhaseDefinitionConditionContainer::iterator itr = PhaseDefinitionsConditionStore.begin(); itr != PhaseDefinitionsConditionStore.end(); ++itr)
-    {
-        for (ConditionTypeContainer::iterator it = itr->second.begin(); it != itr->second.end(); ++it)
-        {
-            for (ConditionList::const_iterator i = it->second.begin(); i != it->second.end(); ++i)
-                delete *i;
-            it->second.clear();
-        }
-        itr->second.clear();
-    }
-
-    PhaseDefinitionsConditionStore.clear();
 
     for (NpcVendorConditionContainer::iterator itr = NpcVendorConditionContainerStore.begin(); itr != NpcVendorConditionContainerStore.end(); ++itr)
     {

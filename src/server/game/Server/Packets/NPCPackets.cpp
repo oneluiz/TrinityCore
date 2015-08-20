@@ -150,3 +150,44 @@ WorldPacket const* WorldPackets::NPC::SuppressNPCGreetings::Write()
 
     return &_worldPacket;
 }
+
+WorldPacket const* WorldPackets::NPC::GossipPOI::Write()
+{
+    _worldPacket.WriteBits(Flags, 14);
+    _worldPacket.WriteBits(Name.length(), 6);
+    _worldPacket << Pos.x;
+    _worldPacket << Pos.y;
+    _worldPacket << Icon;
+    _worldPacket << Importance;
+    _worldPacket.WriteString(Name);
+
+    return &_worldPacket;
+}
+
+void WorldPackets::NPC::SpiritHealerActivate::Read()
+{
+    _worldPacket >> Healer;
+}
+
+WorldPacket const* WorldPackets::NPC::SpiritHealerConfirm::Write()
+{
+    _worldPacket << Unit;
+
+    return &_worldPacket;
+}
+
+void WorldPackets::NPC::TrainerBuySpell::Read()
+{
+    _worldPacket >> TrainerGUID;
+    _worldPacket >> TrainerID;
+    _worldPacket >> SpellID;
+}
+
+WorldPacket const* WorldPackets::NPC::TrainerBuyFailed::Write()
+{
+    _worldPacket << TrainerGUID;
+    _worldPacket << SpellID;
+    _worldPacket << TrainerFailedReason;
+
+    return &_worldPacket;
+}

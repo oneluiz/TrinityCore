@@ -27,10 +27,8 @@
 #include "InstanceScript.h"
 #include "Config.h"
 #include "World.h"
-#include "CellImpl.h"
 #include "Corpse.h"
 #include "ObjectMgr.h"
-#include "Language.h"
 #include "WorldPacket.h"
 #include "Group.h"
 #include "Player.h"
@@ -81,6 +79,7 @@ Map* MapManager::CreateBaseMap(uint32 id)
         {
             map = new Map(id, i_gridCleanUpDelay, 0, DIFFICULTY_NONE);
             map->LoadRespawnTimes();
+            map->LoadCorpseData();
         }
 
         i_maps[id] = map;
@@ -155,9 +154,8 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player, bool loginCheck)
         // can only enter in a raid group
         if ((!group || !group->isRaidGroup()) && !sWorld->getBoolConfig(CONFIG_INSTANCE_IGNORE_RAID))
         {
-            // probably there must be special opcode, because client has this string constant in GlobalStrings.lua
             /// @todo this is not a good place to send the message
-            player->GetSession()->SendAreaTriggerMessage(player->GetSession()->GetTrinityString(LANG_INSTANCE_RAID_GROUP_ONLY), mapName);
+            player->SendRaidGroupOnlyMessage(RAID_GROUP_ERR_ONLY, 0);
             TC_LOG_DEBUG("maps", "MAP: Player '%s' must be in a raid group to enter instance '%s'", player->GetName().c_str(), mapName);
             return false;
         }
@@ -251,8 +249,6 @@ void MapManager::Update(uint32 diff)
 
     for (iter = i_maps.begin(); iter != i_maps.end(); ++iter)
         iter->second->DelayedUpdate(uint32(i_timer.GetCurrent()));
-
-    sObjectAccessor->Update(uint32(i_timer.GetCurrent()));
 
     i_timer.SetCurrent(0);
 }

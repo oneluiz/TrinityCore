@@ -21,12 +21,10 @@
 #include "ObjectMgr.h"
 #include "WorldPacket.h"
 
-#include "Formulas.h"
 #include "GameObject.h"
 #include "Language.h"
 #include "Player.h"
 #include "ScriptedCreature.h"
-#include "SpellAuras.h"
 #include "WorldSession.h"
 
 BattlegroundAV::BattlegroundAV()
@@ -304,7 +302,7 @@ Creature* BattlegroundAV::AddAVCreature(uint16 cinfoid, uint16 type)
         if (!isStatic && ((cinfoid >= AV_NPC_A_GRAVEDEFENSE0 && cinfoid <= AV_NPC_A_GRAVEDEFENSE3)
             || (cinfoid >= AV_NPC_H_GRAVEDEFENSE0 && cinfoid <= AV_NPC_H_GRAVEDEFENSE3)))
         {
-            CreatureData &data = sObjectMgr->NewOrExistCreatureData(creature->GetDBTableGUIDLow());
+            CreatureData &data = sObjectMgr->NewOrExistCreatureData(creature->GetSpawnId());
             data.spawndist = 5;
         }
         //else spawndist will be 15, so creatures move maximum=10
@@ -493,7 +491,7 @@ void BattlegroundAV::RemovePlayer(Player* player, ObjectGuid /*guid*/, uint32 /*
     player->RemoveAurasDueToSpell(AV_BUFF_H_CAPTAIN);
 }
 
-void BattlegroundAV::HandleAreaTrigger(Player* player, uint32 trigger)
+void BattlegroundAV::HandleAreaTrigger(Player* player, uint32 trigger, bool entered)
 {
     if (GetStatus() != STATUS_IN_PROGRESS)
         return;
@@ -503,13 +501,13 @@ void BattlegroundAV::HandleAreaTrigger(Player* player, uint32 trigger)
         case 95:
         case 2608:
             if (player->GetTeam() != ALLIANCE)
-                player->GetSession()->SendAreaTriggerMessage("Only The Alliance can use that portal");
+                player->GetSession()->SendNotification("Only The Alliance can use that portal");
             else
                 player->LeaveBattleground();
             break;
         case 2606:
             if (player->GetTeam() != HORDE)
-                player->GetSession()->SendAreaTriggerMessage("Only The Horde can use that portal");
+                player->GetSession()->SendNotification("Only The Horde can use that portal");
             else
                 player->LeaveBattleground();
             break;
@@ -522,7 +520,7 @@ void BattlegroundAV::HandleAreaTrigger(Player* player, uint32 trigger)
             //Source->Unmount();
             break;
         default:
-            Battleground::HandleAreaTrigger(player, trigger);
+            Battleground::HandleAreaTrigger(player, trigger, entered);
             break;
     }
 }
@@ -1380,10 +1378,10 @@ bool BattlegroundAV::SetupBattleground()
 
     //creatures
     TC_LOG_DEBUG("bg.battleground", "BG_AV start poputlating nodes");
-    for (BG_AV_Nodes i = BG_AV_NODES_FIRSTAID_STATION; i < BG_AV_NODES_MAX; ++i)
+    for (BG_AV_Nodes n = BG_AV_NODES_FIRSTAID_STATION; n < BG_AV_NODES_MAX; ++n)
     {
-        if (m_Nodes[i].Owner)
-            PopulateNode(i);
+        if (m_Nodes[n].Owner)
+            PopulateNode(n);
     }
     //all creatures which don't get despawned through the script are static
     TC_LOG_DEBUG("bg.battleground", "BG_AV: start spawning static creatures");

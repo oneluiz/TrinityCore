@@ -17,9 +17,7 @@
  */
 
 #include "BattlegroundAB.h"
-#include "World.h"
 #include "WorldPacket.h"
-#include "ObjectMgr.h"
 #include "BattlegroundMgr.h"
 #include "Creature.h"
 #include "Language.h"
@@ -231,7 +229,7 @@ void BattlegroundAB::RemovePlayer(Player* /*player*/, ObjectGuid /*guid*/, uint3
 {
 }
 
-void BattlegroundAB::HandleAreaTrigger(Player* player, uint32 trigger)
+void BattlegroundAB::HandleAreaTrigger(Player* player, uint32 trigger, bool entered)
 {
     if (GetStatus() != STATUS_IN_PROGRESS)
         return;
@@ -240,13 +238,13 @@ void BattlegroundAB::HandleAreaTrigger(Player* player, uint32 trigger)
     {
         case 3948:                                          // Arathi Basin Alliance Exit.
             if (player->GetTeam() != ALLIANCE)
-                player->GetSession()->SendAreaTriggerMessage("Only The Alliance can use that portal");
+                player->GetSession()->SendNotification("Only The Alliance can use that portal");
             else
                 player->LeaveBattleground();
             break;
         case 3949:                                          // Arathi Basin Horde Exit.
             if (player->GetTeam() != HORDE)
-                player->GetSession()->SendAreaTriggerMessage("Only The Horde can use that portal");
+                player->GetSession()->SendNotification("Only The Horde can use that portal");
             else
                 player->LeaveBattleground();
             break;
@@ -260,7 +258,7 @@ void BattlegroundAB::HandleAreaTrigger(Player* player, uint32 trigger)
         case 4674:                                          // Unk3
             //break;
         default:
-            Battleground::HandleAreaTrigger(player, trigger);
+            Battleground::HandleAreaTrigger(player, trigger, entered);
             break;
     }
 }

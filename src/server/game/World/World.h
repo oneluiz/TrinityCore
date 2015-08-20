@@ -191,7 +191,6 @@ enum WorldFloatConfigs
     CONFIG_CREATURE_FAMILY_FLEE_ASSISTANCE_RADIUS,
     CONFIG_CREATURE_FAMILY_ASSISTANCE_RADIUS,
     CONFIG_THREAT_RADIUS,
-    CONFIG_CHANCE_OF_GM_SURVEY,
     CONFIG_STATS_LIMITS_DODGE,
     CONFIG_STATS_LIMITS_PARRY,
     CONFIG_STATS_LIMITS_BLOCK,
@@ -252,7 +251,6 @@ enum WorldIntConfigs
     CONFIG_MIN_PETITION_SIGNS,
     CONFIG_GM_LOGIN_STATE,
     CONFIG_GM_VISIBLE_STATE,
-    CONFIG_GM_ACCEPT_TICKETS,
     CONFIG_GM_CHAT,
     CONFIG_GM_WHISPERING_TO,
     CONFIG_GM_FREEZE_DURATION,
@@ -286,7 +284,6 @@ enum WorldIntConfigs
     CONFIG_CHAT_WHISPER_LEVEL_REQ,
     CONFIG_CHAT_SAY_LEVEL_REQ,
     CONFIG_TRADE_LEVEL_REQ,
-    CONFIG_TICKET_LEVEL_REQ,
     CONFIG_AUCTION_LEVEL_REQ,
     CONFIG_MAIL_LEVEL_REQ,
     CONFIG_CORPSE_DECAY_NORMAL,
@@ -575,6 +572,7 @@ class World
 
         WorldSession* FindSession(uint32 id) const;
         void AddSession(WorldSession* s);
+        void AddInstanceSocket(std::shared_ptr<WorldSocket> sock, uint32 sessionAccountId);
         void SendAutoBroadcast();
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
@@ -670,7 +668,7 @@ class World
         void SendWorldText(uint32 string_id, ...);
         void SendGlobalText(const char* text, WorldSession* self);
         void SendGMText(uint32 string_id, ...);
-        void SendServerMessage(ServerMessageType type, const char *text = "", Player* player = NULL);
+        void SendServerMessage(ServerMessageType messageID, std::string stringParam = "", Player* player = NULL);
         void SendGlobalMessage(WorldPacket const* packet, WorldSession* self = nullptr, uint32 team = 0);
         void SendGlobalGMMessage(WorldPacket const* packet, WorldSession* self = nullptr, uint32 team = 0);
         bool SendZoneMessage(uint32 zone, WorldPacket const* packet, WorldSession* self = nullptr, uint32 team = 0);
@@ -771,7 +769,8 @@ class World
         void LoadDBVersion();
         char const* GetDBVersion() const { return m_DBVersion.c_str(); }
 
-        void RecordTimeDiff(const char * text, ...);
+        void ResetTimeDiffRecord();
+        void RecordTimeDiff(std::string const& text);
 
         void LoadAutobroadcasts();
 
@@ -803,7 +802,7 @@ class World
         void InitRandomBGResetTime();
         void InitGuildResetTime();
         void InitCurrencyResetTime();
-        void ResetDailyQuests();
+        void DailyReset();
         void ResetWeeklyQuests();
         void ResetMonthlyQuests();
         void ResetRandomBG();
@@ -881,6 +880,9 @@ class World
         // sessions that are added async
         void AddSession_(WorldSession* s);
         LockedQueue<WorldSession*> addSessQueue;
+
+        void ProcessLinkInstanceSocket(std::pair<std::shared_ptr<WorldSocket>, uint32> linkInfo);
+        LockedQueue<std::pair<std::shared_ptr<WorldSocket>, uint32>> _linkSocketQueue;
 
         // used versions
         std::string m_DBVersion;

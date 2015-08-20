@@ -448,7 +448,7 @@ class instance_ulduar : public InstanceMapScript
                 }
             }
 
-            void OnGameObjectCreate(GameObject* gameObject)
+            void OnGameObjectCreate(GameObject* gameObject) override
             {
                 switch (gameObject->GetEntry())
                 {
@@ -690,22 +690,7 @@ class instance_ulduar : public InstanceMapScript
                 {
                     case BOSS_LEVIATHAN:
                         if (state == DONE)
-                        {
-                            // Eject all players from vehicles and make them untargetable.
-                            // They will be despawned after a while
-                            for (auto const& vehicleGuid : LeviathanVehicleGUIDs)
-                            {
-                                if (Creature* vehicleCreature = instance->GetCreature(vehicleGuid))
-                                {
-                                    if (Vehicle* vehicle = vehicleCreature->GetVehicleKit())
-                                    {
-                                        vehicle->RemoveAllPassengers();
-                                        vehicleCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                                        vehicleCreature->DespawnOrUnsummon(5 * MINUTE * IN_MILLISECONDS);
-                                    }
-                                }
-                            }
-                        }
+                            _events.ScheduleEvent(EVENT_DESPAWN_LEVIATHAN_VEHICLES, 5 * IN_MILLISECONDS);
                         break;
                     case BOSS_IGNIS:
                     case BOSS_RAZORSCALE:
@@ -777,8 +762,8 @@ class instance_ulduar : public InstanceMapScript
                                 if (Player* player = itr->GetSource())
                                     for (uint8 slot = EQUIPMENT_SLOT_MAINHAND; slot <= EQUIPMENT_SLOT_RANGED; ++slot)
                                         if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-                                            if (item->GetItemLevel() > _maxWeaponItemLevel)
-                                                _maxWeaponItemLevel = item->GetItemLevel();
+                                            if (item->GetItemLevel(player) > _maxWeaponItemLevel)
+                                                _maxWeaponItemLevel = item->GetItemLevel(player);
                         }
                         else if (state == IN_PROGRESS)
                         {
@@ -797,11 +782,11 @@ class instance_ulduar : public InstanceMapScript
                                         {
                                             if (slot >= EQUIPMENT_SLOT_MAINHAND && slot <= EQUIPMENT_SLOT_RANGED)
                                             {
-                                                if (item->GetItemLevel() > _maxWeaponItemLevel)
-                                                    _maxWeaponItemLevel = item->GetItemLevel();
+                                                if (item->GetItemLevel(player) > _maxWeaponItemLevel)
+                                                    _maxWeaponItemLevel = item->GetItemLevel(player);
                                             }
-                                            else if (item->GetItemLevel() > _maxArmorItemLevel)
-                                                _maxArmorItemLevel = item->GetItemLevel();
+                                            else if (item->GetItemLevel(player) > _maxArmorItemLevel)
+                                                _maxArmorItemLevel = item->GetItemLevel(player);
                                         }
                                     }
                                 }
@@ -1162,6 +1147,22 @@ class instance_ulduar : public InstanceMapScript
                                 _events.CancelEvent(EVENT_UPDATE_ALGALON_TIMER);
                                 if (Creature* algalon = instance->GetCreature(AlgalonGUID))
                                     algalon->AI()->DoAction(EVENT_DESPAWN_ALGALON);
+                            }
+                            break;
+                        case EVENT_DESPAWN_LEVIATHAN_VEHICLES:
+                            // Eject all players from vehicles and make them untargetable.
+                            // They will be despawned after a while
+                            for (auto const& vehicleGuid : LeviathanVehicleGUIDs)
+                            {
+                                if (Creature* vehicleCreature = instance->GetCreature(vehicleGuid))
+                                {
+                                    if (Vehicle* vehicle = vehicleCreature->GetVehicleKit())
+                                    {
+                                        vehicle->RemoveAllPassengers();
+                                        vehicleCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                                        vehicleCreature->DespawnOrUnsummon(5 * MINUTE * IN_MILLISECONDS);
+                                    }
+                                }
                             }
                             break;
                     }

@@ -6,3 +6,6 @@
 #include "SQLOperation.h"
 #include "Errors.h"
 #include "TypeList.h"
+#include "TaskScheduler.h"
+#include "EventMap.h"
+#include "GitRevision.h"

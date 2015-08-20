@@ -25,15 +25,14 @@
 #include "Player.h"
 #include "Unit.h"
 #include "ObjectAccessor.h"
+#include "CellImpl.h"
 #include "Util.h"
 #include "Spell.h"
 #include "SpellAuraEffects.h"
 #include "Battleground.h"
 #include "OutdoorPvPMgr.h"
-#include "Formulas.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
-#include "CellImpl.h"
 #include "ScriptMgr.h"
 #include "Vehicle.h"
 #include "Battlefield.h"
@@ -401,7 +400,7 @@ pAuraEffectHandler AuraEffectHandler[TOTAL_AURAS]=
     &AuraEffect::HandleNoImmediateEffect,                         //338 SPELL_AURA_MOD_DURABILITY_LOSS
     &AuraEffect::HandleNULL,                                      //339 SPELL_AURA_INCREASE_SKILL_GAIN_CHANCE
     &AuraEffect::HandleNULL,                                      //340 SPELL_AURA_MOD_RESURRECTED_HEALTH_BY_GUILD_MEMBER
-    &AuraEffect::HandleNULL,                                      //341 SPELL_AURA_MOD_SPELL_CATEGORY_COOLDOWN
+    &AuraEffect::HandleModSpellCategoryCooldown,                  //341 SPELL_AURA_MOD_SPELL_CATEGORY_COOLDOWN
     &AuraEffect::HandleModMeleeRangedSpeedPct,                    //342 SPELL_AURA_MOD_MELEE_RANGED_HASTE_2
     &AuraEffect::HandleNULL,                                      //343 SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER
     &AuraEffect::HandleNULL,                                      //344 SPELL_AURA_MOD_AUTOATTACK_DAMAGE
@@ -426,7 +425,7 @@ pAuraEffectHandler AuraEffectHandler[TOTAL_AURAS]=
     &AuraEffect::HandleNULL,                                      //363 SPELL_AURA_MOD_NEXT_SPELL
     &AuraEffect::HandleUnused,                                    //364 unused (4.3.4)
     &AuraEffect::HandleNULL,                                      //365 SPELL_AURA_MAX_FAR_CLIP_PLANE
-    &AuraEffect::HandleNULL,                                      //366 SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT
+    &AuraEffect::HandleOverrideSpellPowerByAttackPower,           //366 SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT
     &AuraEffect::HandleNULL,                                      //367 SPELL_AURA_367
     &AuraEffect::HandleUnused,                                    //368 unused (4.3.4)
     &AuraEffect::HandleNULL,                                      //369 SPELL_AURA_ENABLE_POWER_BAR_TIMER
@@ -464,7 +463,7 @@ pAuraEffectHandler AuraEffectHandler[TOTAL_AURAS]=
     &AuraEffect::HandleNULL,                                      //401
     &AuraEffect::HandleNULL,                                      //402
     &AuraEffect::HandleNULL,                                      //403
-    &AuraEffect::HandleNULL,                                      //404
+    &AuraEffect::HandleOverrideAttackPowerBySpellPower,           //404 SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT
     &AuraEffect::HandleNULL,                                      //405
     &AuraEffect::HandleNULL,                                      //406
     &AuraEffect::HandleNULL,                                      //407 SPELL_AURA_MOD_FEAR_2
@@ -479,7 +478,7 @@ pAuraEffectHandler AuraEffectHandler[TOTAL_AURAS]=
     &AuraEffect::HandleNULL,                                      //416
     &AuraEffect::HandleNULL,                                      //417
     &AuraEffect::HandleNULL,                                      //418
-    &AuraEffect::HandleNULL,                                      //419
+    &AuraEffect::HandleAuraModIncreaseBaseManaPercent,            //419 SPELL_AURA_MOD_BASE_MANA_PCT
     &AuraEffect::HandleNULL,                                      //420 SPELL_AURA_MOD_BATTLE_PET_XP_PCT
     &AuraEffect::HandleNULL,                                      //421
     &AuraEffect::HandleNULL,                                      //422
@@ -526,8 +525,8 @@ pAuraEffectHandler AuraEffectHandler[TOTAL_AURAS]=
     &AuraEffect::HandleNULL,                                      //463 SPELL_AURA_CRIT_RATING_AFFECTS_PARRY used by Riposte
     &AuraEffect::HandleNULL,                                      //464
     &AuraEffect::HandleNULL,                                      //465
-    &AuraEffect::HandleNULL,                                      //466
-    &AuraEffect::HandleNULL,                                      //467
+    &AuraEffect::HandleNULL,                                      //466 SPELL_AURA_MOD_BONUS_ARMOR_PCT
+    &AuraEffect::HandleModStatBonusPercent,                       //467 SPELL_AURA_MOD_STAT_BONUS_PCT
     &AuraEffect::HandleNULL,                                      //468
     &AuraEffect::HandleNULL,                                      //469
     &AuraEffect::HandleNULL,                                      //470
@@ -1163,7 +1162,7 @@ bool AuraEffect::IsAffectingSpell(SpellInfo const* spell) const
 void AuraEffect::SendTickImmune(Unit* target, Unit* caster) const
 {
     if (caster)
-        caster->SendSpellDamageImmune(target, m_spellInfo->Id);
+        caster->SendSpellDamageImmune(target, m_spellInfo->Id, true);
 }
 
 void AuraEffect::PeriodicTick(AuraApplication * aurApp, Unit* caster) const
@@ -1408,7 +1407,7 @@ void AuraEffect::HandleShapeshiftBoosts(Unit* target, bool apply) const
             {
                 case FORM_CAT:
                     // Savage Roar
-                    if (target->GetAuraEffect(SPELL_AURA_DUMMY, SPELLFAMILY_DRUID, 0, 0x10000000, 0))
+                    if (target->GetAuraEffect(SPELL_AURA_DUMMY, SPELLFAMILY_DRUID, flag128(0, 0x10000000, 0)))
                         target->CastSpell(target, 62071, true);
                     // Nurturing Instinct
                     if (AuraEffect const* aurEff = target->GetAuraEffect(SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT, SPELLFAMILY_DRUID, 2254, EFFECT_0))
@@ -1738,7 +1737,7 @@ void AuraEffect::HandlePhase(AuraApplication const* aurApp, uint8 mode, bool app
     {
         if (player->IsInWorld())
             player->GetMap()->SendUpdateTransportVisibility(player, oldPhases);
-        player->UpdatePhasing();
+        player->SendUpdatePhasing();
     }
 
     // need triggering visibility update base at phase update of not GM invisible (other GMs anyway see in any phases)
@@ -1770,7 +1769,7 @@ void AuraEffect::HandlePhaseGroup(AuraApplication const* aurApp, uint8 mode, boo
     {
         if (player->IsInWorld())
             player->GetMap()->SendUpdateTransportVisibility(player, oldPhases);
-        player->UpdatePhasing();
+        player->SendUpdatePhasing();
     }
 
     // need triggering visibility update base at phase update of not GM invisible (other GMs anyway see in any phases)
@@ -1984,7 +1983,7 @@ void AuraEffect::HandleAuraModShapeshift(AuraApplication const* aurApp, uint8 mo
     if (target->getClass() == CLASS_DRUID)
     {
         // Dash
-        if (AuraEffect* aurEff = target->GetAuraEffect(SPELL_AURA_MOD_INCREASE_SPEED, SPELLFAMILY_DRUID, 0, 0, 0x8))
+        if (AuraEffect* aurEff = target->GetAuraEffect(SPELL_AURA_MOD_INCREASE_SPEED, SPELLFAMILY_DRUID, flag128(0, 0, 0x8)))
             aurEff->RecalculateAmount();
 
         // Disarm handling
@@ -2184,12 +2183,6 @@ void AuraEffect::HandleAuraTransform(AuraApplication const* aurApp, uint8 mode, 
 
                     if (uint32 modelid = ci->GetRandomValidModelId())
                         model_id = modelid;                     // Will use the default model here
-
-                    // Polymorph (sheep)
-                    if (GetSpellInfo()->SpellFamilyName == SPELLFAMILY_MAGE && GetSpellInfo()->SpellIconID == 82 && GetSpellInfo()->SpellVisual[0] == 12978)
-                        if (Unit* caster = GetCaster())
-                            if (caster->HasAura(52648))         // Glyph of the Penguin
-                                model_id = 26452;
 
                     target->SetDisplayId(model_id);
 
@@ -3211,6 +3204,10 @@ void AuraEffect::HandleModStateImmunityMask(AuraApplication const* aurApp, uint8
 
     switch (miscVal)
     {
+        case 27:
+            target->ApplySpellImmune(GetId(), IMMUNITY_MECHANIC, MECHANIC_SILENCE, apply);
+            aura_immunity_list.push_back(SPELL_AURA_MOD_SILENCE);
+            break;
         case 96:
         case 1615:
         {
@@ -3982,6 +3979,59 @@ void AuraEffect::HandleAuraModExpertise(AuraApplication const* aurApp, uint8 mod
     target->ToPlayer()->UpdateExpertise(OFF_ATTACK);
 }
 
+void AuraEffect::HandleModStatBonusPercent(AuraApplication const* aurApp, uint8 mode, bool apply) const
+{
+    if (!(mode & (AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK | AURA_EFFECT_HANDLE_STAT)))
+        return;
+
+    Unit* target = aurApp->GetTarget();
+
+    if (GetMiscValue() < -1 || GetMiscValue() > 4)
+    {
+        TC_LOG_ERROR("spells", "WARNING: Misc Value for SPELL_AURA_MOD_STAT_BONUS_PCT not valid");
+        return;
+    }
+
+    // only players have base stats
+    if (target->GetTypeId() != TYPEID_PLAYER)
+        return;
+
+    for (int32 i = STAT_STRENGTH; i < MAX_STATS; ++i)
+    {
+        if (GetMiscValue() == i || GetMiscValue() == -1)
+        {
+            target->HandleStatModifier(UnitMods(UNIT_MOD_STAT_START + i), BASE_PCT_EXCLUDE_CREATE, float(m_amount), apply);
+            target->ApplyStatPercentBuffMod(Stats(i), float(m_amount), apply);
+        }
+    }
+}
+
+void AuraEffect::HandleOverrideSpellPowerByAttackPower(AuraApplication const* aurApp, uint8 mode, bool apply) const
+{
+    if (!(mode & (AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK | AURA_EFFECT_HANDLE_STAT)))
+        return;
+
+    Player* target = aurApp->GetTarget()->ToPlayer();
+    if (!target)
+        return;
+
+    target->ApplyModSignedFloatValue(PLAYER_FIELD_OVERRIDE_SPELL_POWER_BY_AP_PCT, float(m_amount), apply);
+    target->UpdateSpellDamageAndHealingBonus();
+}
+
+void AuraEffect::HandleOverrideAttackPowerBySpellPower(AuraApplication const* aurApp, uint8 mode, bool apply) const
+{
+    if (!(mode & (AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK | AURA_EFFECT_HANDLE_STAT)))
+        return;
+
+    Player* target = aurApp->GetTarget()->ToPlayer();
+    if (!target)
+        return;
+
+    target->ApplyModSignedFloatValue(PLAYER_FIELD_OVERRIDE_AP_BY_SPELL_POWER_PERCENT, float(m_amount), apply);
+    target->UpdateAttackPowerAndDamage();
+}
+
 /********************************/
 /***      HEAL & ENERGIZE     ***/
 /********************************/
@@ -4036,10 +4086,11 @@ void AuraEffect::HandleAuraModIncreaseHealth(AuraApplication const* aurApp, uint
     }
     else
     {
-        if (int32(target->GetHealth()) > GetAmount())
-            target->ModifyHealth(-GetAmount());
-        else
-            target->SetHealth(1);
+        if (target->GetHealth() > 0)
+        {
+            int32 value = std::min<int32>(target->GetHealth() - 1, GetAmount());
+            target->ModifyHealth(-value);
+        }
         target->HandleStatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, float(GetAmount()), apply);
     }
 }
@@ -4051,19 +4102,15 @@ void AuraEffect::HandleAuraModIncreaseMaxHealth(AuraApplication const* aurApp, u
 
     Unit* target = aurApp->GetTarget();
 
-    uint32 oldhealth = target->GetHealth();
-    double healthPercentage = (double)oldhealth / (double)target->GetMaxHealth();
+    float percent = target->GetHealthPct();
 
     target->HandleStatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, float(GetAmount()), apply);
 
     // refresh percentage
-    if (oldhealth > 0)
+    if (target->GetHealth() > 0)
     {
-        uint32 newhealth = uint32(ceil((double)target->GetMaxHealth() * healthPercentage));
-        if (newhealth == 0)
-            newhealth = 1;
-
-        target->SetHealth(newhealth);
+        uint32 newHealth = std::max<uint32>(target->CountPctFromMaxHealth(int32(percent)), 1);
+        target->SetHealth(newHealth);
     }
 }
 
@@ -4127,8 +4174,12 @@ void AuraEffect::HandleAuraModIncreaseHealthPercent(AuraApplication const* aurAp
     // Unit will keep hp% after MaxHealth being modified if unit is alive.
     float percent = target->GetHealthPct();
     target->HandleStatModifier(UNIT_MOD_HEALTH, TOTAL_PCT, float(GetAmount()), apply);
-    if (target->IsAlive())
-        target->SetHealth(target->CountPctFromMaxHealth(int32(percent)));
+
+    if (target->GetHealth() > 0)
+    {
+        uint32 newHealth = std::max<uint32>(target->CountPctFromMaxHealth(int32(percent)), 1);
+        target->SetHealth(newHealth);
+    }
 }
 
 void AuraEffect::HandleAuraIncreaseBaseHealthPercent(AuraApplication const* aurApp, uint8 mode, bool apply) const
@@ -4139,6 +4190,14 @@ void AuraEffect::HandleAuraIncreaseBaseHealthPercent(AuraApplication const* aurA
     Unit* target = aurApp->GetTarget();
 
     target->HandleStatModifier(UNIT_MOD_HEALTH, BASE_PCT, float(GetAmount()), apply);
+}
+
+void AuraEffect::HandleAuraModIncreaseBaseManaPercent(AuraApplication const* aurApp, uint8 mode, bool apply) const
+{
+    if (!(mode & (AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK | AURA_EFFECT_HANDLE_STAT)))
+        return;
+
+    aurApp->GetTarget()->HandleStatModifier(UNIT_MOD_MANA, BASE_PCT, float(GetAmount()), apply);
 }
 
 /********************************/
@@ -5415,11 +5474,6 @@ void AuraEffect::HandleAuraSetVehicle(AuraApplication const* aurApp, uint8 mode,
     if (target->GetTypeId() != TYPEID_PLAYER)
         return;
 
-    WorldPacket data(SMSG_PLAYER_VEHICLE_DATA, target->GetPackGUID().size()+4);
-    data << target->GetPackGUID();
-    data << uint32(apply ? vehicleId : 0);
-    target->SendMessageToSet(&data, true);
-
     if (apply)
         target->ToPlayer()->SendOnCancelExpectedVehicleRideAura();
 }
@@ -5736,7 +5790,7 @@ void AuraEffect::HandlePeriodicTriggerSpellAuraTick(Unit* target, Unit* caster) 
                     case 28820:
                     {
                         // Need remove self if Lightning Shield not active
-                        if (!target->GetAuraEffect(SPELL_AURA_PROC_TRIGGER_SPELL, SPELLFAMILY_SHAMAN, 0x400, 0, 0))
+                        if (!target->GetAuraEffect(SPELL_AURA_PROC_TRIGGER_SPELL, SPELLFAMILY_SHAMAN, flag128(0x400, 0, 0)))
                             target->RemoveAurasDueToSpell(28820);
                         return;
                     }
@@ -6031,11 +6085,10 @@ void AuraEffect::HandlePeriodicDamageAurasTick(Unit* target, Unit* caster) const
         overkill = 0;
 
     SpellPeriodicAuraLogInfo pInfo(this, damage, overkill, absorb, resist, 0.0f, crit);
-    target->SendPeriodicAuraLog(&pInfo);
 
     caster->ProcDamageAndSpell(target, procAttacker, procVictim, procEx, damage, BASE_ATTACK, GetSpellInfo());
-
     caster->DealDamage(target, damage, &cleanDamage, DOT, GetSpellInfo()->GetSchoolMask(), GetSpellInfo(), true);
+    target->SendPeriodicAuraLog(&pInfo);
 }
 
 bool AuraEffect::IsAreaAuraEffect() const
@@ -6118,7 +6171,13 @@ void AuraEffect::HandlePeriodicHealthLeechAuraTick(Unit* target, Unit* caster) c
     TC_LOG_DEBUG("spells.periodic", "PeriodicTick: %s health leech of %s for %u dmg inflicted by %u abs is %u",
         GetCasterGUID().ToString().c_str(), target->GetGUID().ToString().c_str(), damage, GetId(), absorb);
 
-    caster->SendSpellNonMeleeDamageLog(target, GetId(), damage, GetSpellInfo()->GetSchoolMask(), absorb, resist, false, 0, crit);
+    SpellNonMeleeDamage log(caster, target, GetId(), GetSpellInfo()->GetSchoolMask());
+    log.damage = damage - absorb - resist;
+    log.absorb = absorb;
+    log.resist = resist;
+    log.periodicLog = true;
+    if (crit)
+        log.HitInfo |= SPELL_HIT_TYPE_CRIT;
 
     // Set trigger flag
     uint32 procAttacker = PROC_FLAG_DONE_PERIODIC;
@@ -6140,6 +6199,8 @@ void AuraEffect::HandlePeriodicHealthLeechAuraTick(Unit* target, Unit* caster) c
         int32 gain = caster->HealBySpell(caster, GetSpellInfo(), heal);
         caster->getHostileRefManager().threatAssist(caster, gain * 0.5f, GetSpellInfo());
     }
+
+    caster->SendSpellNonMeleeDamageLog(&log);
 }
 
 void AuraEffect::HandlePeriodicHealthFunnelAuraTick(Unit* target, Unit* caster) const
@@ -6292,7 +6353,6 @@ void AuraEffect::HandlePeriodicManaLeechAuraTick(Unit* target, Unit* caster) con
     float gainMultiplier = GetSpellEffectInfo()->CalcValueMultiplier(caster);
 
     SpellPeriodicAuraLogInfo pInfo(this, drainedAmount, 0, 0, 0, gainMultiplier, false);
-    target->SendPeriodicAuraLog(&pInfo);
 
     int32 gainAmount = int32(drainedAmount * gainMultiplier);
     int32 gainedAmount = 0;
@@ -6316,6 +6376,8 @@ void AuraEffect::HandlePeriodicManaLeechAuraTick(Unit* target, Unit* caster) con
             caster->CastCustomSpell(caster, 32554, &feedAmount, NULL, NULL, true, NULL, this);
         }
     }
+
+    target->SendPeriodicAuraLog(&pInfo);
 }
 
 void AuraEffect::HandleObsModPowerAuraTick(Unit* target, Unit* caster) const
@@ -6345,12 +6407,12 @@ void AuraEffect::HandleObsModPowerAuraTick(Unit* target, Unit* caster) const
         GetCasterGUID().ToString().c_str(), target->GetGUID().ToString().c_str(), amount, GetId());
 
     SpellPeriodicAuraLogInfo pInfo(this, amount, 0, 0, 0, 0.0f, false);
-    target->SendPeriodicAuraLog(&pInfo);
-
     int32 gain = target->ModifyPower(powerType, amount);
 
     if (caster)
         target->getHostileRefManager().threatAssist(caster, float(gain) * 0.5f, GetSpellInfo());
+
+    target->SendPeriodicAuraLog(&pInfo);
 }
 
 void AuraEffect::HandlePeriodicEnergizeAuraTick(Unit* target, Unit* caster) const
@@ -6377,12 +6439,12 @@ void AuraEffect::HandlePeriodicEnergizeAuraTick(Unit* target, Unit* caster) cons
     int32 amount = std::max(m_amount, 0);
 
     SpellPeriodicAuraLogInfo pInfo(this, amount, 0, 0, 0, 0.0f, false);
-    target->SendPeriodicAuraLog(&pInfo);
 
     TC_LOG_DEBUG("spells.periodic", "PeriodicTick: %s energize %s for %u dmg inflicted by %u",
         GetCasterGUID().ToString().c_str(), target->GetGUID().ToString().c_str(), amount, GetId());
 
     int32 gain = target->ModifyPower(powerType, amount);
+    target->SendPeriodicAuraLog(&pInfo);
 
     if (caster)
         target->getHostileRefManager().threatAssist(caster, float(gain) * 0.5f, GetSpellInfo());
@@ -6416,8 +6478,6 @@ void AuraEffect::HandlePeriodicPowerBurnAuraTick(Unit* target, Unit* caster) con
 
     caster->DealDamageMods(damageInfo.target, damageInfo.damage, &damageInfo.absorb);
 
-    caster->SendSpellNonMeleeDamageLog(&damageInfo);
-
     // Set trigger flag
     uint32 procAttacker = PROC_FLAG_DONE_PERIODIC;
     uint32 procVictim   = PROC_FLAG_TAKEN_PERIODIC;
@@ -6428,6 +6488,7 @@ void AuraEffect::HandlePeriodicPowerBurnAuraTick(Unit* target, Unit* caster) con
     caster->ProcDamageAndSpell(damageInfo.target, procAttacker, procVictim, procEx, damageInfo.damage, BASE_ATTACK, spellProto);
 
     caster->DealSpellDamage(&damageInfo, true);
+    caster->SendSpellNonMeleeDamageLog(&damageInfo);
 }
 
 void AuraEffect::HandleProcTriggerSpellAuraProc(AuraApplication* aurApp, ProcEventInfo& eventInfo)
@@ -6470,9 +6531,9 @@ void AuraEffect::HandleProcTriggerDamageAuraProc(AuraApplication* aurApp, ProcEv
     damage = triggerTarget->SpellDamageBonusTaken(target, GetSpellInfo(), damage, SPELL_DIRECT_DAMAGE, GetSpellEffectInfo());
     target->CalculateSpellDamageTaken(&damageInfo, damage, GetSpellInfo());
     target->DealDamageMods(damageInfo.target, damageInfo.damage, &damageInfo.absorb);
-    target->SendSpellNonMeleeDamageLog(&damageInfo);
     TC_LOG_DEBUG("spells", "AuraEffect::HandleProcTriggerDamageAuraProc: Triggering %u spell damage from aura %u proc", damage, GetId());
     target->DealSpellDamage(&damageInfo, true);
+    target->SendSpellNonMeleeDamageLog(&damageInfo);
 }
 
 void AuraEffect::HandleRaidProcFromChargeAuraProc(AuraApplication* aurApp, ProcEventInfo& /*eventInfo*/)
@@ -6638,4 +6699,13 @@ void AuraEffect::HandleEnableAltPower(AuraApplication const* aurApp, uint8 mode,
         aurApp->GetTarget()->SetMaxPower(POWER_ALTERNATE_POWER, powerEntry->MaxPower);
     else
         aurApp->GetTarget()->SetMaxPower(POWER_ALTERNATE_POWER, 0);
+}
+
+void AuraEffect::HandleModSpellCategoryCooldown(AuraApplication const* aurApp, uint8 mode, bool /*apply*/) const
+{
+    if (!(mode & AURA_EFFECT_HANDLE_REAL))
+        return;
+
+    if (Player* player = aurApp->GetTarget()->ToPlayer())
+        player->SendSpellCategoryCooldowns();
 }

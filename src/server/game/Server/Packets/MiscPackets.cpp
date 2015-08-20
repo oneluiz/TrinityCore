@@ -50,15 +50,15 @@ WorldPacket const* WorldPackets::Misc::SetCurrency::Write()
     _worldPacket << uint32(Type);
     _worldPacket << uint32(Quantity);
     _worldPacket << uint32(Flags);
-    _worldPacket.WriteBit(WeeklyQuantity.HasValue);
-    _worldPacket.WriteBit(TrackedQuantity.HasValue);
+    _worldPacket.WriteBit(WeeklyQuantity.is_initialized());
+    _worldPacket.WriteBit(TrackedQuantity.is_initialized());
     _worldPacket.WriteBit(SuppressChatLog);
 
-    if (WeeklyQuantity.HasValue)
-        _worldPacket << uint32(WeeklyQuantity.Value);
+    if (WeeklyQuantity)
+        _worldPacket << uint32(*WeeklyQuantity);
 
-    if (TrackedQuantity.HasValue)
-        _worldPacket << uint32(TrackedQuantity.Value);
+    if (TrackedQuantity)
+        _worldPacket << uint32(*TrackedQuantity);
 
     _worldPacket.FlushBits();
 
@@ -79,18 +79,18 @@ WorldPacket const* WorldPackets::Misc::SetupCurrency::Write()
         _worldPacket << uint32(data.Type);
         _worldPacket << uint32(data.Quantity);
 
-        _worldPacket.WriteBit(data.WeeklyQuantity.HasValue);
-        _worldPacket.WriteBit(data.MaxWeeklyQuantity.HasValue);
-        _worldPacket.WriteBit(data.TrackedQuantity.HasValue);
+        _worldPacket.WriteBit(data.WeeklyQuantity.is_initialized());
+        _worldPacket.WriteBit(data.MaxWeeklyQuantity.is_initialized());
+        _worldPacket.WriteBit(data.TrackedQuantity.is_initialized());
 
         _worldPacket.WriteBits(data.Flags, 5);
 
-        if (data.WeeklyQuantity.HasValue)
-            _worldPacket << uint32(data.WeeklyQuantity.Value);
-        if (data.MaxWeeklyQuantity.HasValue)
-            _worldPacket << uint32(data.MaxWeeklyQuantity.Value);
-        if (data.TrackedQuantity.HasValue)
-            _worldPacket << uint32(data.TrackedQuantity.Value);
+        if (data.WeeklyQuantity)
+            _worldPacket << uint32(*data.WeeklyQuantity);
+        if (data.MaxWeeklyQuantity)
+            _worldPacket << uint32(*data.MaxWeeklyQuantity);
+        if (data.TrackedQuantity)
+            _worldPacket << uint32(*data.TrackedQuantity);
     }
 
     _worldPacket.FlushBits();
@@ -146,7 +146,9 @@ WorldPacket const* WorldPackets::Misc::TutorialFlags::Write()
 void WorldPackets::Misc::TutorialSetFlag::Read()
 {
     Action = _worldPacket.ReadBits(2);
-    _worldPacket >> TutorialBit;
+
+    if (Action == TUTORIAL_ACTION_UPDATE)
+        _worldPacket >> TutorialBit;
 }
 
 WorldPacket const* WorldPackets::Misc::WorldServerInfo::Write()
@@ -154,22 +156,23 @@ WorldPacket const* WorldPackets::Misc::WorldServerInfo::Write()
     _worldPacket << uint32(DifficultyID);
     _worldPacket << uint8(IsTournamentRealm);
     _worldPacket << uint32(WeeklyReset);
-    _worldPacket.WriteBit(RestrictedAccountMaxLevel.HasValue);
-    _worldPacket.WriteBit(RestrictedAccountMaxMoney.HasValue);
-    _worldPacket.WriteBit(IneligibleForLootMask.HasValue);
-    _worldPacket.WriteBit(InstanceGroupSize.HasValue);
+    _worldPacket.WriteBit(XRealmPvpAlert);
+    _worldPacket.WriteBit(RestrictedAccountMaxLevel.is_initialized());
+    _worldPacket.WriteBit(RestrictedAccountMaxMoney.is_initialized());
+    _worldPacket.WriteBit(IneligibleForLootMask.is_initialized());
+    _worldPacket.WriteBit(InstanceGroupSize.is_initialized());
 
-    if (RestrictedAccountMaxLevel.HasValue)
-        _worldPacket << uint32(RestrictedAccountMaxLevel.Value);
+    if (RestrictedAccountMaxLevel)
+        _worldPacket << uint32(*RestrictedAccountMaxLevel);
 
-    if (RestrictedAccountMaxMoney.HasValue)
-        _worldPacket << uint32(RestrictedAccountMaxMoney.Value);
+    if (RestrictedAccountMaxMoney)
+        _worldPacket << uint32(*RestrictedAccountMaxMoney);
 
-    if (IneligibleForLootMask.HasValue)
-        _worldPacket << uint32(IneligibleForLootMask.Value);
+    if (IneligibleForLootMask)
+        _worldPacket << uint32(*IneligibleForLootMask);
 
-    if (InstanceGroupSize.HasValue)
-        _worldPacket << uint32(InstanceGroupSize.Value);
+    if (InstanceGroupSize)
+        _worldPacket << uint32(*InstanceGroupSize);
 
     _worldPacket.FlushBits();
 
@@ -282,6 +285,7 @@ void WorldPackets::Misc::StandStateChange::Read()
 
 WorldPacket const* WorldPackets::Misc::StandStateUpdate::Write()
 {
+    _worldPacket << uint32(AnimKitID);
     _worldPacket << uint8(State);
 
     return &_worldPacket;
@@ -378,4 +382,174 @@ WorldPacket const* WorldPackets::Misc::RandomRoll::Write()
     _worldPacket << int32(Result);
 
     return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::PhaseShift::Write()
+{
+    _worldPacket << ClientGUID;                                 // CLientGUID
+    _worldPacket << uint32(PhaseShifts.size() ? 0 : 8);         // PhaseShiftFlags
+    _worldPacket << uint32(PhaseShifts.size());                 // PhaseShiftCount
+    _worldPacket << PersonalGUID;                               // PersonalGUID
+    for (uint32 phase : PhaseShifts)
+    {
+        _worldPacket << uint16(1);                              // PhaseFlags
+        _worldPacket << uint16(phase);                          // PhaseID
+    }
+
+    _worldPacket << uint32(VisibleMapIDs.size() * 2);           // Active terrain swaps size
+    for (uint32 map : VisibleMapIDs)
+        _worldPacket << uint16(map);                            // Active terrain swap map id
+
+    _worldPacket << uint32(PreloadMapIDs.size() * 2);           // Inactive terrain swaps size
+    for (uint32 map : PreloadMapIDs)
+        _worldPacket << uint16(map);                            // Inactive terrain swap map id
+
+    _worldPacket << uint32(UiWorldMapAreaIDSwaps.size() * 2);   // UI map swaps size
+    for (uint32 map : UiWorldMapAreaIDSwaps)
+        _worldPacket << uint16(map);                            // UI map id, WorldMapArea.dbc, controls map display
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::ZoneUnderAttack::Write()
+{
+    _worldPacket << int32(AreaID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::DurabilityDamageDeath::Write()
+{
+    _worldPacket << int32(Percent);
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Misc::ObjectUpdateFailed::Read()
+{
+    _worldPacket >> ObjectGUID;
+}
+
+void WorldPackets::Misc::ObjectUpdateRescued::Read()
+{
+    _worldPacket >> ObjectGUID;
+}
+
+WorldPacket const* WorldPackets::Misc::PlaySound::Write()
+{
+    _worldPacket << int32(SoundKitID);
+    _worldPacket << SourceObjectGuid;
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Misc::FarSight::Read()
+{
+    Enable = _worldPacket.ReadBit();
+}
+
+WorldPacket const* WorldPackets::Misc::Dismount::Write()
+{
+    _worldPacket << Guid;
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Misc::SaveCUFProfiles::Read()
+{
+    uint32 count;
+    _worldPacket >> count;
+
+    for (uint8 i = 0; i < count && i < MAX_CUF_PROFILES; i++)
+    {
+        std::unique_ptr<CUFProfile> cufProfile = Trinity::make_unique<CUFProfile>();
+
+        uint8 strLen = _worldPacket.ReadBits(7);
+
+        // Bool Options
+        for (uint8 option = 0; option < CUF_BOOL_OPTIONS_COUNT; option++)
+            cufProfile->BoolOptions.set(option, _worldPacket.ReadBit());
+
+        // Other Options
+        _worldPacket >> cufProfile->FrameHeight;
+        _worldPacket >> cufProfile->FrameWidth;
+
+        _worldPacket >> cufProfile->SortBy;
+        _worldPacket >> cufProfile->HealthText;
+
+        _worldPacket >> cufProfile->TopPoint;
+        _worldPacket >> cufProfile->BottomPoint;
+        _worldPacket >> cufProfile->LeftPoint;
+
+        _worldPacket >> cufProfile->TopOffset;
+        _worldPacket >> cufProfile->BottomOffset;
+        _worldPacket >> cufProfile->LeftOffset;
+
+        cufProfile->ProfileName = _worldPacket.ReadString(strLen);
+
+        CUFProfiles.push_back(std::move(cufProfile));
+    }
+}
+
+WorldPacket const* WorldPackets::Misc::LoadCUFProfiles::Write()
+{
+    _worldPacket << uint32(CUFProfiles.size());
+
+    for (CUFProfile const* cufProfile : CUFProfiles)
+    {
+        _worldPacket.WriteBits(cufProfile->ProfileName.size(), 7);
+
+        // Bool Options
+        for (uint8 option = 0; option < CUF_BOOL_OPTIONS_COUNT; option++)
+            _worldPacket.WriteBit(cufProfile->BoolOptions[option]);
+
+        // Other Options
+        _worldPacket << cufProfile->FrameHeight;
+        _worldPacket << cufProfile->FrameWidth;
+
+        _worldPacket << cufProfile->SortBy;
+        _worldPacket << cufProfile->HealthText;
+
+        _worldPacket << cufProfile->TopPoint;
+        _worldPacket << cufProfile->BottomPoint;
+        _worldPacket << cufProfile->LeftPoint;
+
+        _worldPacket << cufProfile->TopOffset;
+        _worldPacket << cufProfile->BottomOffset;
+        _worldPacket << cufProfile->LeftOffset;
+
+        _worldPacket.WriteString(cufProfile->ProfileName);
+    }
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::SetAIAnimKit::Write()
+{
+    _worldPacket << Unit;
+    _worldPacket << uint16(AnimKitID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::SetPlayHoverAnim::Write()
+{
+    _worldPacket << UnitGUID;
+    _worldPacket.WriteBit(PlayHoverAnim);
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Misc::SetPvP::Read()
+{
+    EnablePVP = _worldPacket.ReadBit();
+}
+
+void WorldPackets::Misc::WorldTeleport::Read()
+{
+    _worldPacket >> MapID;
+    _worldPacket >> TransportGUID;
+    _worldPacket >> Pos;
+    _worldPacket >> Facing;
 }

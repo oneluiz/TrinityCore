@@ -22,7 +22,7 @@
 #include "Common.h"
 #include "ByteBuffer.h"
 #include <boost/functional/hash.hpp>
-
+#include <type_traits>
 #include <functional>
 #include <unordered_set>
 
@@ -109,24 +109,84 @@ enum class HighGuid
     Count,
 };
 
+template<HighGuid high>
+struct ObjectGuidTraits
+{
+    static bool const Global = false;
+    static bool const RealmSpecific = false;
+    static bool const MapSpecific = false;
+};
+
+#define GUID_TRAIT_GLOBAL(highguid) \
+    template<> struct ObjectGuidTraits<highguid> \
+    { \
+        static bool const Global = true; \
+        static bool const RealmSpecific = false; \
+        static bool const MapSpecific = false; \
+    };
+
+#define GUID_TRAIT_REALM_SPECIFIC(highguid) \
+    template<> struct ObjectGuidTraits<highguid> \
+    { \
+        static bool const Global = false; \
+        static bool const RealmSpecific = true; \
+        static bool const MapSpecific = false; \
+    };
+
+#define GUID_TRAIT_MAP_SPECIFIC(highguid) \
+    template<> struct ObjectGuidTraits<highguid> \
+    { \
+        static bool const Global = false; \
+        static bool const RealmSpecific = false; \
+        static bool const MapSpecific = true; \
+    };
+
+GUID_TRAIT_GLOBAL(HighGuid::Uniq)
+GUID_TRAIT_GLOBAL(HighGuid::Party)
+GUID_TRAIT_GLOBAL(HighGuid::WowAccount)
+GUID_TRAIT_GLOBAL(HighGuid::BNetAccount)
+GUID_TRAIT_GLOBAL(HighGuid::GMTask)
+GUID_TRAIT_GLOBAL(HighGuid::RaidGroup)
+GUID_TRAIT_GLOBAL(HighGuid::Spell)
+GUID_TRAIT_GLOBAL(HighGuid::Mail)
+GUID_TRAIT_GLOBAL(HighGuid::UserRouter)
+GUID_TRAIT_GLOBAL(HighGuid::PVPQueueGroup)
+GUID_TRAIT_GLOBAL(HighGuid::UserClient)
+GUID_TRAIT_GLOBAL(HighGuid::UniqueUserClient)
+GUID_TRAIT_GLOBAL(HighGuid::BattlePet)
+GUID_TRAIT_REALM_SPECIFIC(HighGuid::Player)
+GUID_TRAIT_REALM_SPECIFIC(HighGuid::Item)       // This is not exactly correct, there are 2 more unknown parts in highguid: (high >> 10 & 0xFF), (high >> 18 & 0xFFFFFF)
+GUID_TRAIT_REALM_SPECIFIC(HighGuid::Transport)
+GUID_TRAIT_REALM_SPECIFIC(HighGuid::Guild)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Conversation)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Creature)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Vehicle)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Pet)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::GameObject)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::DynamicObject)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::AreaTrigger)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Corpse)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::LootObject)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::SceneObject)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Scenario)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::AIGroup)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::DynamicDoor)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::Vignette)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::CallForHelp)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::AIResource)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::AILock)
+GUID_TRAIT_MAP_SPECIFIC(HighGuid::AILockTicket)
+
 class ObjectGuid;
 class PackedGuid;
-class GuidFormat;
-
-struct PackedGuidReader
-{
-    explicit PackedGuidReader(ObjectGuid& guid) : GuidPtr(&guid) { }
-    ObjectGuid* GuidPtr;
-};
 
 #pragma pack(push, 1)
 
 class ObjectGuid
 {
     friend std::ostream& operator<<(std::ostream& stream, ObjectGuid const& guid);
-    friend ByteBuffer& operator>>(ByteBuffer& buf, PackedGuidReader const& guid);
-    friend class PackedGuid;
-    friend class GuidFormat;
+    friend ByteBuffer& operator<<(ByteBuffer& buf, ObjectGuid const& guid);
+    friend ByteBuffer& operator>>(ByteBuffer& buf, ObjectGuid& guid);
 
     public:
         static ObjectGuid const Empty;
@@ -135,22 +195,25 @@ class ObjectGuid
         typedef uint64 LowType;
 
         template<HighGuid type>
-        static ObjectGuid Create(LowType counter);
+        static typename std::enable_if<ObjectGuidTraits<type>::Global, ObjectGuid>::type Create(LowType counter) { return Global(type, counter); }
 
         template<HighGuid type>
-        static ObjectGuid Create(uint16 mapId, uint32 entry, LowType counter);
+        static typename std::enable_if<ObjectGuidTraits<type>::RealmSpecific, ObjectGuid>::type Create(LowType counter) { return RealmSpecific(type, counter); }
+
+        template<HighGuid type>
+        static typename std::enable_if<ObjectGuidTraits<type>::MapSpecific, ObjectGuid>::type Create(uint16 mapId, uint32 entry, LowType counter) { return MapSpecific(type, 0, mapId, 0, entry, counter); }
 
         ObjectGuid() : _low(0), _high(0) { }
-        ObjectGuid(ObjectGuid const&) = default;
+        ObjectGuid(ObjectGuid const& r) : _low(r._low), _high(r._high) { }
+        ObjectGuid(ObjectGuid&& r) : _low(r._low), _high(r._high) { }
 
-        PackedGuidReader ReadAsPacked() { return PackedGuidReader(*this); }
+        ObjectGuid& operator=(ObjectGuid const& r) { _low = r._low; _high = r._high; return *this; }
+        ObjectGuid& operator=(ObjectGuid&& r) { _low = r._low; _high = r._high; return *this; }
 
         std::vector<uint8> GetRawValue() const;
         void SetRawValue(std::vector<uint8> const& guid);
         void SetRawValue(uint64 high, uint64 low) { _high = high; _low = low; }
         void Clear() { _high = 0; _low = 0; }
-
-        PackedGuid WriteAsPacked() const;
 
         HighGuid GetHigh() const { return HighGuid((_high >> 58) & 0x3F); }
         uint32 GetRealmId() const { return uint32((_high >> 42) & 0x1FFF); }
@@ -253,6 +316,10 @@ class ObjectGuid
 
         bool HasEntry() const { return HasEntry(GetHigh()); }
 
+        static ObjectGuid Global(HighGuid type, LowType counter);
+        static ObjectGuid RealmSpecific(HighGuid type, LowType counter);
+        static ObjectGuid MapSpecific(HighGuid type, uint8 subType, uint16 mapId, uint32 serverId, uint32 entry, LowType counter);
+
         ObjectGuid(uint64 high, uint64 low) : _low(low), _high(high) { }
         explicit ObjectGuid(uint32 const&) = delete;                 // no implementation, used to catch wrong type assignment
 
@@ -288,29 +355,40 @@ class PackedGuid
         ByteBuffer _packedGuid;
 };
 
-template<HighGuid high>
-class ObjectGuidGenerator
+class ObjectGuidGeneratorBase
 {
-    public:
-        explicit ObjectGuidGenerator(ObjectGuid::LowType start = UI64LIT(1)) : _nextGuid(start) { }
+public:
+    ObjectGuidGeneratorBase(ObjectGuid::LowType start = UI64LIT(1)) : _nextGuid(start) { }
 
-        void Set(uint64 val) { _nextGuid = val; }
-        ObjectGuid::LowType Generate();
-        ObjectGuid::LowType GetNextAfterMaxUsed() const { return _nextGuid; }
+    virtual void Set(uint64 val) { _nextGuid = val; }
+    virtual ObjectGuid::LowType Generate() = 0;
+    ObjectGuid::LowType GetNextAfterMaxUsed() const { return _nextGuid; }
 
-    private:
-        uint64 _nextGuid;
+protected:
+    static void HandleCounterOverflow(HighGuid high);
+    uint64 _nextGuid;
+};
+
+template<HighGuid high>
+class ObjectGuidGenerator : public ObjectGuidGeneratorBase
+{
+public:
+    explicit ObjectGuidGenerator(ObjectGuid::LowType start = UI64LIT(1)) : ObjectGuidGeneratorBase(start) { }
+
+    ObjectGuid::LowType Generate() override
+    {
+        if (_nextGuid >= ObjectGuid::GetMaxCounter(high) - 1)
+            HandleCounterOverflow(high);
+        return _nextGuid++;
+    }
 };
 
 ByteBuffer& operator<<(ByteBuffer& buf, ObjectGuid const& guid);
 ByteBuffer& operator>>(ByteBuffer& buf, ObjectGuid&       guid);
 
 ByteBuffer& operator<<(ByteBuffer& buf, PackedGuid const& guid);
-ByteBuffer& operator>>(ByteBuffer& buf, PackedGuidReader const& guid);
 
 std::ostream& operator<<(std::ostream& stream, ObjectGuid const& guid);
-
-inline PackedGuid ObjectGuid::WriteAsPacked() const { return PackedGuid(*this); }
 
 namespace std
 {

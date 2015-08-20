@@ -112,6 +112,8 @@ public:
     void EraseRecord(uint32 id) override { if (id < _indexTableSize) _indexTable.AsT[id] = nullptr; }
 
     T const* LookupEntry(uint32 id) const { return (id >= _indexTableSize) ? nullptr : _indexTable.AsT[id]; }
+    T const* AssertEntry(uint32 id) const { return ASSERT_NOTNULL(LookupEntry(id)); }
+
     std::string const& GetFileName() const { return _fileName; }
     uint32 GetNumRows() const { return _indexTableSize; }
     char const* GetFormat() const { return _format; }
@@ -177,6 +179,14 @@ public:
             return;
 
         DB2DatabaseLoader(_fileName).LoadStrings(_format, _hotfixStatement + 1, locale, _indexTable.AsChar, _stringPoolList);
+    }
+
+    typedef bool(*SortFunc)(T const* left, T const* right);
+
+    void Sort(SortFunc pred)
+    {
+        ASSERT(strpbrk(_format, "nd") == nullptr, "Only non-indexed storages can be sorted");
+        std::sort(_indexTable.AsT, _indexTable.AsT + _indexTableSize, pred);
     }
 
     iterator begin() { return iterator(_indexTable.AsT, _indexTableSize); }

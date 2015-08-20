@@ -106,7 +106,7 @@ public:
             AreaTableEntry const* areaEntry = sAreaStore.LookupEntry(areaflag);
             if (areaEntry)
             {
-                std::string name = areaEntry->ZoneName;
+                std::string name = areaEntry->AreaName_lang;
                 if (name.empty())
                     continue;
 
@@ -565,7 +565,7 @@ public:
             if (localeIndex >= 0)
             {
                 uint8 ulocaleIndex = uint8(localeIndex);
-                if (QuestLocale const* questLocale = sObjectMgr->GetQuestLocale(qInfo->GetQuestId()))
+                if (QuestTemplateLocale const* questLocale = sObjectMgr->GetQuestLocale(qInfo->GetQuestId()))
                 {
                     if (questLocale->LogTitle.size() > ulocaleIndex && !questLocale->LogTitle[ulocaleIndex].empty())
                     {
@@ -919,7 +919,7 @@ public:
         // Search in TaxiNodes.dbc
         for (TaxiNodesEntry const* nodeEntry : sTaxiNodesStore)
         {
-            std::string name = nodeEntry->Name_lang->Str[locale];
+            std::string name = nodeEntry->Name->Str[locale];
             if (name.empty())
                 continue;
 

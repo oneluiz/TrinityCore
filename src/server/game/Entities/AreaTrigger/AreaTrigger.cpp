@@ -15,10 +15,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ObjectAccessor.h"
 #include "Unit.h"
 #include "SpellInfo.h"
 #include "Log.h"
+#include "UpdateData.h"
 #include "AreaTrigger.h"
 
 AreaTrigger::AreaTrigger() : WorldObject(false), _duration(0)
@@ -41,7 +41,7 @@ void AreaTrigger::AddToWorld()
     ///- Register the AreaTrigger for guid lookup and for caster
     if (!IsInWorld())
     {
-        sObjectAccessor->AddObject(this);
+        GetMap()->GetObjectsStore().Insert<AreaTrigger>(GetGUID(), this);
         WorldObject::AddToWorld();
     }
 }
@@ -52,7 +52,7 @@ void AreaTrigger::RemoveFromWorld()
     if (IsInWorld())
     {
         WorldObject::RemoveFromWorld();
-        sObjectAccessor->RemoveObject(this);
+        GetMap()->GetObjectsStore().Remove<AreaTrigger>(GetGUID());
     }
 }
 
@@ -75,11 +75,10 @@ bool AreaTrigger::CreateAreaTrigger(ObjectGuid::LowType guidlow, uint32 triggerE
 
     SetGuidValue(AREATRIGGER_CASTER, caster->GetGUID());
     SetUInt32Value(AREATRIGGER_SPELLID, spell->Id);
-    SetUInt32Value(AREATRIGGER_SPELLVISUALID, spell->SpellVisual[0]);
+    SetUInt32Value(AREATRIGGER_SPELLVISUALID, spell->GetSpellVisual(GetMap()->GetDifficultyID()));
     SetUInt32Value(AREATRIGGER_DURATION, spell->GetDuration());
 
-    for (auto phase : caster->GetPhases())
-        SetInPhase(phase, false, true);
+    CopyPhaseFrom(caster);
 
     if (!GetMap()->AddToMap(this))
         return false;

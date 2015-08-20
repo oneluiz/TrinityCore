@@ -58,6 +58,8 @@ void OutdoorPvPSI::UpdateWorldState()
 
 bool OutdoorPvPSI::SetupOutdoorPvP()
 {
+    SetMapFromZone(OutdoorPvPSIBuffZones[0]);
+
     for (uint8 i = 0; i < OutdoorPvPSIBuffZonesNum; ++i)
         RegisterZone(OutdoorPvPSIBuffZones[i]);
     return true;
@@ -82,7 +84,7 @@ void OutdoorPvPSI::HandlePlayerLeaveZone(Player* player, uint32 zone)
     OutdoorPvP::HandlePlayerLeaveZone(player, zone);
 }
 
-bool OutdoorPvPSI::HandleAreaTrigger(Player* player, uint32 trigger)
+bool OutdoorPvPSI::HandleAreaTrigger(Player* player, uint32 trigger, bool /*entered*/)
 {
     switch (trigger)
     {
@@ -166,14 +168,13 @@ bool OutdoorPvPSI::HandleDropFlag(Player* player, uint32 spellId)
                             return true;
                         }
 
-                        if (!go->Create(sObjectMgr->GetGenerator<HighGuid::GameObject>()->Generate(), SI_SILITHYST_MOUND, map, player->GetPhaseMask(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation(), 0, 0, 0, 0, 100, GO_STATE_READY))
+                        if (!go->Create(map->GenerateLowGuid<HighGuid::GameObject>(), SI_SILITHYST_MOUND, map, player->GetPhaseMask(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation(), 0, 0, 0, 0, 100, GO_STATE_READY))
                         {
                             delete go;
                             return true;
                         }
 
-                        for (auto phase : player->GetPhases())
-                            go->SetInPhase(phase, false, true);
+                        go->CopyPhaseFrom(player);
 
                         go->SetRespawnTime(0);
 
@@ -203,14 +204,13 @@ bool OutdoorPvPSI::HandleDropFlag(Player* player, uint32 spellId)
                             return true;
                         }
 
-                        if (!go->Create(sObjectMgr->GetGenerator<HighGuid::GameObject>()->Generate(), SI_SILITHYST_MOUND, map, player->GetPhaseMask(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation(), 0, 0, 0, 0, 100, GO_STATE_READY))
+                        if (!go->Create(map->GenerateLowGuid<HighGuid::GameObject>(), SI_SILITHYST_MOUND, map, player->GetPhaseMask(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation(), 0, 0, 0, 0, 100, GO_STATE_READY))
                         {
                             delete go;
                             return true;
                         }
 
-                        for (auto phase : player->GetPhases())
-                            go->SetInPhase(phase, false, true);
+                        go->CopyPhaseFrom(player);
 
                         go->SetRespawnTime(0);
 

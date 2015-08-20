@@ -19,7 +19,6 @@
 #include "WaypointMovementGenerator.h"
 //Extended headers
 #include "ObjectMgr.h"
-#include "World.h"
 #include "Transport.h"
 //Flightmaster grid preloading
 #include "MapManager.h"
@@ -42,7 +41,7 @@ void WaypointMovementGenerator<Creature>::LoadPath(Creature* creature)
     if (!i_path)
     {
         // No path id found for entry
-        TC_LOG_ERROR("sql.sql", "WaypointMovementGenerator::LoadPath: creature %s (%s DB GUID: " UI64FMTD ") doesn't have waypoint path id: %u", creature->GetName().c_str(), creature->GetGUID().ToString().c_str(), creature->GetDBTableGUIDLow(), path_id);
+        TC_LOG_ERROR("sql.sql", "WaypointMovementGenerator::LoadPath: creature %s (%s DB GUID: " UI64FMTD ") doesn't have waypoint path id: %u", creature->GetName().c_str(), creature->GetGUID().ToString().c_str(), creature->GetSpawnId(), path_id);
         return;
     }
 

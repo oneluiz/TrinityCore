@@ -40,7 +40,7 @@
 #ifndef _RBAC_H
 #define _RBAC_H
 
-#include "Define.h"
+#include "DatabaseEnv.h"
 #include <string>
 #include <set>
 #include <map>
@@ -59,9 +59,9 @@ enum RBACPermissions
     //  7 - reuse
     //  8 - reuse
     //  9 - reuse
-    // 10 - reuse
+    RBAC_PERM_USE_CHARACTER_TEMPLATES                        = 10,
     RBAC_PERM_LOG_GM_TRADE                                   = 11,
-    // 12 - reuse
+    //  12 - reuse
     RBAC_PERM_SKIP_CHECK_INSTANCE_REQUIRED_BOSSES            = 13,
     RBAC_PERM_SKIP_CHECK_CHARACTER_CREATION_TEAMMASK         = 14,
     RBAC_PERM_SKIP_CHECK_CHARACTER_CREATION_CLASSMASK        = 15,
@@ -287,7 +287,7 @@ enum RBACPermissions
     RBAC_PERM_COMMAND_GO_GRID                                = 380,
     RBAC_PERM_COMMAND_GO_OBJECT                              = 381,
     RBAC_PERM_COMMAND_GO_TAXINODE                            = 382,
-    RBAC_PERM_COMMAND_GO_TICKET                              = 383,
+    // 383 reuse
     RBAC_PERM_COMMAND_GO_TRIGGER                             = 384,
     RBAC_PERM_COMMAND_GO_XYZ                                 = 385,
     RBAC_PERM_COMMAND_GO_ZONEXY                              = 386,
@@ -566,12 +566,12 @@ enum RBACPermissions
     RBAC_PERM_COMMAND_RELOAD_LOCALES_CRETURE_TEXT            = 659,
     RBAC_PERM_COMMAND_RELOAD_LOCALES_GAMEOBJECT              = 660,
     RBAC_PERM_COMMAND_RELOAD_LOCALES_GOSSIP_MENU_OPTION      = 661,
-    // UNUSED
+    RBAC_PERM_COMMAND_RELOAD_CHARACTER_TEMPLATE              = 662,
     RBAC_PERM_COMMAND_RELOAD_LOCALES_ITEM_SET_NAME           = 663,
-    RBAC_PERM_COMMAND_RELOAD_LOCALES_NPC_TEXT                = 664,
+    RBAC_PERM_COMMAND_RELOAD_QUEST_GREETING                  = 664,
     RBAC_PERM_COMMAND_RELOAD_LOCALES_PAGE_TEXT               = 665,
     RBAC_PERM_COMMAND_RELOAD_LOCALES_POINTS_OF_INTEREST      = 666,
-    RBAC_PERM_COMMAND_RELOAD_LOCALES_QUEST                   = 667,
+    RBAC_PERM_COMMAND_RELOAD_QUEST_LOCALE                    = 667,
     RBAC_PERM_COMMAND_RELOAD_MAIL_LEVEL_REWARD               = 668,
     RBAC_PERM_COMMAND_RELOAD_MAIL_LOOT_TEMPLATE              = 669,
     RBAC_PERM_COMMAND_RELOAD_MILLING_LOOT_TEMPLATE           = 670,
@@ -596,7 +596,7 @@ enum RBACPermissions
     RBAC_PERM_COMMAND_RELOAD_SMART_SCRIPTS                   = 689,
     RBAC_PERM_COMMAND_RELOAD_SPELL_REQUIRED                  = 690,
     RBAC_PERM_COMMAND_RELOAD_SPELL_AREA                      = 691,
-    // REUSE
+    RBAC_PERM_COMMAND_DEBUG_SEND_PLAYSCENE                   = 692,
     RBAC_PERM_COMMAND_RELOAD_SPELL_GROUP                     = 693,
     RBAC_PERM_COMMAND_RELOAD_SPELL_LEARN_SPELL               = 694,
     RBAC_PERM_COMMAND_RELOAD_SPELL_LOOT_TEMPLATE             = 695,
@@ -647,24 +647,11 @@ enum RBACPermissions
     RBAC_PERM_COMMAND_TELE_NAME                              = 740,
     RBAC_PERM_COMMAND_TELE_GROUP                             = 741,
     RBAC_PERM_COMMAND_TICKET                                 = 742,
-    RBAC_PERM_COMMAND_TICKET_ASSIGN                          = 743,
-    RBAC_PERM_COMMAND_TICKET_CLOSE                           = 744,
-    RBAC_PERM_COMMAND_TICKET_CLOSEDLIST                      = 745,
-    RBAC_PERM_COMMAND_TICKET_COMMENT                         = 746,
-    RBAC_PERM_COMMAND_TICKET_COMPLETE                        = 747,
-    RBAC_PERM_COMMAND_TICKET_DELETE                          = 748,
-    RBAC_PERM_COMMAND_TICKET_ESCALATE                        = 749,
-    RBAC_PERM_COMMAND_TICKET_ESCALATEDLIST                   = 750,
-    RBAC_PERM_COMMAND_TICKET_LIST                            = 751,
-    RBAC_PERM_COMMAND_TICKET_ONLINELIST                      = 752,
+    // 743 - 752 reuse
     RBAC_PERM_COMMAND_TICKET_RESET                           = 753,
-    RBAC_PERM_COMMAND_TICKET_RESPONSE                        = 754,
-    RBAC_PERM_COMMAND_TICKET_RESPONSE_APPEND                 = 755,
-    RBAC_PERM_COMMAND_TICKET_RESPONSE_APPENDLN               = 756,
+    // 754 - 756 reuse
     RBAC_PERM_COMMAND_TICKET_TOGGLESYSTEM                    = 757,
-    RBAC_PERM_COMMAND_TICKET_UNASSIGN                        = 758,
-    RBAC_PERM_COMMAND_TICKET_VIEWID                          = 759,
-    RBAC_PERM_COMMAND_TICKET_VIEWNAME                        = 760,
+    // 758 - 760 reuse
     RBAC_PERM_COMMAND_TITLES                                 = 761,
     RBAC_PERM_COMMAND_TITLES_ADD                             = 762,
     RBAC_PERM_COMMAND_TITLES_CURRENT                         = 763,
@@ -734,10 +721,11 @@ enum RBACPermissions
     RBAC_PERM_COMMAND_TICKET_SUGGESTION_UNASSIGN             = 827,
     RBAC_PERM_COMMAND_TICKET_SUGGESTION_VIEW                 = 828,
     RBAC_PERM_COMMAND_TICKET_RESET_ALL                       = 829,
-    RBAC_PERM_COMMAND_TICKET_RESET_GM                        = 830,
+    // 830 reuse
     RBAC_PERM_COMMAND_TICKET_RESET_BUG                       = 831,
     RBAC_PERM_COMMAND_TICKET_RESET_COMPLAINT                 = 832,
     RBAC_PERM_COMMAND_TICKET_RESET_SUGGESTION                = 833,
+    RBAC_PERM_COMMAND_GO_QUEST                               = 834,
 
     // custom permissions 1000+
     RBAC_PERM_MAX
@@ -846,6 +834,7 @@ class RBACData
          * @return Success or failure (with reason) to grant the permission
          *
          * Example Usage:
+         * @code
          * // previously defined "RBACData* rbac" with proper initialization
          * uint32 permissionId = 2;
          * if (rbac->GrantRole(permissionId) == RBAC_IN_DENIED_LIST)
@@ -869,6 +858,7 @@ class RBACData
          * @return Success or failure (with reason) to deny the permission
          *
          * Example Usage:
+         * @code
          * // previously defined "RBACData* rbac" with proper initialization
          * uint32 permissionId = 2;
          * if (rbac->DenyRole(permissionId) == RBAC_ID_DOES_NOT_EXISTS)
@@ -893,6 +883,7 @@ class RBACData
          * @return Success or failure (with reason) to remove the permission
          *
          * Example Usage:
+         * @code
          * // previously defined "RBACData* rbac" with proper initialization
          * uint32 permissionId = 2;
          * if (rbac->RevokeRole(permissionId) == RBAC_OK)
@@ -903,6 +894,8 @@ class RBACData
 
         /// Loads all permissions assigned to current account
         void LoadFromDB();
+        PreparedQueryResultFuture LoadFromDBAsync();
+        void LoadFromDBCallback(PreparedQueryResult result);
 
         /// Sets security level
         void SetSecurityLevel(uint8 id)
@@ -930,7 +923,7 @@ class RBACData
          */
         void CalculateNewPermissions();
 
-        int32 GetRealmId() { return _realmId; }
+        int32 GetRealmId() const { return _realmId; }
 
         // Auxiliar private functions - defined to allow to maintain same code even
         // if internal structure changes.
@@ -983,9 +976,6 @@ class RBACData
          *
          * Given a list of permissions, gets all the inherited permissions
          * @param permissions The list of permissions to expand
-         *
-         * @return new list of permissions containing original permissions and
-         * all other pemissions that are linked to the original ones
          */
         void ExpandPermissions(RBACPermissionContainer& permissions);
 

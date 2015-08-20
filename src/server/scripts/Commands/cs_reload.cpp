@@ -76,6 +76,7 @@ public:
             { "areatrigger_teleport",          rbac::RBAC_PERM_COMMAND_RELOAD_AREATRIGGER_TELEPORT,             true,  &HandleReloadAreaTriggerTeleportCommand,        "", NULL },
             { "autobroadcast",                 rbac::RBAC_PERM_COMMAND_RELOAD_AUTOBROADCAST,                    true,  &HandleReloadAutobroadcastCommand,              "", NULL },
             { "battleground_template",         rbac::RBAC_PERM_COMMAND_RELOAD_BATTLEGROUND_TEMPLATE,            true,  &HandleReloadBattlegroundTemplate,              "", NULL },
+            { "character_template",            rbac::RBAC_PERM_COMMAND_RELOAD_CHARACTER_TEMPLATE,               true,  &HandleReloadCharacterTemplate,                 "", NULL },
             { "command",                       rbac::RBAC_PERM_COMMAND_RELOAD_COMMAND,                          true,  &HandleReloadCommandCommand,                    "", NULL },
             { "conditions",                    rbac::RBAC_PERM_COMMAND_RELOAD_CONDITIONS,                       true,  &HandleReloadConditions,                        "", NULL },
             { "config",                        rbac::RBAC_PERM_COMMAND_RELOAD_CONFIG,                           true,  &HandleReloadConfigCommand,                     "", NULL },
@@ -106,10 +107,8 @@ public:
             { "locales_creature_text",         rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_CRETURE_TEXT,             true,  &HandleReloadLocalesCreatureTextCommand,        "", NULL },
             { "locales_gameobject",            rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_GAMEOBJECT,               true,  &HandleReloadLocalesGameobjectCommand,          "", NULL },
             { "locales_gossip_menu_option",    rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_GOSSIP_MENU_OPTION,       true,  &HandleReloadLocalesGossipMenuOptionCommand,    "", NULL },
-            { "locales_npc_text",              rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_NPC_TEXT,                 true,  &HandleReloadLocalesNpcTextCommand,             "", NULL },
             { "locales_page_text",             rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_PAGE_TEXT,                true,  &HandleReloadLocalesPageTextCommand,            "", NULL },
             { "locales_points_of_interest",    rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_POINTS_OF_INTEREST,       true,  &HandleReloadLocalesPointsOfInterestCommand,    "", NULL },
-            { "locales_quest",                 rbac::RBAC_PERM_COMMAND_RELOAD_LOCALES_QUEST,                    true,  &HandleReloadLocalesQuestCommand,               "", NULL },
             { "mail_level_reward",             rbac::RBAC_PERM_COMMAND_RELOAD_MAIL_LEVEL_REWARD,                true,  &HandleReloadMailLevelRewardCommand,            "", NULL },
             { "mail_loot_template",            rbac::RBAC_PERM_COMMAND_RELOAD_MAIL_LOOT_TEMPLATE,               true,  &HandleReloadLootTemplatesMailCommand,          "", NULL },
             { "milling_loot_template",         rbac::RBAC_PERM_COMMAND_RELOAD_MILLING_LOOT_TEMPLATE,            true,  &HandleReloadLootTemplatesMillingCommand,       "", NULL },
@@ -120,6 +119,8 @@ public:
             { "pickpocketing_loot_template",   rbac::RBAC_PERM_COMMAND_RELOAD_PICKPOCKETING_LOOT_TEMPLATE,      true,  &HandleReloadLootTemplatesPickpocketingCommand, "", NULL },
             { "points_of_interest",            rbac::RBAC_PERM_COMMAND_RELOAD_POINTS_OF_INTEREST,               true,  &HandleReloadPointsOfInterestCommand,           "", NULL },
             { "prospecting_loot_template",     rbac::RBAC_PERM_COMMAND_RELOAD_PROSPECTING_LOOT_TEMPLATE,        true,  &HandleReloadLootTemplatesProspectingCommand,   "", NULL },
+            { "quest_greeting",                rbac::RBAC_PERM_COMMAND_RELOAD_QUEST_GREETING,                   true,  &HandleReloadQuestGreetingCommand,              "", NULL },
+            { "quest_locale",                  rbac::RBAC_PERM_COMMAND_RELOAD_QUEST_LOCALE,                     true,  &HandleReloadQuestLocaleCommand,                "", NULL },
             { "quest_poi",                     rbac::RBAC_PERM_COMMAND_RELOAD_QUEST_POI,                        true,  &HandleReloadQuestPOICommand,                   "", NULL },
             { "quest_template",                rbac::RBAC_PERM_COMMAND_RELOAD_QUEST_TEMPLATE,                   true,  &HandleReloadQuestTemplateCommand,              "", NULL },
             { "rbac",                          rbac::RBAC_PERM_COMMAND_RELOAD_RBAC,                             true,  &HandleReloadRBACCommand,                       "", NULL },
@@ -166,7 +167,6 @@ public:
     static bool HandleReloadSupportSystemCommand(ChatHandler* handler, const char* /*args*/)
     {
         TC_LOG_INFO("misc", "Re-Loading Support System Tables...");
-        sSupportMgr->LoadGmTickets();
         sSupportMgr->LoadBugTickets();
         sSupportMgr->LoadComplaintTickets();
         sSupportMgr->LoadSuggestionTickets();
@@ -202,6 +202,7 @@ public:
 
         HandleReloadAutobroadcastCommand(handler, "");
         HandleReloadBattlegroundTemplate(handler, "");
+        HandleReloadCharacterTemplate(handler, "");
         return true;
     }
 
@@ -243,6 +244,7 @@ public:
     static bool HandleReloadAllQuestCommand(ChatHandler* handler, const char* /*args*/)
     {
         HandleReloadQuestAreaTriggersCommand(handler, "a");
+        HandleReloadQuestGreetingCommand(handler, "a");
         HandleReloadQuestPOICommand(handler, "a");
         HandleReloadQuestTemplateCommand(handler, "a");
 
@@ -311,10 +313,9 @@ public:
         HandleReloadLocalesCreatureTextCommand(handler, "a");
         HandleReloadLocalesGameobjectCommand(handler, "a");
         HandleReloadLocalesGossipMenuOptionCommand(handler, "a");
-        HandleReloadLocalesNpcTextCommand(handler, "a");
         HandleReloadLocalesPageTextCommand(handler, "a");
         HandleReloadLocalesPointsOfInterestCommand(handler, "a");
-        HandleReloadLocalesQuestCommand(handler, "a");
+        HandleReloadQuestLocaleCommand(handler, "a");
         return true;
     }
 
@@ -380,6 +381,14 @@ public:
         TC_LOG_INFO("misc", "Re-Loading Battleground Templates...");
         sBattlegroundMgr->LoadBattlegroundTemplates();
         handler->SendGlobalGMSysMessage("DB table `battleground_template` reloaded.");
+        return true;
+    }
+
+    static bool HandleReloadCharacterTemplate(ChatHandler* handler, char const* /*args*/)
+    {
+        TC_LOG_INFO("misc", "Re-Loading Character Templates...");
+        sObjectMgr->LoadCharacterTemplates();
+        handler->SendGlobalGMSysMessage("DB table `character_template` and `character_template_class` reloaded.");
         return true;
     }
 
@@ -508,6 +517,14 @@ public:
         TC_LOG_INFO("misc", "Re-Loading Quest Area Triggers...");
         sObjectMgr->LoadQuestAreaTriggers();
         handler->SendGlobalGMSysMessage("DB table `areatrigger_involvedrelation` (quest area triggers) reloaded.");
+        return true;
+    }
+
+    static bool HandleReloadQuestGreetingCommand(ChatHandler* handler, const char* /*args*/)
+    {
+        TC_LOG_INFO("misc", "Re-Loading Quest Greeting ... ");
+        sObjectMgr->LoadQuestGreetings();
+        handler->SendGlobalGMSysMessage("DB table `quest_greeting` reloaded.");
         return true;
     }
 
@@ -1011,14 +1028,6 @@ public:
         return true;
     }
 
-    static bool HandleReloadLocalesNpcTextCommand(ChatHandler* handler, const char* /*args*/)
-    {
-        TC_LOG_INFO("misc", "Re-Loading Locales NPC Text ... ");
-        sObjectMgr->LoadNpcTextLocales();
-        handler->SendGlobalGMSysMessage("DB table `locales_npc_text` reloaded.");
-        return true;
-    }
-
     static bool HandleReloadLocalesPageTextCommand(ChatHandler* handler, const char* /*args*/)
     {
         TC_LOG_INFO("misc", "Re-Loading Locales Page Text ... ");
@@ -1035,11 +1044,13 @@ public:
         return true;
     }
 
-    static bool HandleReloadLocalesQuestCommand(ChatHandler* handler, const char* /*args*/)
+    static bool HandleReloadQuestLocaleCommand(ChatHandler* handler, const char* /*args*/)
     {
-        TC_LOG_INFO("misc", "Re-Loading Locales Quest ... ");
-        sObjectMgr->LoadQuestLocales();
-        handler->SendGlobalGMSysMessage("DB table `locales_quest` reloaded.");
+        TC_LOG_INFO("misc", "Re-Loading Quest Locale ... ");
+        sObjectMgr->LoadQuestTemplateLocale();
+        sObjectMgr->LoadQuestObjectivesLocale();
+        handler->SendGlobalGMSysMessage("DB table `quest_template_locale` reloaded.");
+        handler->SendGlobalGMSysMessage("DB table `quest_objectives_locale` reloaded.");
         return true;
     }
 
@@ -1104,10 +1115,10 @@ public:
 
     static bool HandleReloadPhaseDefinitionsCommand(ChatHandler* handler, const char* /*args*/)
     {
-        TC_LOG_INFO("misc", "Reloading phase_definitions table...");
-        sObjectMgr->LoadPhaseDefinitions();
+        TC_LOG_INFO("misc", "Reloading terrain_phase_info table...");
+        sObjectMgr->LoadTerrainPhaseInfo();
         sWorld->UpdatePhaseDefinitions();
-        handler->SendGlobalGMSysMessage("Phase Definitions reloaded.");
+        handler->SendGlobalGMSysMessage("Terrain phase infos reloaded.");
         return true;
     }
 

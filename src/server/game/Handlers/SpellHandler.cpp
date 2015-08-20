@@ -16,27 +16,23 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "Common.h"
-#include "DBCStores.h"
-#include "WorldPacket.h"
 #include "WorldSession.h"
-#include "ObjectMgr.h"
-#include "GuildMgr.h"
-#include "SpellMgr.h"
-#include "Log.h"
-#include "Opcodes.h"
-#include "Spell.h"
-#include "Totem.h"
-#include "TemporarySummon.h"
-#include "SpellAuras.h"
-#include "CreatureAI.h"
-#include "ScriptMgr.h"
-#include "GameObjectAI.h"
-#include "SpellAuraEffects.h"
-#include "Player.h"
+#include "Common.h"
 #include "Config.h"
-#include "SpellPackets.h"
+#include "DBCStores.h"
+#include "GameObjectAI.h"
 #include "GameObjectPackets.h"
+#include "GuildMgr.h"
+#include "Log.h"
+#include "Player.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "Spell.h"
+#include "SpellAuraEffects.h"
+#include "SpellMgr.h"
+#include "SpellPackets.h"
+#include "Totem.h"
+#include "TotemPackets.h"
 
 void WorldSession::HandleUseItemOpcode(WorldPackets::Spells::UseItem& packet)
 {
@@ -81,14 +77,14 @@ void WorldSession::HandleUseItemOpcode(WorldPackets::Spells::UseItem& packet)
     }
 
     // only allow conjured consumable, bandage, poisons (all should have the 2^21 item flag set in DB)
-    if (proto->GetClass() == ITEM_CLASS_CONSUMABLE && !(proto->GetFlags() & ITEM_PROTO_FLAG_USEABLE_IN_ARENA) && user->InArena())
+    if (proto->GetClass() == ITEM_CLASS_CONSUMABLE && !(proto->GetFlags() & ITEM_FLAG_USEABLE_IN_ARENA) && user->InArena())
     {
         user->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, item, NULL);
         return;
     }
 
     // don't allow items banned in arena
-    if (proto->GetFlags() & ITEM_PROTO_FLAG_NOT_USEABLE_IN_ARENA && user->InArena())
+    if (proto->GetFlags() & ITEM_FLAG_NOT_USEABLE_IN_ARENA && user->InArena())
     {
         user->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, item, NULL);
         return;
@@ -153,7 +149,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPackets::Spells::OpenItem& packet)
     }
 
     // Verify that the bag is an actual bag or wrapped item that can be used "normally"
-    if (!(proto->GetFlags() & ITEM_PROTO_FLAG_OPENABLE) && !item->HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAG_WRAPPED))
+    if (!(proto->GetFlags() & ITEM_FLAG_OPENABLE) && !item->HasFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_WRAPPED))
     {
         player->SendEquipError(EQUIP_ERR_CLIENT_LOCKED_OUT, item, NULL);
         TC_LOG_ERROR("network", "Possible hacking attempt: Player %s [%s] tried to open item [%s, entry: %u] which is not openable!",
@@ -182,7 +178,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPackets::Spells::OpenItem& packet)
         }
     }
 
-    if (item->HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAG_WRAPPED))// wrapped?
+    if (item->HasFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_WRAPPED))// wrapped?
     {
         PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_GIFT_BY_ITEM);
 
@@ -218,7 +214,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPackets::Spells::OpenItem& packet)
         player->SendLoot(item->GetGUID(), LOOT_CORPSE);
 }
 
-void WorldSession::HandleGameObjectUseOpcode(WorldPackets::GameObject::GameObjectUse& packet)
+void WorldSession::HandleGameObjectUseOpcode(WorldPackets::GameObject::GameObjUse& packet)
 {
     if (GameObject* obj = GetPlayer()->GetMap()->GetGameObject(packet.Guid))
     {
@@ -234,7 +230,7 @@ void WorldSession::HandleGameObjectUseOpcode(WorldPackets::GameObject::GameObjec
     }
 }
 
-void WorldSession::HandleGameobjectReportUse(WorldPackets::GameObject::GameObjectReportUse& packet)
+void WorldSession::HandleGameobjectReportUse(WorldPackets::GameObject::GameObjReportUse& packet)
 {
     // ignore for remote control state
     if (_player->m_mover != _player)
@@ -281,8 +277,8 @@ void WorldSession::HandleCastSpellOpcode(WorldPackets::Spells::CastSpell& cast)
         caster = _player;
     }
 
-    // check known spell
-    if (caster->GetTypeId() == TYPEID_PLAYER && !caster->ToPlayer()->HasActiveSpell(spellInfo->Id))
+    // check known spell or raid marker spell (which not requires player to know it)
+    if (caster->GetTypeId() == TYPEID_PLAYER && !caster->ToPlayer()->HasActiveSpell(spellInfo->Id) && !spellInfo->HasEffect(SPELL_EFFECT_CHANGE_RAID_MARKER))
         return;
 
     // Check possible spell cast overrides
@@ -313,7 +309,8 @@ void WorldSession::HandleCastSpellOpcode(WorldPackets::Spells::CastSpell& cast)
 
     Spell* spell = new Spell(caster, spellInfo, TRIGGERED_NONE, ObjectGuid::Empty, false);
     spell->m_cast_count = cast.Cast.CastID;                         // set count of casts
-    spell->m_misc.Data = cast.Cast.Misc;                            // 6.x Misc is just a guess
+    spell->m_misc.Raw.Data[0] = cast.Cast.Misc[0];
+    spell->m_misc.Raw.Data[1] = cast.Cast.Misc[1];
     spell->prepare(&targets);
 }
 
@@ -408,7 +405,23 @@ void WorldSession::HandlePetCancelAuraOpcode(WorldPacket& recvPacket)
     pet->RemoveOwnedAura(spellId, ObjectGuid::Empty, 0, AURA_REMOVE_BY_CANCEL);
 }
 
-void WorldSession::HandleCancelGrowthAuraOpcode(WorldPacket& /*recvPacket*/) { }
+void WorldSession::HandleCancelGrowthAuraOpcode(WorldPackets::Spells::CancelGrowthAura& /*cancelGrowthAura*/)
+{
+    _player->RemoveAurasByType(SPELL_AURA_MOD_SCALE, [](AuraApplication const* aurApp)
+    {
+        SpellInfo const* spellInfo = aurApp->GetBase()->GetSpellInfo();
+        return !spellInfo->HasAttribute(SPELL_ATTR0_CANT_CANCEL) && spellInfo->IsPositive() && !spellInfo->IsPassive();
+    });
+}
+
+void WorldSession::HandleCancelMountAuraOpcode(WorldPackets::Spells::CancelMountAura& /*cancelMountAura*/)
+{
+    _player->RemoveAurasByType(SPELL_AURA_MOUNTED, [](AuraApplication const* aurApp)
+    {
+        SpellInfo const* spellInfo = aurApp->GetBase()->GetSpellInfo();
+        return !spellInfo->HasAttribute(SPELL_ATTR0_CANT_CANCEL) && spellInfo->IsPositive() && !spellInfo->IsPassive();
+    });
+}
 
 void WorldSession::HandleCancelAutoRepeatSpellOpcode(WorldPacket& /*recvPacket*/)
 {
@@ -429,18 +442,15 @@ void WorldSession::HandleCancelChanneling(WorldPacket& recvData)
     mover->InterruptSpell(CURRENT_CHANNELED_SPELL);
 }
 
-void WorldSession::HandleTotemDestroyed(WorldPacket& recvPacket)
+void WorldSession::HandleTotemDestroyed(WorldPackets::Totem::TotemDestroyed& totemDestroyed)
 {
     // ignore for remote control state
     if (_player->m_mover != _player)
         return;
 
-    uint8 slotId;
-    ObjectGuid guid;
-    recvPacket >> slotId;
-    recvPacket >> guid;
+    uint8 slotId = totemDestroyed.Slot;
+    slotId += SUMMON_SLOT_TOTEM;
 
-    ++slotId;
     if (slotId >= MAX_TOTEM_SLOT)
         return;
 
@@ -448,14 +458,12 @@ void WorldSession::HandleTotemDestroyed(WorldPacket& recvPacket)
         return;
 
     Creature* totem = GetPlayer()->GetMap()->GetCreature(_player->m_SummonSlot[slotId]);
-    if (totem && totem->IsTotem() && totem->GetGUID() == guid)
+    if (totem && totem->IsTotem() && totem->GetGUID() == totemDestroyed.TotemGUID)
         totem->ToTotem()->UnSummon();
 }
 
-void WorldSession::HandleSelfResOpcode(WorldPacket& /*recvData*/)
+void WorldSession::HandleSelfResOpcode(WorldPackets::Spells::SelfRes& /*packet*/)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_SELF_RES");                  // empty opcode
-
     if (_player->HasAuraType(SPELL_AURA_PREVENT_RESURRECTION))
         return; // silent return, client should display error by itself and not send this opcode
 
@@ -469,13 +477,10 @@ void WorldSession::HandleSelfResOpcode(WorldPacket& /*recvData*/)
     }
 }
 
-void WorldSession::HandleSpellClick(WorldPacket& recvData)
+void WorldSession::HandleSpellClick(WorldPackets::Spells::SpellClick& spellClick)
 {
-    ObjectGuid guid;
-    recvData >> guid;
-
     // this will get something not in world. crash
-    Creature* unit = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, guid);
+    Creature* unit = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, spellClick.SpellClickUnitGuid);
 
     if (!unit)
         return;
@@ -487,14 +492,12 @@ void WorldSession::HandleSpellClick(WorldPacket& recvData)
     unit->HandleSpellClick(_player);
 }
 
-void WorldSession::HandleMirrorImageDataRequest(WorldPacket& recvData)
+void WorldSession::HandleMirrorImageDataRequest(WorldPackets::Spells::GetMirrorImageData& getMirrorImageData)
 {
-    ObjectGuid guid;
-    recvData >> guid;
-    recvData.read_skip<uint32>(); // DisplayId ?
+    ObjectGuid guid = getMirrorImageData.UnitGUID;
 
     // Get unit for which data is needed by client
-    Unit* unit = ObjectAccessor::GetObjectInWorld(guid, (Unit*)NULL);
+    Unit* unit = ObjectAccessor::GetUnit(*_player, guid);
     if (!unit)
         return;
 
@@ -506,27 +509,25 @@ void WorldSession::HandleMirrorImageDataRequest(WorldPacket& recvData)
     if (!creator)
         return;
 
-    WorldPacket data(SMSG_MIRROR_IMAGE_COMPONENTED_DATA, 68);
-    data << guid;
-    data << uint32(creator->GetDisplayId());
-    data << uint8(creator->getRace());
-    data << uint8(creator->getGender());
-    data << uint8(creator->getClass());
-
-    if (creator->GetTypeId() == TYPEID_PLAYER)
+    if (Player* player = creator->ToPlayer())
     {
-        Player* player = creator->ToPlayer();
-        Guild* guild = NULL;
+        WorldPackets::Spells::MirrorImageComponentedData mirrorImageComponentedData;
+        mirrorImageComponentedData.UnitGUID = guid;
+        mirrorImageComponentedData.DisplayID = creator->GetDisplayId();
+        mirrorImageComponentedData.RaceID = creator->getRace();
+        mirrorImageComponentedData.Gender = creator->getGender();
+        mirrorImageComponentedData.ClassID = creator->getClass();
 
-        if (ObjectGuid::LowType guildId = player->GetGuildId())
-            guild = sGuildMgr->GetGuildById(guildId);
+        Guild* guild = player->GetGuild();
 
-        data << uint8(player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_SKIN_ID));
-        data << uint8(player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_FACE_ID));
-        data << uint8(player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_STYLE_ID));
-        data << uint8(player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_COLOR_ID));
-        data << uint8(player->GetByteValue(PLAYER_BYTES_2, PLAYER_BYTES_2_OFFSET_FACIAL_STYLE));
-        data << (guild ? guild->GetGUID() : ObjectGuid::Empty);
+        mirrorImageComponentedData.SkinColor = player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_SKIN_ID);
+        mirrorImageComponentedData.FaceVariation = player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_FACE_ID);
+        mirrorImageComponentedData.HairVariation = player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_STYLE_ID);
+        mirrorImageComponentedData.HairColor = player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_COLOR_ID);
+        mirrorImageComponentedData.BeardVariation = player->GetByteValue(PLAYER_BYTES_2, PLAYER_BYTES_2_OFFSET_FACIAL_STYLE);
+        mirrorImageComponentedData.GuildGUID = (guild ? guild->GetGUID() : ObjectGuid::Empty);
+
+        mirrorImageComponentedData.ItemDisplayID.reserve(11);
 
         static EquipmentSlots const itemSlots[] =
         {
@@ -539,50 +540,38 @@ void WorldSession::HandleMirrorImageDataRequest(WorldPacket& recvData)
             EQUIPMENT_SLOT_FEET,
             EQUIPMENT_SLOT_WRISTS,
             EQUIPMENT_SLOT_HANDS,
-            EQUIPMENT_SLOT_BACK,
             EQUIPMENT_SLOT_TABARD,
+            EQUIPMENT_SLOT_BACK,
             EQUIPMENT_SLOT_END
         };
 
         // Display items in visible slots
-        for (EquipmentSlots const* itr = &itemSlots[0]; *itr != EQUIPMENT_SLOT_END; ++itr)
+        for (auto const& slot : itemSlots)
         {
-            if (*itr == EQUIPMENT_SLOT_HEAD && player->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM))
-                data << uint32(0);
-            else if (*itr == EQUIPMENT_SLOT_BACK && player->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK))
-                data << uint32(0);
-            else if (Item const* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, *itr))
-                data << uint32(item->GetDisplayId());
+            uint32 itemDisplayId;
+            if ((slot == EQUIPMENT_SLOT_HEAD && player->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM)) ||
+                (slot == EQUIPMENT_SLOT_BACK && player->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK)))
+                itemDisplayId = 0;
+            else if (Item const* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                itemDisplayId = item->GetDisplayId();
             else
-                data << uint32(0);
+                itemDisplayId = 0;
+
+            mirrorImageComponentedData.ItemDisplayID.push_back(itemDisplayId);
         }
+        SendPacket(mirrorImageComponentedData.Write());
     }
     else
     {
-        // Skip player data for creatures
-        data << uint8(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
+        WorldPackets::Spells::MirrorImageCreatureData mirrorImageCreatureData;
+        mirrorImageCreatureData.UnitGUID = guid;
+        mirrorImageCreatureData.DisplayID = creator->GetDisplayId();
+        SendPacket(mirrorImageCreatureData.Write());
     }
-
-    SendPacket(&data);
 }
 
 void WorldSession::HandleUpdateProjectilePosition(WorldPacket& recvPacket)
 {
-    TC_LOG_DEBUG("network", "WORLD: CMSG_UPDATE_PROJECTILE_POSITION");
-
     ObjectGuid casterGuid;
     uint32 spellId;
     uint8 castCount;
@@ -607,7 +596,7 @@ void WorldSession::HandleUpdateProjectilePosition(WorldPacket& recvPacket)
     pos.Relocate(x, y, z);
     spell->m_targets.ModDst(pos);
 
-    WorldPacket data(SMSG_SET_PROJECTILE_POSITION, 21);
+    WorldPacket data(SMSG_NOTIFY_MISSILE_TRAJECTORY_COLLISION, 21);
     data << casterGuid;
     data << uint8(castCount);
     data << float(x);
@@ -616,30 +605,7 @@ void WorldSession::HandleUpdateProjectilePosition(WorldPacket& recvPacket)
     caster->SendMessageToSet(&data, true);
 }
 
-void WorldSession::HandleRequestCategoryCooldowns(WorldPacket& /*recvPacket*/)
+void WorldSession::HandleRequestCategoryCooldowns(WorldPackets::Spells::RequestCategoryCooldowns& /*requestCategoryCooldowns*/)
 {
-    SendSpellCategoryCooldowns();
-}
-
-void WorldSession::SendSpellCategoryCooldowns()
-{
-    WorldPackets::Spells::CategoryCooldown cooldowns;
-
-    Unit::AuraEffectList const& categoryCooldownAuras = _player->GetAuraEffectsByType(SPELL_AURA_MOD_SPELL_CATEGORY_COOLDOWN);
-    for (AuraEffect* aurEff : categoryCooldownAuras)
-    {
-        uint32 categoryId = aurEff->GetMiscValue();
-        auto cItr = std::find_if(cooldowns.CategoryCooldowns.begin(), cooldowns.CategoryCooldowns.end(),
-            [categoryId](WorldPackets::Spells::CategoryCooldown::CategoryCooldownInfo const& cooldown)
-        {
-            return cooldown.Category == categoryId;
-        });
-
-        if (cItr == cooldowns.CategoryCooldowns.end())
-            cooldowns.CategoryCooldowns.emplace_back(aurEff->GetMiscValue(), -aurEff->GetAmount());
-        else
-            cItr->ModCooldown -= aurEff->GetAmount();
-    }
-
-    SendPacket(cooldowns.Write());
+    _player->SendSpellCategoryCooldowns();
 }

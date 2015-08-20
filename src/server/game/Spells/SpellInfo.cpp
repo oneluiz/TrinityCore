@@ -327,16 +327,36 @@ SpellImplicitTargetInfo::StaticData  SpellImplicitTargetInfo::_data[TOTAL_SPELL_
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 115
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 116
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 117
-    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 118
+    {TARGET_OBJECT_TYPE_UNIT, TARGET_REFERENCE_TYPE_CASTER, TARGET_SELECT_CATEGORY_AREA,    TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 118
     {TARGET_OBJECT_TYPE_UNIT, TARGET_REFERENCE_TYPE_CASTER, TARGET_SELECT_CATEGORY_AREA,    TARGET_CHECK_RAID,     TARGET_DIR_NONE},        // 119
-    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 120
-    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 121
+    {TARGET_OBJECT_TYPE_UNIT, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_AREA,    TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 120
+    {TARGET_OBJECT_TYPE_UNIT, TARGET_REFERENCE_TYPE_TARGET, TARGET_SELECT_CATEGORY_DEFAULT, TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 121
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 122
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 123
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 124
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 125
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 126
     {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 127
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 128
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 129
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 130
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 131
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 132
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 133
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 134
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 135
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 136
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 137
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 138
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 139
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 140
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 141
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 142
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 143
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 144
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 145
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 146
+    {TARGET_OBJECT_TYPE_NONE, TARGET_REFERENCE_TYPE_NONE,   TARGET_SELECT_CATEGORY_NYI,     TARGET_CHECK_DEFAULT,  TARGET_DIR_NONE},        // 147
 };
 
 SpellEffectInfo::SpellEffectInfo(SpellEntry const* /*spellEntry*/, SpellInfo const* spellInfo, uint8 effIndex, SpellEffectEntry const* _effect)
@@ -806,7 +826,7 @@ SpellEffectInfo::StaticData SpellEffectInfo::_data[TOTAL_SPELL_EFFECTS] =
     {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_UNIT}, // 103 SPELL_EFFECT_REPUTATION
     {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_DEST}, // 104 SPELL_EFFECT_SUMMON_OBJECT_SLOT1
     {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_DEST}, // 105 SPELL_EFFECT_SUMMON_OBJECT_SLOT2
-    {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_DEST}, // 106 SPELL_EFFECT_SUMMON_OBJECT_SLOT3
+    {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_DEST}, // 106 SPELL_EFFECT_CHANGE_RAID_MARKER
     {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_DEST}, // 107 SPELL_EFFECT_SUMMON_OBJECT_SLOT4
     {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_UNIT}, // 108 SPELL_EFFECT_DISPEL_MECHANIC
     {EFFECT_IMPLICIT_TARGET_EXPLICIT, TARGET_OBJECT_TYPE_DEST}, // 109 SPELL_EFFECT_SUMMON_DEAD_PET
@@ -945,9 +965,17 @@ SpellEffectInfo::StaticData SpellEffectInfo::_data[TOTAL_SPELL_EFFECTS] =
     {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 242 SPELL_EFFECT_242
     {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 243 SPELL_EFFECT_243
     {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 244 SPELL_EFFECT_244
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 245 SPELL_EFFECT_235
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 246 SPELL_EFFECT_236
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 247 SPELL_EFFECT_237
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 248 SPELL_EFFECT_238
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 249 SPELL_EFFECT_239
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 250 SPELL_EFFECT_240
+    {EFFECT_IMPLICIT_TARGET_NONE,     TARGET_OBJECT_TYPE_NONE}, // 251 SPELL_EFFECT_241
 };
 
-SpellInfo::SpellInfo(SpellEntry const* spellEntry, SpellEffectEntryMap const& effectsMap) : _hasPowerDifficultyData(false)
+SpellInfo::SpellInfo(SpellEntry const* spellEntry, SpellEffectEntryMap const& effectsMap, SpellVisualMap&& visuals)
+    : _hasPowerDifficultyData(false)
 {
     Id = spellEntry->ID;
 
@@ -1006,12 +1034,10 @@ SpellInfo::SpellInfo(SpellEntry const* spellEntry, SpellEffectEntryMap const& ef
     Speed = _misc ? _misc->Speed : 0;
     SchoolMask = _misc ? _misc->SchoolMask : 0;
     AttributesCu = 0;
-
-    for (uint8 i = 0; i < 2; ++i)
-        SpellVisual[i] = _misc ? _misc->SpellVisualID[i] : 0;
-
     SpellIconID = _misc ? _misc->SpellIconID : 0;
     ActiveIconID = _misc ? _misc->ActiveIconID : 0;
+
+    _visuals = std::move(visuals);
 
     // SpellScalingEntry
     SpellScalingEntry const* _scaling = GetSpellScaling();
@@ -1061,7 +1087,7 @@ SpellInfo::SpellInfo(SpellEntry const* spellEntry, SpellEffectEntryMap const& ef
     // SpellClassOptionsEntry
     SpellClassOptionsEntry const* _class = GetSpellClassOptions();
     SpellFamilyName = _class ? _class->SpellClassSet : 0;
-    SpellFamilyFlags = _class ? _class->SpellClassMask : flag128(0);
+    SpellFamilyFlags = _class ? _class->SpellClassMask : flag128();
 
     // SpellCooldownsEntry
     SpellCooldownsEntry const* _cooldowns = GetSpellCooldowns();
@@ -1815,8 +1841,13 @@ SpellCastResult SpellInfo::CheckLocation(uint32 map_id, uint32 zone_id, uint32 a
             {
                 case SPELL_AURA_FLY:
                 {
-                    if (!player->IsKnowHowFlyIn(map_id, zone_id))
-                        return SPELL_FAILED_INCORRECT_AREA;
+                    SkillLineAbilityMapBounds bounds = sSpellMgr->GetSkillLineAbilityMapBounds(Id);
+                    for (SkillLineAbilityMap::const_iterator skillIter = bounds.first; skillIter != bounds.second; ++skillIter)
+                    {
+                        if (skillIter->second->SkillLine == SKILL_MOUNTS)
+                            if (!player->CanFlyInZone(map_id, zone_id))
+                                return SPELL_FAILED_INCORRECT_AREA;
+                    }
                     break;
                 }
                 case SPELL_AURA_MOUNTED:
@@ -1896,7 +1927,7 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
                         if (!player->GetWeaponForAttack(BASE_ATTACK) || !player->IsUseEquipedWeapon(true))
                             return SPELL_FAILED_TARGET_NO_WEAPONS;
                     }
-                    else if (!unitTarget->GetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID))
+                    else if (!unitTarget->GetVirtualItemId(0))
                         return SPELL_FAILED_TARGET_NO_WEAPONS;
                 }
             }
@@ -1954,7 +1985,7 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
     }
 
     // not allow casting on flying player
-    if (unitTarget->HasUnitState(UNIT_STATE_IN_FLIGHT))
+    if (unitTarget->HasUnitState(UNIT_STATE_IN_FLIGHT) && !(AttributesCu & SPELL_ATTR0_CU_ALLOW_INFLIGHT_TARGET))
         return SPELL_FAILED_BAD_TARGETS;
 
     /* TARGET_UNIT_MASTER gets blocked here for passengers, because the whole idea of this check is to
@@ -2359,7 +2390,7 @@ SpellSpecificType SpellInfo::GetSpellSpecific() const
                 return SPELL_SPECIFIC_STING;
 
             // only hunter aspects have this (but not all aspects in hunter family)
-            if (SpellFamilyFlags & flag96(0x00380000, 0x00440000, 0x00001010))
+            if (SpellFamilyFlags & flag128(0x00200000, 0x00000000, 0x00001010, 0x00000000))
                 return SPELL_SPECIFIC_ASPECT;
 
             break;
@@ -2573,6 +2604,8 @@ std::vector<SpellInfo::CostData> SpellInfo::CalcPowerCost(Unit const* caster, Sp
                         powerCost += int32(CalculatePct(caster->GetMaxHealth(), power->ManaCostPercentage));
                         break;
                     case POWER_MANA:
+                        powerCost += int32(CalculatePct(caster->GetCreateMana(), power->ManaCostPercentage));
+                        break;
                     case POWER_RAGE:
                     case POWER_FOCUS:
                     case POWER_ENERGY:
@@ -2631,7 +2664,7 @@ std::vector<SpellInfo::CostData> SpellInfo::CalcPowerCost(Unit const* caster, Sp
                     modOwner->ApplySpellMod(Id, SPELLMOD_SPELL_COST2, powerCost);
             }
 
-            if (!caster->IsControlledByPlayer())
+            if (!caster->IsControlledByPlayer() && G3D::fuzzyEq(power->ManaCostPercentage, 0.0f))
             {
                 if (Attributes & SPELL_ATTR0_LEVEL_DAMAGE_CALCULATION)
                 {
@@ -2689,7 +2722,7 @@ std::vector<SpellInfo::CostData> SpellInfo::CalcPowerCost(Unit const* caster, Sp
         }
     };
 
-    if (_hasPowerDifficultyData) // optimization - use static data for 99.5% cases (4753 of 4772 in build 6.1.0.19702)
+    if (!_hasPowerDifficultyData) // optimization - use static data for 99.5% cases (4753 of 4772 in build 6.1.0.19702)
         collector(PowerCosts);
     else
         collector(sDB2Manager.GetSpellPowers(Id, caster->GetMap()->GetDifficultyID()));
@@ -2792,6 +2825,42 @@ bool SpellInfo::IsHighRankOf(SpellInfo const* spellInfo) const
                 return true;
 
     return false;
+}
+
+uint32 SpellInfo::GetSpellXSpellVisualId(Difficulty difficulty) const
+{
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(difficulty);
+    while (difficultyEntry)
+    {
+        auto itr = _visuals.find(difficulty);
+        if (itr != _visuals.end())
+            for (SpellXSpellVisualEntry const* visual : itr->second)
+                if (!visual->PlayerConditionID)
+                    return visual->ID;
+
+        difficultyEntry = sDifficultyStore.LookupEntry(difficultyEntry->FallbackDifficultyID);
+    }
+
+    auto itr = _visuals.find(DIFFICULTY_NONE);
+    if (itr != _visuals.end())
+        for (SpellXSpellVisualEntry const* visual : itr->second)
+            if (!visual->PlayerConditionID)
+                return visual->ID;
+
+    return 0;
+}
+
+uint32 SpellInfo::GetSpellVisual(Difficulty difficulty, Player* /*forPlayer*/ /*= nullptr*/) const
+{
+    if (SpellXSpellVisualEntry const* visual = sSpellXSpellVisualStore.LookupEntry(GetSpellXSpellVisualId(difficulty)))
+    {
+        //if (visual->SpellVisualID[1] && forPlayer->GetViolenceLevel() operator 2)
+        //    return visual->SpellVisualID[1];
+
+        return visual->SpellVisualID[0];
+    }
+
+    return 0;
 }
 
 void SpellInfo::_InitializeExplicitTargetMask()
@@ -3232,8 +3301,6 @@ void SpellInfo::_UnloadImplicitTargetConditionLists()
 
 SpellEffectInfoVector SpellInfo::GetEffectsForDifficulty(uint32 difficulty) const
 {
-    // 6.x todo: add first highest difficulty effect, resize list to max element, add lower diff effects without overwriting any higher diffed ones
-
     SpellEffectInfoVector effList;
 
     // DIFFICULTY_NONE effects are the default effects, always active if current difficulty's effects don't overwrite
@@ -3243,12 +3310,13 @@ SpellEffectInfoVector SpellInfo::GetEffectsForDifficulty(uint32 difficulty) cons
 
     // downscale difficulty if original was not found
     // DIFFICULTY_NONE is already in our list
-    for (; difficulty > DIFFICULTY_NONE; --difficulty)
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(difficulty);
+    while (difficultyEntry)
     {
-        SpellEffectInfoMap::const_iterator itr = _effects.find(difficulty);
-        if (itr != _effects.end())
+        SpellEffectInfoMap::const_iterator effectItr = _effects.find(difficulty);
+        if (effectItr != _effects.end())
         {
-            for (SpellEffectInfo const* effect : itr->second)
+            for (SpellEffectInfo const* effect : effectItr->second)
             {
                 // overwrite any existing effect from DIFFICULTY_NONE
                 if (effect)
@@ -3256,23 +3324,35 @@ SpellEffectInfoVector SpellInfo::GetEffectsForDifficulty(uint32 difficulty) cons
                     if (effect->EffectIndex >= effList.size())
                         effList.resize(effect->EffectIndex + 1);
 
-                    effList[effect->EffectIndex] = effect;
+                    if (!effList[effect->EffectIndex])
+                        effList[effect->EffectIndex] = effect;
                 }
             }
-            // if we found any effect in our difficulty then stop searching
-            break;
         }
+
+        difficultyEntry = sDifficultyStore.LookupEntry(difficultyEntry->FallbackDifficultyID);
     }
-    if (effList.empty())
-        TC_LOG_ERROR("spells", "GetEffectsForDifficulty did not find any effects for spell %u in difficulty %u", Id, difficulty);
+
     return effList;
 }
 
 SpellEffectInfo const* SpellInfo::GetEffect(uint32 difficulty, uint32 index) const
 {
-    SpellEffectInfoVector effects = GetEffectsForDifficulty(difficulty);
-    if (index >= effects.size())
-        return nullptr;
+    DifficultyEntry const* difficultyEntry = sDifficultyStore.LookupEntry(difficulty);
+    while (difficultyEntry)
+    {
+        SpellEffectInfoMap::const_iterator itr = _effects.find(difficulty);
+        if (itr != _effects.end())
+            if (itr->second.size() > index && itr->second[index])
+                return itr->second[index];
 
-    return effects[index];
+        difficultyEntry = sDifficultyStore.LookupEntry(difficultyEntry->FallbackDifficultyID);
+    }
+
+    SpellEffectInfoMap::const_iterator itr = _effects.find(DIFFICULTY_NONE);
+    if (itr != _effects.end())
+        if (itr->second.size() > index)
+            return itr->second[index];
+
+    return nullptr;
 }

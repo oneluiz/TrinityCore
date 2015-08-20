@@ -120,7 +120,13 @@ void npc_escortAI::MoveInLineOfSight(Unit* who)
             {
                 if (!me->GetVictim())
                 {
-                    who->RemoveAurasByType(SPELL_AURA_MOD_STEALTH);
+                    // Clear distracted state on combat
+                    if (me->HasUnitState(UNIT_STATE_DISTRACTED))
+                    {
+                        me->ClearUnitState(UNIT_STATE_DISTRACTED);
+                        me->GetMotionMaster()->Clear();
+                    }
+
                     AttackStart(who);
                 }
                 else if (me->GetMap()->IsDungeon())
@@ -478,7 +484,7 @@ void npc_escortAI::Start(bool isActiveAttacker /* = true*/, bool run /* = false 
     }
 
     //disable npcflags
-    me->SetUInt32Value(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_NONE);
+    me->SetUInt64Value(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_NONE);
     if (me->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC))
     {
         HasImmuneToNPCFlags = true;

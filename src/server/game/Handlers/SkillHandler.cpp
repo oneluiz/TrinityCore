@@ -17,16 +17,14 @@
  */
 
 #include "Common.h"
-#include "DatabaseEnv.h"
 #include "Log.h"
 #include "ObjectAccessor.h"
-#include "Opcodes.h"
 #include "Player.h"
 #include "Pet.h"
-#include "UpdateMask.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "TalentPackets.h"
+#include "SpellPackets.h"
 
 void WorldSession::HandleLearnTalentsOpcode(WorldPackets::Talent::LearnTalents& packet)
 {
@@ -69,16 +67,13 @@ void WorldSession::HandleConfirmRespecWipeOpcode(WorldPacket& recvData)
     unit->CastSpell(_player, 14867, true);                  //spell: "Untalent Visual Effect"
 }
 
-void WorldSession::HandleUnlearnSkillOpcode(WorldPacket& recvData)
+void WorldSession::HandleUnlearnSkillOpcode(WorldPackets::Spells::UnlearnSkill& packet)
 {
-    uint32 skillId;
-    recvData >> skillId;
-
-    SkillRaceClassInfoEntry const* rcEntry = GetSkillRaceClassInfo(skillId, GetPlayer()->getRace(), GetPlayer()->getClass());
+    SkillRaceClassInfoEntry const* rcEntry = GetSkillRaceClassInfo(packet.SkillLine, GetPlayer()->getRace(), GetPlayer()->getClass());
     if (!rcEntry || !(rcEntry->Flags & SKILL_FLAG_UNLEARNABLE))
         return;
 
-    GetPlayer()->SetSkill(skillId, 0, 0, 0);
+    GetPlayer()->SetSkill(packet.SkillLine, 0, 0, 0);
 }
 
 void WorldSession::HandleSetSpecializationOpcode(WorldPackets::Talent::SetSpecialization& packet)

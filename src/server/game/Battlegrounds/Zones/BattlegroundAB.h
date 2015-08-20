@@ -260,11 +260,10 @@ struct BattlegroundABScore final : public BattlegroundScore
             }
         }
 
-        void BuildObjectivesBlock(WorldPacket& data, ByteBuffer& content) final override
+        void BuildObjectivesBlock(std::vector<int32>& stats) override
         {
-            data.WriteBits(2, 24); // Objectives Count
-            content << uint32(BasesAssaulted);
-            content << uint32(BasesDefended);
+            stats.push_back(BasesAssaulted);
+            stats.push_back(BasesDefended);
         }
 
         uint32 GetAttr1() const final override { return BasesAssaulted; }
@@ -284,7 +283,7 @@ class BattlegroundAB : public Battleground
         void StartingEventCloseDoors() override;
         void StartingEventOpenDoors() override;
         void RemovePlayer(Player* player, ObjectGuid guid, uint32 team) override;
-        void HandleAreaTrigger(Player* Source, uint32 Trigger) override;
+        void HandleAreaTrigger(Player* source, uint32 trigger, bool entered) override;
         bool SetupBattleground() override;
         void Reset() override;
         void EndBattleground(uint32 winner) override;

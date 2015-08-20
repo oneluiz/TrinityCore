@@ -31,7 +31,7 @@ WorldPacket const* WorldPackets::Combat::AttackStart::Write()
     return &_worldPacket;
 }
 
-WorldPackets::Combat::SAttackStop::SAttackStop(Unit const* attacker, Unit const* victim) : ServerPacket(SMSG_ATTACKSTOP, 16 + 16 + 1)
+WorldPackets::Combat::SAttackStop::SAttackStop(Unit const* attacker, Unit const* victim) : ServerPacket(SMSG_ATTACK_STOP, 16 + 16 + 1)
 {
     Attacker = attacker->GetGUID();
     if (victim)
@@ -94,63 +94,6 @@ WorldPacket const* WorldPackets::Combat::AIReaction::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Combat::AttackerStateUpdate::Write()
-{
-    if (_worldPacket.WriteBit(LogData.HasValue))
-        _worldPacket << LogData.Value;
-
-    // Placeholder for size which will be calculated at the end based on packet size
-    // Client uses this size to copy remaining packet to another CDataStore
-    _worldPacket << int32(0);
-    size_t pos = _worldPacket.wpos();
-
-    _worldPacket << HitInfo;
-    _worldPacket << AttackerGUID;
-    _worldPacket << VictimGUID;
-    _worldPacket << Damage;
-    _worldPacket << OverDamage;
-    if (_worldPacket.WriteBit(SubDmg.HasValue))
-    {
-        _worldPacket << SubDmg.Value.SchoolMask;
-        _worldPacket << SubDmg.Value.FDamage;
-        _worldPacket << SubDmg.Value.Damage;
-        if (HitInfo & (HITINFO_FULL_ABSORB | HITINFO_PARTIAL_ABSORB))
-            _worldPacket << SubDmg.Value.Absorbed;
-        if (HitInfo & (HITINFO_FULL_RESIST | HITINFO_PARTIAL_RESIST))
-            _worldPacket << SubDmg.Value.Resisted;
-    }
-
-    _worldPacket << VictimState;
-    _worldPacket << AttackerState;
-    _worldPacket << MeleeSpellID;
-    if (HitInfo & HITINFO_BLOCK)
-        _worldPacket << BlockAmount;
-    if (HitInfo & HITINFO_RAGE_GAIN)
-        _worldPacket << RageGained;
-    if (HitInfo & HITINFO_UNK1)
-    {
-        _worldPacket << UnkState.State1;
-        _worldPacket << UnkState.State2;
-        _worldPacket << UnkState.State3;
-        _worldPacket << UnkState.State4;
-        _worldPacket << UnkState.State5;
-        _worldPacket << UnkState.State6;
-        _worldPacket << UnkState.State7;
-        _worldPacket << UnkState.State8;
-        _worldPacket << UnkState.State9;
-        _worldPacket << UnkState.State10;
-        _worldPacket << UnkState.State11;
-        _worldPacket << UnkState.State12;
-    }
-    if (HitInfo & (HITINFO_BLOCK|HITINFO_UNK12))
-        _worldPacket << Unk;
-
-    // Update size placeholder
-    _worldPacket.put<int32>(pos - sizeof(int32), _worldPacket.wpos() - pos);
-
-    return &_worldPacket;
-}
-
 WorldPacket const* WorldPackets::Combat::AttackSwingError::Write()
 {
     _worldPacket.WriteBits(Reason, 2);
@@ -188,6 +131,28 @@ WorldPacket const* WorldPackets::Combat::HealthUpdate::Write()
 {
     _worldPacket << Guid;
     _worldPacket << int32(Health);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Combat::ThreatClear::Write()
+{
+    _worldPacket << UnitGUID;
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Combat::PvPCredit::Write()
+{
+    _worldPacket << int32(Honor);
+    _worldPacket << Target;
+    _worldPacket << int32(Rank);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Combat::BreakTarget::Write()
+{
+    _worldPacket << UnitGUID;
 
     return &_worldPacket;
 }

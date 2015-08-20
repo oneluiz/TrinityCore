@@ -149,6 +149,8 @@ include_directories(
   ${ZMQ_INCLUDE_DIR}
 )
 
+GroupSources(${CMAKE_CURRENT_SOURCE_DIR})
+
 add_executable(worldserver
   ${worldserver_SRCS}
   ${worldserver_PCH_SRC}
@@ -159,8 +161,6 @@ if( NOT WIN32 )
     COMPILE_DEFINITIONS _TRINITY_CORE_CONFIG="${CONF_DIR}/worldserver.conf"
   )
 endif()
-
-add_dependencies(worldserver revision.h)
 
 if( UNIX AND NOT NOJEM AND NOT APPLE )
   set(worldserver_LINK_FLAGS "-pthread -lncurses ${worldserver_LINK_FLAGS}")

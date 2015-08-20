@@ -23,14 +23,13 @@ Category: commandscripts
 EndScriptData */
 
 #include "Chat.h"
-#include <stdlib.h>
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "Pet.h"
 #include "Player.h"
 #include "ReputationMgr.h"
 #include "ScriptMgr.h"
-
+#include "SpellPackets.h"
 
 class modify_commandscript : public CommandScript
 {
@@ -313,7 +312,7 @@ public:
         {
             uint32 factionid = target->getFaction();
             uint32 flag      = target->GetUInt32Value(UNIT_FIELD_FLAGS);
-            uint32 npcflag   = target->GetUInt32Value(UNIT_NPC_FLAGS);
+            uint64 npcflag   = target->GetUInt64Value(UNIT_NPC_FLAGS);
             uint32 dyflag    = target->GetUInt32Value(OBJECT_DYNAMIC_FLAGS);
             handler->PSendSysMessage(LANG_CURRENT_FACTION, target->GetGUID().ToString().c_str(), factionid, flag, npcflag, dyflag);
             return true;
@@ -330,11 +329,11 @@ public:
 
         char* pnpcflag = strtok(NULL, " ");
 
-        uint32 npcflag;
+        uint64 npcflag;
         if (!pnpcflag)
-            npcflag = target->GetUInt32Value(UNIT_NPC_FLAGS);
+            npcflag = target->GetUInt64Value(UNIT_NPC_FLAGS);
         else
-            npcflag = atoi(pnpcflag);
+            npcflag = std::strtoull(pnpcflag, nullptr, 10);
 
         char* pdyflag = strtok(NULL, " ");
 
@@ -355,7 +354,7 @@ public:
 
         target->setFaction(factionid);
         target->SetUInt32Value(UNIT_FIELD_FLAGS, flag);
-        target->SetUInt32Value(UNIT_NPC_FLAGS, npcflag);
+        target->SetUInt64Value(UNIT_NPC_FLAGS, npcflag);
         target->SetUInt32Value(OBJECT_DYNAMIC_FLAGS, dyflag);
 
         return true;
@@ -407,12 +406,15 @@ public:
         if (handler->needReportToTarget(target))
             ChatHandler(target->GetSession()).PSendSysMessage(LANG_YOURS_SPELLFLATID_CHANGED, handler->GetNameLink().c_str(), spellflatid, val, mark);
 
-        WorldPacket data(SMSG_SET_FLAT_SPELL_MODIFIER, (1+1+2+2));
-        data << uint8(spellflatid);
-        data << uint8(op);
-        data << uint16(val);
-        data << uint16(mark);
-        target->GetSession()->SendPacket(&data);
+        WorldPackets::Spells::SetSpellModifier packet(SMSG_SET_FLAT_SPELL_MODIFIER);
+        WorldPackets::Spells::SpellModifier spellMod;
+        spellMod.ModIndex = op;
+        WorldPackets::Spells::SpellModifierData modData;
+        modData.ClassIndex = spellflatid;
+        modData.ModifierValue = float(val);
+        spellMod.ModifierData.push_back(modData);
+        packet.Modifiers.push_back(spellMod);
+        target->GetSession()->SendPacket(packet.Write());
 
         return true;
     }
@@ -1279,10 +1281,13 @@ public:
         uint32 phase = (uint32)atoi((char*)args);
 
         Unit* target = handler->getSelectedUnit();
-        if (target)
-            target->SetInPhase(phase, true, !target->IsInPhase(phase));
-        else
-            handler->GetSession()->GetPlayer()->SetInPhase(phase, true, !handler->GetSession()->GetPlayer()->IsInPhase(phase));
+        if (!target)
+            target = handler->GetSession()->GetPlayer();
+
+        target->SetInPhase(phase, true, !target->IsInPhase(phase));
+
+        if (target->GetTypeId() == TYPEID_PLAYER)
+            target->ToPlayer()->SendUpdatePhasing();
 
         return true;
     }

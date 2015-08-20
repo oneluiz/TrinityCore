@@ -37,6 +37,7 @@
 #include "MMapFactory.h"
 #include "DisableMgr.h"
 #include "SpellHistory.h"
+#include "MiscPackets.h"
 
 class misc_commandscript : public CommandScript
 {
@@ -219,7 +220,7 @@ public:
 
         uint32 haveMap = Map::ExistMap(mapId, gridX, gridY) ? 1 : 0;
         uint32 haveVMap = Map::ExistVMap(mapId, gridX, gridY) ? 1 : 0;
-        uint32 haveMMap = (DisableMgr::IsPathfindingEnabled(mapId) && MMAP::MMapFactory::createOrGetMMapManager()->GetNavMesh(handler->GetSession()->GetPlayer()->GetMapId())) ? 1 : 0;
+        uint32 haveMMap = (DisableMgr::IsPathfindingEnabled(mapId) && MMAP::MMapFactory::createOrGetMMapManager()->GetNavMesh(handler->GetSession()->GetPlayer()->GetMapId(), handler->GetSession()->GetPlayer()->GetTerrainSwaps())) ? 1 : 0;
 
         if (haveVMap)
         {
@@ -235,8 +236,8 @@ public:
 
         handler->PSendSysMessage(LANG_MAP_POSITION,
             mapId, (mapEntry ? mapEntry->MapName_lang : unknown),
-            zoneId, (zoneEntry ? zoneEntry->ZoneName : unknown),
-            areaId, (areaEntry ? areaEntry->ZoneName : unknown),
+            zoneId, (zoneEntry ? zoneEntry->AreaName_lang : unknown),
+            areaId, (areaEntry ? areaEntry->AreaName_lang : unknown),
             object->GetPhaseMask(),
             object->GetPositionX(), object->GetPositionY(), object->GetPositionZ(), object->GetOrientation());
         handler->PSendSysMessage(LANG_GRID_POSITION,
@@ -248,6 +249,21 @@ public:
 
         if (status)
             handler->PSendSysMessage(LANG_LIQUID_STATUS, liquidStatus.level, liquidStatus.depth_level, liquidStatus.entry, liquidStatus.type_flags, status);
+
+        if (!object->GetTerrainSwaps().empty())
+        {
+            std::stringstream ss;
+            for (uint32 swap : object->GetTerrainSwaps())
+                ss << swap << " ";
+            handler->PSendSysMessage("Target's active terrain swaps: %s", ss.str().c_str());
+        }
+        if (!object->GetWorldMapAreaSwaps().empty())
+        {
+            std::stringstream ss;
+            for (uint32 swap : object->GetWorldMapAreaSwaps())
+                ss << swap << " ";
+            handler->PSendSysMessage("Target's active world map area swaps: %s", ss.str().c_str());
+        }
 
         return true;
     }
@@ -408,8 +424,7 @@ public:
             target->GetContactPoint(_player, x, y, z);
 
             _player->TeleportTo(target->GetMapId(), x, y, z, _player->GetAngle(target), TELE_TO_GM_MODE);
-            for (auto phase : target->GetPhases())
-                _player->SetInPhase(phase, true, true);
+            _player->CopyPhaseFrom(target, true);
         }
         else
         {
@@ -533,8 +548,7 @@ public:
             float x, y, z;
             handler->GetSession()->GetPlayer()->GetClosePoint(x, y, z, target->GetObjectSize());
             target->TeleportTo(handler->GetSession()->GetPlayer()->GetMapId(), x, y, z, target->GetOrientation());
-            for (auto phase : handler->GetSession()->GetPlayer()->GetPhases())
-                target->SetInPhase(phase, true, true);
+            target->CopyPhaseFrom(handler->GetSession()->GetPlayer(), true);
         }
         else
         {
@@ -1336,8 +1350,8 @@ public:
 
     static bool HandleMaxSkillCommand(ChatHandler* handler, char const* /*args*/)
     {
-        Player* SelectedPlayer = handler->getSelectedPlayer();
-        if (!SelectedPlayer)
+        Player* player = handler->getSelectedPlayerOrSelf();
+        if (!player)
         {
             handler->SendSysMessage(LANG_NO_CHAR_SELECTED);
             handler->SetSentErrorMessage(true);
@@ -1345,7 +1359,7 @@ public:
         }
 
         // each skills that have max skill value dependent from level seted to current level max skill value
-        SelectedPlayer->UpdateSkillsToMaxSkillsForLevel();
+        player->UpdateSkillsToMaxSkillsForLevel();
         return true;
     }
 
@@ -1451,7 +1465,7 @@ public:
          * Player %s %s (guid: %u)                   - I.    LANG_PINFO_PLAYER
          * ** GM Mode active, Phase: -1              - II.   LANG_PINFO_GM_ACTIVE (if GM)
          * ** Banned: (Type, Reason, Time, By)       - III.  LANG_PINFO_BANNED (if banned)
-         * ** Muted: (Time, Reason, By)              - IV.   LANG_PINFO_MUTED (if muted)
+         * ** Muted: (Reason, Time, By)              - IV.   LANG_PINFO_MUTED (if muted)
          * * Account: %s (id: %u), GM Level: %u      - V.    LANG_PINFO_ACC_ACCOUNT
          * * Last Login: %u (Failed Logins: %u)      - VI.   LANG_PINFO_ACC_LASTLOGIN
          * * Uses OS: %s - Latency: %u ms            - VII.  LANG_PINFO_ACC_OS
@@ -1702,7 +1716,7 @@ public:
 
         // Output IV. LANG_PINFO_MUTED if mute is applied
         if (muteTime > 0)
-            handler->PSendSysMessage(LANG_PINFO_MUTED, secsToTimeString(muteTime - time(NULL), true).c_str(), muteReason.c_str(), muteBy.c_str());
+            handler->PSendSysMessage(LANG_PINFO_MUTED, muteReason.c_str(), secsToTimeString(muteTime - time(nullptr), true).c_str(), muteBy.c_str());
 
         // Output V. LANG_PINFO_ACC_ACCOUNT
         handler->PSendSysMessage(LANG_PINFO_ACC_ACCOUNT, userName.c_str(), accId, security);
@@ -1748,11 +1762,11 @@ public:
         AreaTableEntry const* area = GetAreaEntryByAreaID(areaId);
         if (area)
         {
-            areaName = area->ZoneName;
+            areaName = area->AreaName_lang;
 
             AreaTableEntry const* zone = GetAreaEntryByAreaID(area->ParentAreaID);
             if (zone)
-                zoneName = zone->ZoneName;
+                zoneName = zone->AreaName_lang;
         }
 
         if (target)
@@ -2280,7 +2294,7 @@ public:
 
             handler->GetSession()->GetPlayer()->DealDamageMods(target, damage, &absorb);
             handler->GetSession()->GetPlayer()->DealDamage(target, damage, NULL, DIRECT_DAMAGE, schoolmask, NULL, false);
-            handler->GetSession()->GetPlayer()->SendAttackStateUpdate (HITINFO_AFFECTS_VICTIM, target, 1, schoolmask, damage, absorb, resist, VICTIMSTATE_HIT, 0);
+            handler->GetSession()->GetPlayer()->SendAttackStateUpdate(HITINFO_AFFECTS_VICTIM, target, 1, schoolmask, damage, absorb, resist, VICTIMSTATE_HIT, 0);
             return true;
         }
 
@@ -2292,9 +2306,10 @@ public:
             return false;
 
         SpellNonMeleeDamage damageInfo(handler->GetSession()->GetPlayer(), target, spellid, sSpellMgr->GetSpellInfo(spellid)->SchoolMask);
+        damageInfo.damage = damage;
         handler->GetSession()->GetPlayer()->DealDamageMods(damageInfo.target, damageInfo.damage, &damageInfo.absorb);
-        target->SendSpellNonMeleeDamageLog(&damageInfo);
         target->DealSpellDamage(&damageInfo, true);
+        target->SendSpellNonMeleeDamageLog(&damageInfo);
         return true;
     }
 
@@ -2554,10 +2569,7 @@ public:
             return false;
         }
 
-        WorldPacket data(SMSG_PLAY_SOUND, 4 + 8);
-        data << uint32(soundId);
-        data << handler->GetSession()->GetPlayer()->GetGUID();
-        sWorld->SendGlobalMessage(&data);
+        sWorld->SendGlobalMessage(WorldPackets::Misc::PlaySound(handler->GetSession()->GetPlayer()->GetGUID(), soundId).Write());
 
         handler->PSendSysMessage(LANG_COMMAND_PLAYED_TO_ALL, soundId);
         return true;

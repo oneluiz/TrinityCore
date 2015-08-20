@@ -28,6 +28,7 @@
 #include "QueryResult.h"
 #include "QueryHolder.h"
 #include "AdhocStatement.h"
+#include "StringFormat.h"
 
 #include <mysqld_error.h>
 #include <memory>
@@ -161,7 +162,7 @@ class DatabaseWorkerPool
         //! This method should only be used for queries that are only executed once, e.g during startup.
         void Execute(const char* sql)
         {
-            if (!sql)
+            if (Trinity::IsFormatEmptyOrNull(sql))
                 return;
 
             BasicStatementTask* task = new BasicStatementTask(sql);
@@ -170,18 +171,13 @@ class DatabaseWorkerPool
 
         //! Enqueues a one-way SQL operation in string format -with variable args- that will be executed asynchronously.
         //! This method should only be used for queries that are only executed once, e.g during startup.
-        void PExecute(const char* sql, ...)
+        template<typename Format, typename... Args>
+        void PExecute(Format&& sql, Args&&... args)
         {
-            if (!sql)
+            if (Trinity::IsFormatEmptyOrNull(sql))
                 return;
 
-            va_list ap;
-            char szQuery[MAX_QUERY_LEN];
-            va_start(ap, sql);
-            vsnprintf(szQuery, MAX_QUERY_LEN, sql, ap);
-            va_end(ap);
-
-            Execute(szQuery);
+            Execute(Trinity::StringFormat(std::forward<Format>(sql), std::forward<Args>(args)...).c_str());
         }
 
         //! Enqueues a one-way SQL operation in prepared statement format that will be executed asynchronously.
@@ -210,18 +206,13 @@ class DatabaseWorkerPool
 
         //! Directly executes a one-way SQL operation in string format -with variable args-, that will block the calling thread until finished.
         //! This method should only be used for queries that are only executed once, e.g during startup.
-        void DirectPExecute(const char* sql, ...)
+        template<typename Format, typename... Args>
+        void DirectPExecute(Format&& sql, Args&&... args)
         {
-            if (!sql)
+            if (Trinity::IsFormatEmptyOrNull(sql))
                 return;
 
-            va_list ap;
-            char szQuery[MAX_QUERY_LEN];
-            va_start(ap, sql);
-            vsnprintf(szQuery, MAX_QUERY_LEN, sql, ap);
-            va_end(ap);
-
-            return DirectExecute(szQuery);
+            DirectExecute(Trinity::StringFormat(std::forward<Format>(sql), std::forward<Args>(args)...).c_str());
         }
 
         //! Directly executes a one-way SQL operation in prepared statement format, that will block the calling thread until finished.
@@ -242,7 +233,7 @@ class DatabaseWorkerPool
 
         //! Directly executes an SQL query in string format that will block the calling thread until finished.
         //! Returns reference counted auto pointer, no need for manual memory management in upper level code.
-        QueryResult Query(const char* sql, T* conn = NULL)
+        QueryResult Query(const char* sql, T* conn = nullptr)
         {
             if (!conn)
                 conn = GetFreeConnection();
@@ -260,34 +251,24 @@ class DatabaseWorkerPool
 
         //! Directly executes an SQL query in string format -with variable args- that will block the calling thread until finished.
         //! Returns reference counted auto pointer, no need for manual memory management in upper level code.
-        QueryResult PQuery(const char* sql, T* conn, ...)
+        template<typename Format, typename... Args>
+        QueryResult PQuery(Format&& sql, T* conn, Args&&... args)
         {
-            if (!sql)
-                return QueryResult(NULL);
+            if (Trinity::IsFormatEmptyOrNull(sql))
+                return QueryResult(nullptr);
 
-            va_list ap;
-            char szQuery[MAX_QUERY_LEN];
-            va_start(ap, conn);
-            vsnprintf(szQuery, MAX_QUERY_LEN, sql, ap);
-            va_end(ap);
-
-            return Query(szQuery, conn);
+            return Query(Trinity::StringFormat(std::forward<Format>(sql), std::forward<Args>(args)...).c_str(), conn);
         }
 
         //! Directly executes an SQL query in string format -with variable args- that will block the calling thread until finished.
         //! Returns reference counted auto pointer, no need for manual memory management in upper level code.
-        QueryResult PQuery(const char* sql, ...)
+        template<typename Format, typename... Args>
+        QueryResult PQuery(Format&& sql, Args&&... args)
         {
             if (!sql)
-                return QueryResult(NULL);
+                return QueryResult(nullptr);
 
-            va_list ap;
-            char szQuery[MAX_QUERY_LEN];
-            va_start(ap, sql);
-            vsnprintf(szQuery, MAX_QUERY_LEN, sql, ap);
-            va_end(ap);
-
-            return Query(szQuery);
+            return Query(Trinity::StringFormat(std::forward<Format>(sql), std::forward<Args>(args)...).c_str());
         }
 
         //! Directly executes an SQL query in prepared format that will block the calling thread until finished.
@@ -328,15 +309,10 @@ class DatabaseWorkerPool
 
         //! Enqueues a query in string format -with variable args- that will set the value of the QueryResultFuture return object as soon as the query is executed.
         //! The return value is then processed in ProcessQueryCallback methods.
-        QueryResultFuture AsyncPQuery(const char* sql, ...)
+        template<typename Format, typename... Args>
+        QueryResultFuture AsyncPQuery(Format&& sql, Args&&... args)
         {
-            va_list ap;
-            char szQuery[MAX_QUERY_LEN];
-            va_start(ap, sql);
-            vsnprintf(szQuery, MAX_QUERY_LEN, sql, ap);
-            va_end(ap);
-
-            return AsyncQuery(szQuery);
+            return AsyncQuery(Trinity::StringFormat(std::forward<Format>(sql), std::forward<Args>(args)...).c_str());
         }
 
         //! Enqueues a query in prepared format that will set the value of the PreparedQueryResultFuture return object as soon as the query is executed.
@@ -527,7 +503,7 @@ class DatabaseWorkerPool
                 {
                     while (_connectionCount[type] != 0)
                     {
-                        T* t = _connections[type][i--];
+                        t = _connections[type][i--];
                         delete t;
                         --_connectionCount[type];
                     }
