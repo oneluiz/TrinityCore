@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -239,6 +239,16 @@ namespace WorldPackets
             ObjectGuid TrainerGUID;
             int32 SpellID               = 0;
             int32 TrainerFailedReason   = 0;
+        };
+
+        class RequestStabledPets final : public ClientPacket
+        {
+        public:
+            RequestStabledPets(WorldPacket&& packet) : ClientPacket(CMSG_REQUEST_STABLED_PETS, std::move(packet)) { }
+        
+            void Read() override;
+
+            ObjectGuid StableMaster;
         };
     }
 }

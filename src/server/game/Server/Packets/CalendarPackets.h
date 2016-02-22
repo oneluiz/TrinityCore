@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -541,6 +541,18 @@ namespace WorldPackets
             uint64 EventID = 0;
             std::string Notes;
             bool ClearPending = false;
+        };
+
+        class CalendarComplain final : public ClientPacket
+        {
+        public:
+            CalendarComplain(WorldPacket&& packet) : ClientPacket(CMSG_CALENDAR_COMPLAIN, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid InvitedByGUID;
+            uint64 InviteID = 0;
+            uint64 EventID = 0;
         };
     }
 }

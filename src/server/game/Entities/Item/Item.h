@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -141,7 +141,8 @@ enum InventoryResult
     EQUIP_ERR_CANT_BUY_QUANTITY                            = 93, // You can't buy the specified quantity of that item.
     EQUIP_ERR_ITEM_IS_BATTLE_PAY_LOCKED                    = 94, // Your purchased item is still waiting to be unlocked
     EQUIP_ERR_REAGENT_BANK_FULL                            = 95, // Your reagent bank is full
-    EQUIP_ERR_REAGENT_BANK_LOCKED                          = 96
+    EQUIP_ERR_REAGENT_BANK_LOCKED                          = 96,
+    EQUIP_ERR_WRONG_BAG_TYPE_3                             = 97
 };
 
 enum BuyResult
@@ -247,6 +248,8 @@ struct BonusData
     float ItemStatSocketCostMultiplier[MAX_ITEM_PROTO_STATS];
     uint32 SocketColor[MAX_ITEM_PROTO_SOCKETS];
     uint32 AppearanceModID;
+    float RepairCostMultiplier;
+    uint32 ScalingStatDistribution;
 
     void Initialize(ItemTemplate const* proto);
     void Initialize(WorldPackets::Item::ItemInstance const& itemInstance);
@@ -317,7 +320,7 @@ class Item : public Object
         bool GemsFitSockets() const;
 
         uint32 GetCount() const { return GetUInt32Value(ITEM_FIELD_STACK_COUNT); }
-        void SetCount(uint32 value) { SetUInt32Value(ITEM_FIELD_STACK_COUNT, value); }
+        void SetCount(uint32 value);
         uint32 GetMaxStackCount() const { return GetTemplate()->GetMaxStackSize(); }
         uint8 GetGemCountWithID(uint32 GemID) const;
         uint8 GetGemCountWithLimitCategory(uint32 limitCategory) const;
@@ -392,6 +395,8 @@ class Item : public Object
         uint32 GetArmor(Player const* owner) const { return GetTemplate()->GetArmor(GetItemLevel(owner)); }
         void GetDamage(Player const* owner, float& minDamage, float& maxDamage) const { GetTemplate()->GetDamage(GetItemLevel(owner), minDamage, maxDamage); }
         uint32 GetDisplayId() const;
+        float GetRepairCostMultiplier() const { return _bonusData.RepairCostMultiplier; }
+        uint32 GetScalingStatDistribution() const { return _bonusData.ScalingStatDistribution; }
 
         // Item Refund system
         void SetNotRefundable(Player* owner, bool changestate = true, SQLTransaction* trans = NULL);
@@ -419,8 +424,8 @@ class Item : public Object
 
         uint32 GetScriptId() const { return GetTemplate()->ScriptId; }
 
-        static bool CanBeTransmogrified(WorldPackets::Item::ItemInstance const& transmogrifier, BonusData const* bonus);
-        bool CanTransmogrify() const;
+        bool IsValidTransmogrificationTarget() const;
+        static bool IsValidTransmogrificationSource(WorldPackets::Item::ItemInstance const& transmogrifier, BonusData const* bonus);
         bool HasStats() const;
         static bool HasStats(WorldPackets::Item::ItemInstance const& itemInstance, BonusData const* bonus);
         static bool CanTransmogrifyItemWithItem(Item const* transmogrified, WorldPackets::Item::ItemInstance const& transmogrifier, BonusData const* bonus);

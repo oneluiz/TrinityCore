@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -54,4 +54,18 @@ void WorldPackets::Talent::LearnTalents::Read()
         _worldPacket >> talent;
         Talents.push_back(talent);
     }
+}
+
+WorldPacket const* WorldPackets::Talent::RespecWipeConfirm::Write()
+{
+    _worldPacket << int8(RespecType);
+    _worldPacket << uint32(Cost);
+    _worldPacket << RespecMaster;
+    return &_worldPacket;
+}
+
+void WorldPackets::Talent::ConfirmRespecWipe::Read()
+{
+    _worldPacket >> RespecMaster;
+    _worldPacket >> RespecType;
 }

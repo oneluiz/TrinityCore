@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -68,8 +68,31 @@ namespace WorldPackets
 
             void Read() override;
             std::vector<uint16> Talents;
-
         };
+
+        class RespecWipeConfirm final : public ServerPacket
+        {
+        public:
+            RespecWipeConfirm() : ServerPacket(SMSG_RESPEC_WIPE_CONFIRM, 16 + 4 +1) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid RespecMaster;
+            uint32 Cost = 0;
+            int8 RespecType = 0;
+        };
+
+        class ConfirmRespecWipe final : public ClientPacket
+        {
+        public:
+            ConfirmRespecWipe(WorldPacket&& packet) : ClientPacket(CMSG_CONFIRM_RESPEC_WIPE, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid RespecMaster;
+            uint8 RespecType = 0;
+        };
+
     }
 }
 

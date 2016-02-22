@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -39,6 +39,13 @@ enum GMSupportComplaintType
     GMTICKET_SUPPORT_COMPLAINT_TYPE_CHEAT       = 15,
     GMTICKET_SUPPORT_COMPLAINT_TYPE_GUILDNAME   = 23,
     GMTICKET_SUPPORT_COMPLAINT_TYPE_SPAMMING    = 24
+};
+
+enum SupportSpamType
+{
+    SUPPORT_SPAM_TYPE_MAIL     = 0,
+    SUPPORT_SPAM_TYPE_CHAT     = 1,
+    SUPPORT_SPAM_TYPE_CALENDAR = 2
 };
 
 using ChatLog = WorldPackets::Ticket::SupportTicketSubmitComplaint::SupportTicketChatLog;

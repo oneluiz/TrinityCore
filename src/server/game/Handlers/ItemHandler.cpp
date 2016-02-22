@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -27,6 +27,7 @@
 #include "DB2Stores.h"
 #include "NPCPackets.h"
 #include "ItemPackets.h"
+#include "BattlePetMgr.h"
 
 void WorldSession::HandleSplitItemOpcode(WorldPackets::Item::SplitItem& splitItem)
 {
@@ -597,8 +598,7 @@ void WorldSession::SendListInventory(ObjectGuid vendorGuid)
                     continue;
             }
 
-            ConditionList conditions = sConditionMgr->GetConditionsForNpcVendorEvent(vendor->GetEntry(), vendorItem->item);
-            if (!sConditionMgr->IsObjectMeetToConditions(_player, vendor, conditions))
+            if (!sConditionMgr->IsObjectMeetingVendorItemConditions(vendor->GetEntry(), vendorItem->item, _player, vendor))
             {
                 TC_LOG_DEBUG("condition", "SendListInventory: conditions not met for creature entry %u item %u", vendor->GetEntry(), vendorItem->item);
                 continue;
@@ -851,24 +851,17 @@ void WorldSession::HandleWrapItem(WorldPackets::Item::WrapItem& packet)
     _player->DestroyItemCount(gift, count, true);
 }
 
-void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
+void WorldSession::HandleSocketGems(WorldPackets::Item::SocketGems& socketGems)
 {
-    ObjectGuid item_guid;
-    ObjectGuid gem_guids[MAX_GEM_SOCKETS];
-
-    recvData >> item_guid;
-    if (!item_guid)
+    if (!socketGems.ItemGuid)
         return;
-
-    for (int i = 0; i < MAX_GEM_SOCKETS; ++i)
-        recvData >> gem_guids[i];
 
     //cheat -> tried to socket same gem multiple times
-    if ((!gem_guids[0].IsEmpty() && (gem_guids[0] == gem_guids[1] || gem_guids[0] == gem_guids[2])) ||
-        (!gem_guids[1].IsEmpty() && (gem_guids[1] == gem_guids[2])))
+    if ((!socketGems.GemItem[0].IsEmpty() && (socketGems.GemItem[0] == socketGems.GemItem[1] || socketGems.GemItem[0] == socketGems.GemItem[2])) ||
+        (!socketGems.GemItem[1].IsEmpty() && (socketGems.GemItem[1] == socketGems.GemItem[2])))
         return;
 
-    Item* itemTarget = _player->GetItemByGuid(item_guid);
+    Item* itemTarget = _player->GetItemByGuid(socketGems.ItemGuid);
     if (!itemTarget)                                         //missing item to socket
         return;
 
@@ -881,7 +874,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
 
     Item* Gems[MAX_GEM_SOCKETS];
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)
-        Gems[i] = !gem_guids[i].IsEmpty() ? _player->GetItemByGuid(gem_guids[i]) : NULL;
+        Gems[i] = !socketGems.GemItem[i].IsEmpty() ? _player->GetItemByGuid(socketGems.GemItem[i]) : NULL;
 
     GemPropertiesEntry const* GemProps[MAX_GEM_SOCKETS];
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)                //get geminfo from dbc storage
@@ -889,7 +882,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
 
     // Find first prismatic socket
     int32 firstPrismatic = 0;
-    while (firstPrismatic < MAX_GEM_SOCKETS && itemProto->ExtendedData->SocketColor[firstPrismatic])
+    while (firstPrismatic < MAX_GEM_SOCKETS && itemTarget->GetSocketColor(firstPrismatic))
         ++firstPrismatic;
 
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)                //check for hack maybe
@@ -898,7 +891,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
             continue;
 
         // tried to put gem in socket where no socket exists (take care about prismatic sockets)
-        if (!itemProto->ExtendedData->SocketColor[i])
+        if (!itemTarget->GetSocketColor(i))
         {
             // no prismatic socket
             if (!itemTarget->GetEnchantmentId(PRISMATIC_ENCHANTMENT_SLOT))
@@ -1030,7 +1023,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recvData)
         if (GemEnchants[i])
         {
             itemTarget->SetEnchantment(EnchantmentSlot(SOCK_ENCHANTMENT_SLOT+i), GemEnchants[i], 0, 0, _player->GetGUID());
-            if (Item* guidItem = _player->GetItemByGuid(gem_guids[i]))
+            if (Item* guidItem = _player->GetItemByGuid(socketGems.GemItem[i]))
             {
                 uint32 gemCount = 1;
                 _player->DestroyItemCount(guidItem, gemCount, true);
@@ -1090,20 +1083,17 @@ void WorldSession::HandleGetItemPurchaseData(WorldPackets::Item::GetItemPurchase
     GetPlayer()->SendRefundInfo(item);
 }
 
-void WorldSession::HandleItemRefund(WorldPacket &recvData)
+void WorldSession::HandleItemRefund(WorldPackets::Item::ItemPurchaseRefund& packet)
 {
-    ObjectGuid guid;
-    recvData >> guid;                                      // item guid
-
-    Item* item = _player->GetItemByGuid(guid);
+    Item* item = _player->GetItemByGuid(packet.ItemGUID);
     if (!item)
     {
-        TC_LOG_DEBUG("network", "Item refund: item not found!");
+        TC_LOG_DEBUG("network", "WorldSession::HandleItemRefund: Item (%s) not found!", packet.ItemGUID.ToString().c_str());
         return;
     }
 
     // Don't try to refund item currently being disenchanted
-    if (_player->GetLootGUID() == guid)
+    if (_player->GetLootGUID() == packet.ItemGUID)
         return;
 
     GetPlayer()->RefundItem(item);
@@ -1140,6 +1130,11 @@ void WorldSession::HandleTransmogrifyItems(WorldPackets::Item::TransmogrifyItems
             TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify an invalid item in a valid slot (slot: %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.Slot);
             return;
         }
+        if (player->CanUseItem(itemTransmogrified->GetTemplate()) != EQUIP_ERR_OK)
+        {
+            TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify an unequippable item in a valid slot (slot: %u).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.Slot);
+            return;
+        }
 
         WorldPackets::Item::ItemInstance itemInstance;
         BonusData const* bonus = nullptr;
@@ -1150,6 +1145,11 @@ void WorldSession::HandleTransmogrifyItems(WorldPackets::Item::TransmogrifyItems
             if (!itemTransmogrifier)
             {
                 TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcItemGUID->ToString().c_str());
+                return;
+            }
+            if (player->CanUseItem(itemTransmogrifier->GetTemplate()) != EQUIP_ERR_OK)
+            {
+                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an unequippable item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcItemGUID->ToString().c_str());
                 return;
             }
 
@@ -1165,6 +1165,12 @@ void WorldSession::HandleTransmogrifyItems(WorldPackets::Item::TransmogrifyItems
             if (!itemTransmogrifier)
             {
                 TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an invalid void storage item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcVoidItemGUID->ToString().c_str());
+                return;
+            }
+            ItemTemplate const * transmogrifierTemplate = sObjectMgr->GetItemTemplate(itemTransmogrifier->ItemEntry);
+            if (player->CanUseItem(transmogrifierTemplate) != EQUIP_ERR_OK)
+            {
+                TC_LOG_DEBUG("network", "WORLD: HandleTransmogrifyItems - Player (%s, name: %s) tried to transmogrify with an unequippable void storage item (%s).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), transmogItem.SrcVoidItemGUID->ToString().c_str());
                 return;
             }
 
@@ -1263,4 +1269,22 @@ bool WorldSession::CanUseBank(ObjectGuid bankerGUID) const
     }
 
     return true;
+}
+
+void WorldSession::HandleUseCritterItem(WorldPackets::Item::UseCritterItem& useCritterItem)
+{
+    Item* item = _player->GetItemByGuid(useCritterItem.ItemGuid);
+    if (!item)
+        return;
+
+    ItemToBattlePetSpeciesEntry const* itemToBattlePetSpecies = sItemToBattlePetSpeciesStore.LookupEntry(item->GetEntry());
+    if (!itemToBattlePetSpecies)
+        return;
+
+    BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(itemToBattlePetSpecies->BattlePetSpeciesID);
+    if (!battlePetSpecies)
+        return;
+
+    GetBattlePetMgr()->AddPet(battlePetSpecies->ID, battlePetSpecies->CreatureID, BattlePetMgr::RollPetBreed(battlePetSpecies->ID), BattlePetMgr::GetDefaultPetQuality(battlePetSpecies->ID));
+    _player->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
 }

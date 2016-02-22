@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -37,16 +37,18 @@ void WorldSession::HandleLearnTalentsOpcode(WorldPackets::Talent::LearnTalents& 
         _player->SendTalentsInfoData();
 }
 
-void WorldSession::HandleConfirmRespecWipeOpcode(WorldPacket& recvData)
+void WorldSession::HandleConfirmRespecWipeOpcode(WorldPackets::Talent::ConfirmRespecWipe& confirmRespecWipe)
 {
-    TC_LOG_DEBUG("network", "MSG_TALENT_WIPE_CONFIRM");
-    ObjectGuid guid;
-    recvData >> guid;
-
-    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_TRAINER);
+    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(confirmRespecWipe.RespecMaster, UNIT_NPC_FLAG_TRAINER);
     if (!unit)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleConfirmRespecWipeOpcode - %s not found or you can't interact with him.", guid.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleConfirmRespecWipeOpcode - %s not found or you can't interact with him.", confirmRespecWipe.RespecMaster.ToString().c_str());
+        return;
+    }
+
+    if (confirmRespecWipe.RespecType != SPEC_RESET_TALENTS)
+    {
+        TC_LOG_DEBUG("network", "WORLD: HandleConfirmRespecWipeOpcode - reset type %d is not implemented.", confirmRespecWipe.RespecType);
         return;
     }
 

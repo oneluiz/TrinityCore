@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -578,7 +578,7 @@ bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_R
         }
 
         // Reevaluate group enchanter if the leaving player had enchanting skill or the player is offline
-        if ((player && player->GetSkillValue(SKILL_ENCHANTING)) || !player)
+        if (!player || player->GetSkillValue(SKILL_ENCHANTING))
             ResetMaxEnchantingLevel();
 
         // Remove player from loot rolls

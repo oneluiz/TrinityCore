@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -197,7 +197,7 @@ void WorldSession::HandleWhoOpcode(WorldPackets::Who::WhoRequestPkt& whoRequest)
         if (!wWords.empty())
         {
             std::string aName;
-            if (AreaTableEntry const* areaEntry = GetAreaEntryByAreaID(target->GetZoneId()))
+            if (AreaTableEntry const* areaEntry = sAreaTableStore.LookupEntry(target->GetZoneId()))
                 aName = areaEntry->AreaName_lang;
 
             bool show = false;
@@ -418,7 +418,6 @@ void WorldSession::HandleReclaimCorpse(WorldPackets::Misc::ReclaimCorpse& /*pack
         return;
 
     Corpse* corpse = _player->GetCorpse();
-
     if (!corpse)
         return;
 
@@ -471,57 +470,11 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
         return;
     }
 
-    if (player->GetMapId() != atEntry->MapID)
+    if (!player->IsInAreaTriggerRadius(atEntry))
     {
-        TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far (trigger map: %u player map: %u), ignore Area Trigger ID: %u",
-            player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->MapID, player->GetMapId(), packet.AreaTriggerID);
+        TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far, ignore Area Trigger ID: %u",
+            player->GetName().c_str(), player->GetGUID().ToString().c_str(), packet.AreaTriggerID);
         return;
-    }
-
-    // delta is safe radius
-    const float delta = 5.0f;
-
-    if (atEntry->Radius > 0)
-    {
-        // if we have radius check it
-        float dist = player->GetDistance(atEntry->Pos.X, atEntry->Pos.Y, atEntry->Pos.Z);
-        if (dist > atEntry->Radius + delta)
-        {
-            TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far (radius: %f distance: %f), ignore Area Trigger ID: %u",
-                player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->Radius, dist, packet.AreaTriggerID);
-            return;
-        }
-    }
-    else
-    {
-        // we have only extent
-
-        // rotate the players position instead of rotating the whole cube, that way we can make a simplified
-        // is-in-cube check and we have to calculate only one point instead of 4
-
-        // 2PI = 360°, keep in mind that ingame orientation is counter-clockwise
-        double rotation = 2 * M_PI - atEntry->BoxYaw;
-        double sinVal = std::sin(rotation);
-        double cosVal = std::cos(rotation);
-
-        float playerBoxDistX = player->GetPositionX() - atEntry->Pos.X;
-        float playerBoxDistY = player->GetPositionY() - atEntry->Pos.Y;
-
-        float rotPlayerX = float(atEntry->Pos.X + playerBoxDistX * cosVal - playerBoxDistY*sinVal);
-        float rotPlayerY = float(atEntry->Pos.Y + playerBoxDistY * cosVal + playerBoxDistX*sinVal);
-
-        // box edges are parallel to coordiante axis, so we can treat every dimension independently :D
-        float dz = player->GetPositionZ() - atEntry->Pos.Z;
-        float dx = rotPlayerX - atEntry->Pos.X;
-        float dy = rotPlayerY - atEntry->Pos.Y;
-        if ((std::fabs(dx) > atEntry->BoxLength / 2 + delta) ||
-            (std::fabs(dy) > atEntry->BoxWidth / 2 + delta) ||
-            (std::fabs(dz) > atEntry->BoxHeight / 2 + delta))
-        {
-            TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far (1/2 box X: %f 1/2 box Y: %f 1/2 box Z: %f rotatedPlayerX: %f rotatedPlayerY: %f dZ:%f), ignore Area Trigger ID: %u",
-                player->GetName().c_str(), player->GetGUID().ToString().c_str(), atEntry->BoxLength / 2, atEntry->BoxWidth / 2, atEntry->BoxHeight / 2, rotPlayerX, rotPlayerY, dz, packet.AreaTriggerID);
-            return;
-        }
     }
 
     if (player->isDebugAreaTriggers)
@@ -532,22 +485,25 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
 
     if (player->IsAlive())
     {
-        if (uint32 questId = sObjectMgr->GetQuestForAreaTrigger(packet.AreaTriggerID))
+        if (std::unordered_set<uint32> const* quests = sObjectMgr->GetQuestsForAreaTrigger(packet.AreaTriggerID))
         {
-            Quest const* qInfo = sObjectMgr->GetQuestTemplate(questId);
-            if (qInfo && player->GetQuestStatus(questId) == QUEST_STATUS_INCOMPLETE)
+            for (uint32 questId : *quests)
             {
-                for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+                Quest const* qInfo = sObjectMgr->GetQuestTemplate(questId);
+                if (qInfo && player->GetQuestStatus(questId) == QUEST_STATUS_INCOMPLETE)
                 {
-                    if (qInfo->Objectives[j].Type == QUEST_OBJECTIVE_AREATRIGGER)
+                    for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
                     {
-                        player->SetQuestObjectiveData(qInfo, j, int32(true));
-                        break;
+                        if (qInfo->Objectives[j].Type == QUEST_OBJECTIVE_AREATRIGGER)
+                        {
+                            player->SetQuestObjectiveData(qInfo, j, int32(true));
+                            break;
+                        }
                     }
-                }
 
-                if (player->CanCompleteQuest(questId))
-                    player->CompleteQuest(questId);
+                    if (player->CanCompleteQuest(questId))
+                        player->CompleteQuest(questId);
+                }
             }
         }
     }
@@ -555,9 +511,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
     if (sObjectMgr->IsTavernAreaTrigger(packet.AreaTriggerID))
     {
         // set resting flag we are in the inn
-        player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING);
-        player->InnEnter(time(NULL), atEntry->MapID, atEntry->Pos.X, atEntry->Pos.Y, atEntry->Pos.Z);
-        player->SetRestType(REST_TYPE_IN_TAVERN);
+        player->SetRestFlag(REST_FLAG_IN_TAVERN, atEntry->ID);
 
         if (sWorld->IsFFAPvPRealm())
             player->RemoveByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_FFA_PVP);
@@ -768,64 +722,6 @@ void WorldSession::HandleWhoIsOpcode(WorldPackets::Who::WhoIsRequest& packet)
     WorldPackets::Who::WhoIsResponse response;
     response.AccountName = packet.CharName + "'s " + "account is " + acc + ", e-mail: " + email + ", last ip: " + lastip;
     SendPacket(response.Write());
-}
-
-void WorldSession::HandleComplainOpcode(WorldPacket& recvData)
-{
-    uint8 spam_type;                                        // 0 - mail, 1 - chat
-    ObjectGuid spammer_guid;
-    uint32 unk1 = 0;
-    uint32 unk2 = 0;
-    uint32 unk3 = 0;
-    uint32 unk4 = 0;
-    std::string description = "";
-    recvData >> spam_type;                                 // unk 0x01 const, may be spam type (mail/chat)
-    recvData >> spammer_guid;                              // player guid
-    switch (spam_type)
-    {
-        case 0:
-            recvData >> unk1;                              // const 0
-            recvData >> unk2;                              // probably mail id
-            recvData >> unk3;                              // const 0
-            break;
-        case 1:
-            recvData >> unk1;                              // probably language
-            recvData >> unk2;                              // message type?
-            recvData >> unk3;                              // probably channel id
-            recvData >> unk4;                              // time
-            recvData >> description;                       // spam description string (messagetype, channel name, player name, message)
-            break;
-    }
-
-    // NOTE: all chat messages from this spammer automatically ignored by spam reporter until logout in case chat spam.
-    // if it's mail spam - ALL mails from this spammer automatically removed by client
-
-    // Complaint Received message
-    WorldPacket data(SMSG_COMPLAINT_RESULT, 2);
-    data << uint8(0); // value 1 resets CGChat::m_complaintsSystemStatus in client. (unused?)
-    data << uint8(0); // value 0xC generates a "CalendarError" in client.
-    SendPacket(&data);
-
-    TC_LOG_DEBUG("network", "REPORT SPAM: type %u, %s, unk1 %u, unk2 %u, unk3 %u, unk4 %u, message %s",
-        spam_type, spammer_guid.ToString().c_str(), unk1, unk2, unk3, unk4, description.c_str());
-}
-
-void WorldSession::HandleRealmSplitOpcode(WorldPacket& recvData)
-{
-    uint32 unk;
-    std::string split_date = "01/01/01";
-    recvData >> unk;
-
-    WorldPacket data(SMSG_REALM_SPLIT, 4+4+split_date.size()+1);
-    data << unk;
-    data << uint32(0x00000000);                             // realm split state
-    // split states:
-    // 0x0 realm normal
-    // 0x1 realm split
-    // 0x2 realm split pending
-    data << split_date;
-    SendPacket(&data);
-    //TC_LOG_DEBUG("response sent %u", unk);
 }
 
 void WorldSession::HandleFarSightOpcode(WorldPackets::Misc::FarSight& packet)
@@ -1052,30 +948,9 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDiff
     }
 }
 
-void WorldSession::HandleMoveSetCanFlyAckOpcode(WorldPacket& /*recvData*/)
+void WorldSession::HandleSetTaxiBenchmark(WorldPackets::Misc::SetTaxiBenchmarkMode& packet)
 {
-    // fly mode on/off
-    MovementInfo movementInfo;
-    _player->ValidateMovementInfo(&movementInfo);
-
-    _player->m_mover->m_movementInfo.flags = movementInfo.GetMovementFlags();
-}
-
-void WorldSession::HandleRequestPetInfoOpcode(WorldPacket& /*recvData */)
-{
-    /*
-        recvData.hexlike();
-    */
-}
-
-void WorldSession::HandleSetTaxiBenchmarkOpcode(WorldPacket& recvData)
-{
-    uint8 mode;
-    recvData >> mode;
-
-    mode ? _player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_TAXI_BENCHMARK) : _player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_TAXI_BENCHMARK);
-
-    TC_LOG_DEBUG("network", "Client used \"/timetest %d\" command", mode);
+    _player->ApplyModFlag(PLAYER_FLAGS, PLAYER_FLAGS_TAXI_BENCHMARK, packet.Enable);
 }
 
 void WorldSession::HandleGuildSetFocusedAchievement(WorldPackets::Achievement::GuildSetFocusedAchievement& setFocusedAchievement)
@@ -1117,48 +992,6 @@ void WorldSession::HandleInstanceLockResponse(WorldPackets::Instance::InstanceLo
         _player->RepopAtGraveyard();
 
     _player->SetPendingBind(0, 0);
-}
-
-void WorldSession::HandleUpdateMissileTrajectory(WorldPacket& recvPacket)
-{
-    ObjectGuid guid;
-    uint32 spellId;
-    float pitch, speed;
-    float curX, curY, curZ;
-    float targetX, targetY, targetZ;
-    uint8 moveStop;
-
-    recvPacket >> guid >> spellId >> pitch >> speed;
-    recvPacket >> curX >> curY >> curZ;
-    recvPacket >> targetX >> targetY >> targetZ;
-    recvPacket >> moveStop;
-
-    Unit* caster = ObjectAccessor::GetUnit(*_player, guid);
-    Spell* spell = caster ? caster->GetCurrentSpell(CURRENT_GENERIC_SPELL) : NULL;
-    if (!spell || spell->m_spellInfo->Id != spellId || !spell->m_targets.HasDst() || !spell->m_targets.HasSrc())
-    {
-        recvPacket.rfinish();
-        return;
-    }
-
-    Position pos = *spell->m_targets.GetSrcPos();
-    pos.Relocate(curX, curY, curZ);
-    spell->m_targets.ModSrc(pos);
-
-    pos = *spell->m_targets.GetDstPos();
-    pos.Relocate(targetX, targetY, targetZ);
-    spell->m_targets.ModDst(pos);
-
-    spell->m_targets.SetPitch(pitch);
-    spell->m_targets.SetSpeed(speed);
-
-    if (moveStop)
-    {
-        uint32 opcode;
-        recvPacket >> opcode;
-        recvPacket.SetOpcode(CMSG_MOVE_STOP); // always set to CMSG_MOVE_STOP in client SetOpcode
-        //HandleMovementOpcodes(recvPacket);
-    }
 }
 
 void WorldSession::HandleViolenceLevel(WorldPackets::Misc::ViolenceLevel& /*violenceLevel*/)
@@ -1220,4 +1053,11 @@ void WorldSession::SendLoadCUFProfiles()
 void WorldSession::HandleSetAdvancedCombatLogging(WorldPackets::ClientConfig::SetAdvancedCombatLogging& setAdvancedCombatLogging)
 {
     _player->SetAdvancedCombatLogging(setAdvancedCombatLogging.Enable);
+}
+
+void WorldSession::HandleMountSpecialAnimOpcode(WorldPackets::Misc::MountSpecial& /*mountSpecial*/)
+{
+    WorldPackets::Misc::SpecialMountAnim specialMountAnim;
+    specialMountAnim.UnitGUID = _player->GetGUID();
+    GetPlayer()->SendMessageToSet(specialMountAnim.Write(), false);
 }

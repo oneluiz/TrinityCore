@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -524,10 +524,8 @@ void WorldSession::HandleSetAssistantLeaderOpcode(WorldPackets::Party::SetAssist
     group->SetGroupMemberFlag(packet.Target, packet.Apply, MEMBER_FLAG_ASSISTANT);
 }
 
-void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
+void WorldSession::HandleSetPartyAssignment(WorldPackets::Party::SetPartyAssignment& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received MSG_PARTY_ASSIGNMENT");
-
     Group* group = GetPlayer()->GetGroup();
     if (!group)
         return;
@@ -536,21 +534,15 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
     if (!group->IsLeader(senderGuid) && !group->IsAssistant(senderGuid))
         return;
 
-    uint8 assignment;
-    bool apply;
-    ObjectGuid guid;
-    recvData >> assignment >> apply;
-    recvData >> guid;
-
-    switch (assignment)
+    switch (packet.Assignment)
     {
         case GROUP_ASSIGN_MAINASSIST:
             group->RemoveUniqueGroupMemberFlag(MEMBER_FLAG_MAINASSIST);
-            group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_MAINASSIST);
+            group->SetGroupMemberFlag(packet.Target, packet.Set, MEMBER_FLAG_MAINASSIST);
             break;
         case GROUP_ASSIGN_MAINTANK:
             group->RemoveUniqueGroupMemberFlag(MEMBER_FLAG_MAINTANK);           // Remove main assist flag from current if any.
-            group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_MAINTANK);
+            group->SetGroupMemberFlag(packet.Target, packet.Set, MEMBER_FLAG_MAINTANK);
         default:
             break;
     }

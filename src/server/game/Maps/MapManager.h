@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -42,22 +42,20 @@ class MapManager
         Map* CreateMap(uint32 mapId, Player* player);
         Map* FindMap(uint32 mapId, uint32 instanceId) const;
 
-        uint16 GetAreaFlag(uint32 mapid, float x, float y, float z) const
-        {
-            Map const* m = const_cast<MapManager*>(this)->CreateBaseMap(mapid);
-            return m->GetAreaFlag(x, y, z);
-        }
         uint32 GetAreaId(uint32 mapid, float x, float y, float z) const
         {
-            return Map::GetAreaIdByAreaFlag(GetAreaFlag(mapid, x, y, z), mapid);
+            Map const* m = const_cast<MapManager*>(this)->CreateBaseMap(mapid);
+            return m->GetAreaId(x, y, z);
         }
         uint32 GetZoneId(uint32 mapid, float x, float y, float z) const
         {
-            return Map::GetZoneIdByAreaFlag(GetAreaFlag(mapid, x, y, z), mapid);
+            Map const* m = const_cast<MapManager*>(this)->CreateBaseMap(mapid);
+            return m->GetZoneId(x, y, z);
         }
         void GetZoneAndAreaId(uint32& zoneid, uint32& areaid, uint32 mapid, float x, float y, float z)
         {
-            Map::GetZoneAndAreaIdByAreaFlag(zoneid, areaid, GetAreaFlag(mapid, x, y, z), mapid);
+            Map const* m = const_cast<MapManager*>(this)->CreateBaseMap(mapid);
+            m->GetZoneAndAreaId(zoneid, areaid, x, y, z);
         }
 
         void Initialize(void);

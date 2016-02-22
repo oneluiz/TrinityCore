@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -111,6 +111,70 @@ namespace WorldPackets
             GetItemPurchaseData(WorldPacket&& packet) : ClientPacket(CMSG_GET_ITEM_PURCHASE_DATA, std::move(packet)) { }
 
             void Read() override;
+
+            ObjectGuid ItemGUID;
+        };
+
+        struct ItemPurchaseRefundItem
+        {
+            int32 ItemID = 0;
+            int32 ItemCount = 0;
+        };
+
+        struct ItemPurchaseRefundCurrency
+        {
+            int32 CurrencyID = 0;
+            int32 CurrencyCount = 0;
+        };
+
+        struct ItemPurchaseContents
+        {
+            uint32 Money = 0;
+            ItemPurchaseRefundItem Items[5] = { };
+            ItemPurchaseRefundCurrency Currencies[5] = { };
+        };
+
+        class SetItemPurchaseData final : public ServerPacket
+        {
+        public:
+            SetItemPurchaseData() : ServerPacket(SMSG_SET_ITEM_PURCHASE_DATA, 4 + 4 + 4 + 5 * (4 + 4) + 5 * (4 + 4) + 16) { }
+
+            WorldPacket const* Write() override;
+
+            uint32 PurchaseTime = 0;
+            uint32 Flags = 0;
+            ItemPurchaseContents Contents;
+            ObjectGuid ItemGUID;
+        };
+
+        class ItemPurchaseRefund final : public ClientPacket
+        {
+        public:
+            ItemPurchaseRefund(WorldPacket&& packet) : ClientPacket(CMSG_ITEM_PURCHASE_REFUND, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid ItemGUID;
+        };
+
+        class ItemPurchaseRefundResult final : public ServerPacket
+        {
+        public:
+            ItemPurchaseRefundResult() : ServerPacket(SMSG_ITEM_PURCHASE_REFUND_RESULT, 1 + 4 + 5 * (4 + 4) + 5 * (4 + 4) + 16) { }
+
+            WorldPacket const* Write() override;
+
+            uint8 Result = 0;
+            ObjectGuid ItemGUID;
+            Optional<ItemPurchaseContents> Contents;
+        };
+
+        class ItemExpirePurchaseRefund final : public ServerPacket
+        {
+        public:
+            ItemExpirePurchaseRefund() : ServerPacket(SMSG_ITEM_EXPIRE_PURCHASE_REFUND, 16) { }
+
+            WorldPacket const* Write() override;
 
             ObjectGuid ItemGUID;
         };
@@ -426,6 +490,39 @@ namespace WorldPackets
 
             ObjectGuid Npc;
             Array<TransmogrifyItem, MAX_TRANSMOGRIFY_ITEMS> Items;
+        };
+
+        class UseCritterItem final : public ClientPacket
+        {
+        public:
+            UseCritterItem(WorldPacket&& packet) : ClientPacket(CMSG_USE_CRITTER_ITEM, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid ItemGuid;
+        };
+
+        class SocketGems final : public ClientPacket
+        {
+        public:
+            SocketGems(WorldPacket&& packet) : ClientPacket(CMSG_SOCKET_GEMS, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid ItemGuid;
+            ObjectGuid GemItem[MAX_GEM_SOCKETS];
+        };
+
+        class SocketGemsResult final : public ServerPacket
+        {
+        public:
+            SocketGemsResult() : ServerPacket(SMSG_SOCKET_GEMS, 16 + 4 * 3 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Item;
+            int32 Sockets[MAX_GEM_SOCKETS] = {};
+            int32 SocketMatch = 0;
         };
 
         ByteBuffer& operator>>(ByteBuffer& data, InvUpdate& invUpdate);

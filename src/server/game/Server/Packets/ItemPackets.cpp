@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -69,6 +69,68 @@ WorldPacket const* WorldPackets::Item::BuyFailed::Write()
 void WorldPackets::Item::GetItemPurchaseData::Read()
 {
     _worldPacket >> ItemGUID;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Item::ItemPurchaseRefundItem& refundItem)
+{
+    data << refundItem.ItemID;
+    data << refundItem.ItemCount;
+
+    return data;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Item::ItemPurchaseRefundCurrency& refundCurrency)
+{
+    data << refundCurrency.CurrencyID;
+    data << refundCurrency.CurrencyCount;
+
+    return data;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Item::ItemPurchaseContents& purchaseContents)
+{
+    data << purchaseContents.Money;
+    for (uint32 i = 0; i < 5; ++i)
+        data << purchaseContents.Items[i];
+
+    for (uint32 i = 0; i < 5; ++i)
+        data << purchaseContents.Currencies[i];
+
+    return data;
+}
+
+WorldPacket const* WorldPackets::Item::SetItemPurchaseData::Write()
+{
+    _worldPacket << ItemGUID;
+    _worldPacket << Contents;
+    _worldPacket << Flags;
+    _worldPacket << PurchaseTime;
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Item::ItemPurchaseRefund::Read()
+{
+    _worldPacket >> ItemGUID;
+}
+
+WorldPacket const* WorldPackets::Item::ItemPurchaseRefundResult::Write()
+{
+    _worldPacket << ItemGUID;
+    _worldPacket << uint8(Result);
+    _worldPacket.WriteBit(Contents.is_initialized());
+    _worldPacket.FlushBits();
+    if (Contents)
+        _worldPacket << *Contents;
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Item::ItemExpirePurchaseRefund::Write()
+{
+    _worldPacket << ItemGUID;
+
+    return &_worldPacket;
 }
 
 void WorldPackets::Item::RepairItem::Read()
@@ -460,4 +522,25 @@ void WorldPackets::Item::TransmogrifyItems::Read()
     _worldPacket >> Npc;
     for (TransmogrifyItem& item : Items)
         _worldPacket >> item;
+}
+
+void WorldPackets::Item::UseCritterItem::Read()
+{
+    _worldPacket >> ItemGuid;
+}
+
+void WorldPackets::Item::SocketGems::Read()
+{
+    _worldPacket >> ItemGuid;
+    for (uint32 i = 0; i < MAX_GEM_SOCKETS; ++i)
+        _worldPacket >> GemItem[i];
+}
+
+WorldPacket const* WorldPackets::Item::SocketGemsResult::Write()
+{
+    _worldPacket << Item;
+    _worldPacket.append(Sockets, MAX_GEM_SOCKETS);
+    _worldPacket << int32(SocketMatch);
+
+    return &_worldPacket;
 }

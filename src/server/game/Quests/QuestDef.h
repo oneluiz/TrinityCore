@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -231,7 +231,9 @@ enum QuestObjectiveType
     QUEST_OBJECTIVE_WINPETBATTLEAGAINSTNPC  = 11,
     QUEST_OBJECTIVE_DEFEATBATTLEPET         = 12,
     QUEST_OBJECTIVE_WINPVPPETBATTLES        = 13,
-    QUEST_OBJECTIVE_CRITERIA_TREE           = 14
+    QUEST_OBJECTIVE_CRITERIA_TREE           = 14,
+    QUEST_OBJECTIVE_HAVE_CURRENCY           = 16,   // requires the player to have X currency when turning in but does not consume it
+    QUEST_OBJECTIVE_OBTAIN_CURRENCY         = 17    // requires the player to gain X currency after starting the quest but not required to keep it until the end (does not consume)
 };
 
 struct QuestTemplateLocale

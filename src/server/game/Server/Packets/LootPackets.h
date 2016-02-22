@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -39,7 +39,7 @@ namespace WorldPackets
         struct LootItemData
         {
             uint8 Type              = 2;
-            uint8 UIType            = 4;
+            uint8 UIType            = 7;
             uint32 Quantity         = 0;
             uint8 LootItemType      = 0;
             uint8 LootListID        = 0;

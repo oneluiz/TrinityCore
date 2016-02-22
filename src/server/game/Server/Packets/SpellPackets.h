@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,6 +19,7 @@
 #define SpellPackets_h__
 
 #include "Packet.h"
+#include "PacketUtilities.h"
 #include "Player.h"
 #include "SpellAuras.h"
 #include "Spell.h"
@@ -38,6 +39,24 @@ namespace WorldPackets
             int32 SpellID = 0;
         };
 
+        class CancelAutoRepeatSpell final : public ClientPacket
+        {
+        public:
+            CancelAutoRepeatSpell(WorldPacket&& packet) : ClientPacket(CMSG_CANCEL_AUTO_REPEAT_SPELL, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class CancelChannelling final : public ClientPacket
+        {
+        public:
+            CancelChannelling(WorldPacket&& packet) : ClientPacket(CMSG_CANCEL_CHANNELLING, std::move(packet)) { }
+
+            void Read() override;
+
+            int32 ChannelSpell = 0;
+        };
+
         class CancelGrowthAura final : public ClientPacket
         {
         public:
@@ -52,6 +71,17 @@ namespace WorldPackets
             CancelMountAura(WorldPacket&& packet) : ClientPacket(CMSG_CANCEL_MOUNT_AURA, std::move(packet)) { }
 
             void Read() override { }
+        };
+
+        class PetCancelAura final : public ClientPacket
+        {
+        public:
+            PetCancelAura(WorldPacket&& packet) : ClientPacket(CMSG_PET_CANCEL_AURA, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid PetGUID;
+            uint32 SpellID = 0;
         };
 
         class RequestCategoryCooldowns final : public ClientPacket
@@ -512,6 +542,8 @@ namespace WorldPackets
             int32 RecoveryTime = 0;
             int32 CategoryRecoveryTime = 0;
             bool OnHold = false;
+            Optional<uint32> unused622_1;   ///< This field is not used for anything in the client in 6.2.2.20444
+            Optional<uint32> unused622_2;   ///< This field is not used for anything in the client in 6.2.2.20444
         };
 
         class SendSpellHistory final : public ServerPacket
@@ -604,6 +636,19 @@ namespace WorldPackets
 
             ObjectGuid Source;
             int32 SpellVisualID = 0;
+        };
+
+        class PlaySpellVisualKit final : public ServerPacket
+        {
+        public:
+            PlaySpellVisualKit() : ServerPacket(SMSG_PLAY_SPELL_VISUAL_KIT, 16 + 4 + 4 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Unit;
+            int32 KitRecID = 0;
+            int32 KitType = 0;
+            uint32 Duration = 0;
         };
 
         class CancelCast final : public ClientPacket
@@ -780,9 +825,52 @@ namespace WorldPackets
 
             std::vector<ResyncRune> Runes;
         };
+
+        class MissileTrajectoryCollision final : public ClientPacket
+        {
+        public:
+            MissileTrajectoryCollision(WorldPacket&& packet) : ClientPacket(CMSG_MISSILE_TRAJECTORY_COLLISION, std::move(packet)) { }
+        
+            void Read() override;
+
+            ObjectGuid Target;
+            int32 SpellID = 0;
+            uint8 CastID = 0;
+            G3D::Vector3 CollisionPos;
+        };
+
+        class NotifyMissileTrajectoryCollision : public ServerPacket
+        {
+        public:
+            NotifyMissileTrajectoryCollision() : ServerPacket(SMSG_NOTIFY_MISSILE_TRAJECTORY_COLLISION, 8 + 1 + 12) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Caster;
+            uint8 CastID = 0;
+            G3D::Vector3 CollisionPos;
+        };
+
+        class UpdateMissileTrajectory final : public ClientPacket
+        {
+        public:
+            UpdateMissileTrajectory(WorldPacket&& packet) : ClientPacket(CMSG_UPDATE_MISSILE_TRAJECTORY, std::move(packet)) { }
+        
+            void Read() override;
+
+            ObjectGuid Guid;
+            uint16 MoveMsgID = 0;
+            int32 SpellID = 0;
+            float Pitch = 0.0f;
+            float Speed = 0.0f;
+            G3D::Vector3 FirePos;
+            G3D::Vector3 ImpactPos;
+            Optional<MovementInfo> Status;
+        };
     }
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Spells::SpellCastLogData const& spellCastLogData);
+ByteBuffer& operator>>(ByteBuffer& buffer, WorldPackets::Spells::SpellCastRequest& request);
 
 #endif // SpellPackets_h__

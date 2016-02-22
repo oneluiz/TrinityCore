@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -22,7 +22,8 @@ bool Battlenet::SessionManager::StartNetwork(boost::asio::io_service& service, s
     if (!BaseSocketMgr::StartNetwork(service, bindIp, port))
         return false;
 
-    _acceptor->AsyncAcceptManaged(&OnSocketAccept);
+    _acceptor->SetSocketFactory(std::bind(&BaseSocketMgr::GetSocketForAccept, this));
+    _acceptor->AsyncAcceptWithCallback<&OnSocketAccept>();
     return true;
 }
 
@@ -31,9 +32,9 @@ NetworkThread<Battlenet::Session>* Battlenet::SessionManager::CreateThreads() co
     return new NetworkThread<Session>[GetNetworkThreadCount()];
 }
 
-void Battlenet::SessionManager::OnSocketAccept(tcp::socket&& sock)
+void Battlenet::SessionManager::OnSocketAccept(tcp::socket&& sock, uint32 threadIndex)
 {
-    sSessionMgr.OnSocketOpen(std::forward<tcp::socket>(sock));
+    sSessionMgr.OnSocketOpen(std::forward<tcp::socket>(sock), threadIndex);
 }
 
 void Battlenet::SessionManager::AddSession(Session* session)

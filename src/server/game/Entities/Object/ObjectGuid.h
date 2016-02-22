@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -21,10 +21,8 @@
 
 #include "Common.h"
 #include "ByteBuffer.h"
-#include <boost/functional/hash.hpp>
 #include <type_traits>
 #include <functional>
-#include <unordered_set>
 
 enum TypeID
 {
@@ -204,11 +202,6 @@ class ObjectGuid
         static typename std::enable_if<ObjectGuidTraits<type>::MapSpecific, ObjectGuid>::type Create(uint16 mapId, uint32 entry, LowType counter) { return MapSpecific(type, 0, mapId, 0, entry, counter); }
 
         ObjectGuid() : _low(0), _high(0) { }
-        ObjectGuid(ObjectGuid const& r) : _low(r._low), _high(r._high) { }
-        ObjectGuid(ObjectGuid&& r) : _low(r._low), _high(r._high) { }
-
-        ObjectGuid& operator=(ObjectGuid const& r) { _low = r._low; _high = r._high; return *this; }
-        ObjectGuid& operator=(ObjectGuid&& r) { _low = r._low; _high = r._high; return *this; }
 
         std::vector<uint8> GetRawValue() const;
         void SetRawValue(std::vector<uint8> const& guid);

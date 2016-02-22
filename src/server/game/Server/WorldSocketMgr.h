@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -49,7 +49,7 @@ public:
     /// Stops all network threads, It will wait for all running threads .
     void StopNetwork() override;
 
-    void OnSocketOpen(tcp::socket&& sock) override;
+    void OnSocketOpen(tcp::socket&& sock, uint32 threadIndex) override;
 
 protected:
     WorldSocketMgr();

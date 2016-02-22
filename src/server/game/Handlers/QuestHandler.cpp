@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -71,7 +71,7 @@ void WorldSession::HandleQuestgiverHelloOpcode(WorldPackets::Quest::QuestGiverHe
 {
     TC_LOG_DEBUG("network", "WORLD: Received CMSG_QUESTGIVER_HELLO %s", packet.QuestGiverGUID.ToString().c_str());
 
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(packet.QuestGiverGUID, UNIT_NPC_FLAG_NONE);
+    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(packet.QuestGiverGUID, UNIT_NPC_FLAG_QUESTGIVER);
     if (!creature)
     {
         TC_LOG_DEBUG("network", "WORLD: HandleQuestgiverHelloOpcode - %s not found or you can't interact with him.",
@@ -115,8 +115,7 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPackets::Quest::QuestG
 
     if (Player* playerQuestObject = object->ToPlayer())
     {
-        if ((!_player->GetDivider().IsEmpty() && _player->GetDivider() != packet.QuestGiverGUID) ||
-            ((object != _player && !playerQuestObject->CanShareQuest(packet.QuestID))))
+        if ((_player->GetDivider().IsEmpty() && _player->GetDivider() != packet.QuestGiverGUID) || !playerQuestObject->CanShareQuest(packet.QuestID))
         {
             CLOSE_GOSSIP_CLEAR_DIVIDER();
             return;
@@ -400,19 +399,6 @@ void WorldSession::HandleQuestgiverCancel(WorldPacket& /*recvData*/)
     _player->PlayerTalkClass->SendCloseGossip();
 }
 
-void WorldSession::HandleQuestLogSwapQuest(WorldPacket& recvData)
-{
-    uint8 slot1, slot2;
-    recvData >> slot1 >> slot2;
-
-    if (slot1 == slot2 || slot1 >= MAX_QUEST_LOG_SIZE || slot2 >= MAX_QUEST_LOG_SIZE)
-        return;
-
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_QUESTLOG_SWAP_QUEST slot 1 = %u, slot 2 = %u", slot1, slot2);
-
-    GetPlayer()->SwapQuestSlot(slot1, slot2);
-}
-
 void WorldSession::HandleQuestLogRemoveQuest(WorldPackets::Quest::QuestLogRemoveQuest& packet)
 {
     TC_LOG_DEBUG("network", "WORLD: Received CMSG_QUESTLOG_REMOVE_QUEST slot = %u", packet.Entry);
@@ -557,17 +543,12 @@ void WorldSession::HandleQuestgiverQuestAutoLaunch(WorldPacket& /*recvPacket*/)
 {
 }
 
-void WorldSession::HandlePushQuestToParty(WorldPacket& recvPacket)
+void WorldSession::HandlePushQuestToParty(WorldPackets::Quest::PushQuestToParty& packet)
 {
-    uint32 questId;
-    recvPacket >> questId;
-
-    if (!_player->CanShareQuest(questId))
+    if (!_player->CanShareQuest(packet.QuestID))
         return;
 
-    TC_LOG_DEBUG("network", "WORLD: Received CMSG_PUSHQUESTTOPARTY questId = %u", questId);
-
-    Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
+    Quest const* quest = sObjectMgr->GetQuestTemplate(packet.QuestID);
     if (!quest)
         return;
 
@@ -590,7 +571,7 @@ void WorldSession::HandlePushQuestToParty(WorldPacket& recvPacket)
             continue;
         }
 
-        if (receiver->GetQuestStatus(questId) == QUEST_STATUS_COMPLETE)
+        if (receiver->GetQuestStatus(packet.QuestID) == QUEST_STATUS_COMPLETE)
         {
             sender->SendPushToPartyResponse(receiver, QUEST_PUSH_ALREADY_DONE);
             continue;

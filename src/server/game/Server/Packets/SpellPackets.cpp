@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -22,6 +22,17 @@ void WorldPackets::Spells::CancelAura::Read()
 {
     _worldPacket >> SpellID;
     _worldPacket >> CasterGUID;
+}
+
+void WorldPackets::Spells::PetCancelAura::Read()
+{
+    _worldPacket >> PetGUID;
+    _worldPacket >> SpellID;
+}
+
+void WorldPackets::Spells::CancelChannelling::Read()
+{
+    _worldPacket >> ChannelSpell;
 }
 
 WorldPacket const* WorldPackets::Spells::CategoryCooldown::Write()
@@ -554,7 +565,13 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Spells::SpellHistoryEntry
     data << uint32(historyEntry.Category);
     data << int32(historyEntry.RecoveryTime);
     data << int32(historyEntry.CategoryRecoveryTime);
+    data.WriteBit(historyEntry.unused622_1.is_initialized());
+    data.WriteBit(historyEntry.unused622_2.is_initialized());
     data.WriteBit(historyEntry.OnHold);
+    if (historyEntry.unused622_1)
+        data << uint32(*historyEntry.unused622_1);
+    if (historyEntry.unused622_2)
+        data << uint32(*historyEntry.unused622_2);
     data.FlushBits();
 
     return data;
@@ -632,6 +649,16 @@ WorldPacket const* WorldPackets::Spells::CancelSpellVisual::Write()
 {
     _worldPacket << Source;
     _worldPacket << int32(SpellVisualID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Spells::PlaySpellVisualKit::Write()
+{
+    _worldPacket << Unit;
+    _worldPacket << int32(KitRecID);
+    _worldPacket << int32(KitType);
+    _worldPacket << uint32(Duration);
 
     return &_worldPacket;
 }
@@ -771,4 +798,41 @@ WorldPacket const* WorldPackets::Spells::ResyncRunes::Write()
     }
 
     return &_worldPacket;
+}
+
+void WorldPackets::Spells::MissileTrajectoryCollision::Read()
+{
+    _worldPacket >> Target;
+    _worldPacket >> SpellID;
+    _worldPacket >> CastID;
+    _worldPacket >> CollisionPos;
+}
+
+WorldPacket const* WorldPackets::Spells::NotifyMissileTrajectoryCollision::Write()
+{
+    _worldPacket << Caster;
+    _worldPacket << uint8(CastID);
+    _worldPacket << CollisionPos;
+    
+    return &_worldPacket;
+}
+
+void WorldPackets::Spells::UpdateMissileTrajectory::Read()
+{
+    _worldPacket >> Guid;
+    _worldPacket >> MoveMsgID;
+    _worldPacket >> SpellID;
+    _worldPacket >> Pitch;
+    _worldPacket >> Speed;
+    _worldPacket >> FirePos;
+    _worldPacket >> ImpactPos;
+    bool hasStatus = _worldPacket.ReadBit();
+
+    _worldPacket.ResetBitPos();
+    if (hasStatus)
+    {
+        MovementInfo info;
+        _worldPacket >> info;
+        Status = info;
+    }
 }

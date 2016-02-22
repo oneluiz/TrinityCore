@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,6 +19,8 @@
 #define Trinity_game_Position_h__
 
 #include "Common.h"
+
+#include <G3D/Vector3.h>
 
 class ByteBuffer;
 
@@ -85,6 +87,11 @@ public:
     void Relocate(Position const* pos)
     {
         m_positionX = pos->m_positionX; m_positionY = pos->m_positionY; m_positionZ = pos->m_positionZ; SetOrientation(pos->m_orientation);
+    }
+
+    void Relocate(G3D::Vector3 const& pos)
+    {
+        m_positionX = pos.x; m_positionY = pos.y; m_positionZ = pos.z;
     }
 
     void RelocateOffset(Position const &offset);
@@ -195,6 +202,7 @@ public:
         return GetExactDistSq(pos) < dist * dist;
     }
 
+    bool IsWithinBox(const Position& center, float xradius, float yradius, float zradius) const;
     bool HasInArc(float arcangle, Position const* pos, float border = 2.0f) const;
     bool HasInLine(Position const* pos, float width) const;
     std::string ToString() const;
@@ -213,6 +221,39 @@ public:
         }
         return std::fmod(o, 2.0f * static_cast<float>(M_PI));
     }
+};
+
+#define MAPID_INVALID 0xFFFFFFFF
+
+class WorldLocation : public Position
+{
+public:
+    explicit WorldLocation(uint32 mapId = MAPID_INVALID, float x = 0.f, float y = 0.f, float z = 0.f, float o = 0.f)
+        : Position(x, y, z, o), m_mapId(mapId) { }
+
+    WorldLocation(WorldLocation const& loc)
+        : Position(loc), m_mapId(loc.GetMapId()) { }
+
+    void WorldRelocate(WorldLocation const& loc)
+    {
+        m_mapId = loc.GetMapId();
+        Relocate(loc);
+    }
+
+    void WorldRelocate(uint32 mapId = MAPID_INVALID, float x = 0.f, float y = 0.f, float z = 0.f, float o = 0.f)
+    {
+        m_mapId = mapId;
+        Relocate(x, y, z, o);
+    }
+
+    WorldLocation GetWorldLocation() const
+    {
+        return *this;
+    }
+
+    uint32 GetMapId() const { return m_mapId; }
+
+    uint32 m_mapId;
 };
 
 ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYStreamer const& streamer);

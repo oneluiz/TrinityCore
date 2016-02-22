@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -460,16 +460,12 @@ void WorldSession::HandleCalendarEventModeratorStatus(WorldPackets::Calendar::Ca
         sCalendarMgr->SendCalendarCommandResult(guid, CALENDAR_ERROR_EVENT_INVALID);
 }
 
-void WorldSession::HandleCalendarComplain(WorldPacket& recvData)
+void WorldSession::HandleCalendarComplain(WorldPackets::Calendar::CalendarComplain& calendarComplain)
 {
     ObjectGuid guid = _player->GetGUID();
-    uint64 eventId;
-    ObjectGuid complainGUID;
-    uint64 inviteId;
-
-    recvData >> complainGUID >> eventId >> inviteId;
     TC_LOG_DEBUG("network", "CMSG_CALENDAR_COMPLAIN [%s] EventId ["
-        UI64FMTD "] guid [%s] InviteId [" UI64FMTD "]", guid.ToString().c_str(), eventId, complainGUID.ToString().c_str(), inviteId);
+        UI64FMTD "] guid [%s] InviteId [" UI64FMTD "]", guid.ToString().c_str(), calendarComplain.EventID,
+        calendarComplain.InvitedByGUID.ToString().c_str(), calendarComplain.InviteID);
 
     // what to do with complains?
 }

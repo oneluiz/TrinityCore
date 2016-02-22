@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -701,7 +701,7 @@ class boss_leviathan_mk_ii : public CreatureScript
                     {
                         me->CastStop();
                         if (Unit* turret = me->GetVehicleKit()->GetPassenger(3))
-                            turret->Kill(turret);
+                            turret->KillSelf();
 
                         me->SetSpeed(MOVE_RUN, 1.5f, true);
                         me->GetMotionMaster()->MovePoint(WP_MKII_P1_IDLE, VehicleRelocation[WP_MKII_P1_IDLE]);
@@ -1634,8 +1634,11 @@ class go_mimiron_hardmode_button : public GameObjectScript
     public:
         go_mimiron_hardmode_button() : GameObjectScript("go_mimiron_hardmode_button") { }
 
-        bool OnGossipHello(Player* /*player*/, GameObject* go)
+        bool OnGossipHello(Player* /*player*/, GameObject* go) override
         {
+            if (go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_NOT_SELECTABLE))
+                return true;
+
             InstanceScript* instance = go->GetInstanceScript();
             if (!instance)
                 return false;
@@ -2756,7 +2759,7 @@ class achievement_setup_boom : public AchievementCriteriaScript
     public:
         achievement_setup_boom() : AchievementCriteriaScript("achievement_setup_boom") { }
 
-        bool OnCheck(Player* /*source*/, Unit* target)
+        bool OnCheck(Player* /*source*/, Unit* target) override
         {
             return target && target->GetAI()->GetData(DATA_SETUP_BOMB);
         }
@@ -2767,7 +2770,7 @@ class achievement_setup_mine : public AchievementCriteriaScript
     public:
         achievement_setup_mine() : AchievementCriteriaScript("achievement_setup_mine") { }
 
-        bool OnCheck(Player* /*source*/, Unit* target)
+        bool OnCheck(Player* /*source*/, Unit* target) override
         {
             return target && target->GetAI()->GetData(DATA_SETUP_MINE);
         }
@@ -2778,7 +2781,7 @@ class achievement_setup_rocket : public AchievementCriteriaScript
     public:
         achievement_setup_rocket() : AchievementCriteriaScript("achievement_setup_rocket") { }
 
-        bool OnCheck(Player* /*source*/, Unit* target)
+        bool OnCheck(Player* /*source*/, Unit* target) override
         {
             return target && target->GetAI()->GetData(DATA_SETUP_ROCKET);
         }
@@ -2789,7 +2792,7 @@ class achievement_firefighter : public AchievementCriteriaScript
     public:
         achievement_firefighter() : AchievementCriteriaScript("achievement_firefighter") { }
 
-        bool OnCheck(Player* /*source*/, Unit* target)
+        bool OnCheck(Player* /*source*/, Unit* target) override
         {
             return target && target->GetAI()->GetData(DATA_FIREFIGHTER);
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -26,12 +26,13 @@
 #include "Util.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include "MPSCQueue.h"
 #include <chrono>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/buffer.hpp>
 
 using boost::asio::ip::tcp;
 struct z_stream_s;
+class EncryptablePacket;
 
 namespace WorldPackets
 {
@@ -112,7 +113,7 @@ private:
     void LogOpcodeText(OpcodeClient opcode, std::unique_lock<std::mutex> const& guard) const;
     /// sends and logs network.opcode without accessing WorldSession
     void SendPacketAndLogOpcode(WorldPacket const& packet);
-    void WritePacketToBuffer(WorldPacket const& packet, MessageBuffer& buffer);
+    void WritePacketToBuffer(EncryptablePacket const& packet, MessageBuffer& buffer);
     uint32 CompressPacket(uint8* buffer, WorldPacket const& packet);
 
     void HandleSendAuthSession();
@@ -143,12 +144,12 @@ private:
 
     MessageBuffer _headerBuffer;
     MessageBuffer _packetBuffer;
+    MPSCQueue<EncryptablePacket> _bufferQueue;
 
     z_stream_s* _compressionStream;
 
     bool _initialized;
 
-    std::mutex _queryLock;
     PreparedQueryResultFuture _queryFuture;
     std::function<void(PreparedQueryResult&&)> _queryCallback;
     std::string _ipCountry;

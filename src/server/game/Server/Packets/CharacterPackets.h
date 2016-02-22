@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -715,6 +715,28 @@ namespace WorldPackets
 
             uint8 Result = 0;
             ObjectGuid CharGUID;
+        };
+
+        class SetPlayerDeclinedNames final : public ClientPacket
+        {
+        public:
+            SetPlayerDeclinedNames(WorldPacket&& packet) : ClientPacket(CMSG_SET_PLAYER_DECLINED_NAMES, std::move(packet)) { }
+        
+            void Read() override;
+
+            ObjectGuid Player;
+            DeclinedName DeclinedNames;
+        };
+
+        class SetPlayerDeclinedNamesResult final : public ServerPacket
+        {
+        public:
+            SetPlayerDeclinedNamesResult() : ServerPacket(SMSG_SET_PLAYER_DECLINED_NAMES_RESULT, 8 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Player;
+            int32 ResultCode = 0;
         };
     }
 }

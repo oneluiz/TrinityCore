@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -103,7 +103,7 @@ void WorldPackets::Party::PartyInvite::Initialize(Player* const inviter, int32 p
 
     ProposedRoles = proposedRoles;
 
-    std::string realmName = sObjectMgr->GetRealmName(realmHandle.Index);
+    std::string realmName = sObjectMgr->GetRealmName(realm.Id.Realm);
 
     InviterVirtualRealmAddress = GetVirtualRealmAddress();
     InviterRealmNameActual = realmName;
@@ -162,6 +162,15 @@ void WorldPackets::Party::SetPartyLeader::Read()
     _worldPacket >> PartyIndex;
     _worldPacket >> TargetGUID;
 }
+
+void WorldPackets::Party::SetPartyAssignment::Read()
+{
+    _worldPacket >> PartyIndex;
+    _worldPacket >> Assignment;
+    _worldPacket >> Target;
+    Set = _worldPacket.ReadBit();
+}
+
 
 void WorldPackets::Party::SetRole::Read()
 {
@@ -503,7 +512,7 @@ void WorldPackets::Party::PartyMemberStats::Initialize(Player const* player)
     // Pet
     if (player->GetPet())
     {
-        Pet* pet = player->GetPet();
+        ::Pet* pet = player->GetPet();
 
         MemberStats.PetStats = boost::in_place();
 

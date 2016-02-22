@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -547,6 +547,16 @@ namespace WorldPackets
 
             uint32 QuestID = 0;
             uint32 Reason  = 0;
+        };
+
+        class PushQuestToParty final : public ClientPacket
+        {
+        public:
+            PushQuestToParty(WorldPacket&& packet) : ClientPacket(CMSG_PUSH_QUEST_TO_PARTY, std::move(packet)) { }
+
+            void Read() override;
+
+            uint32 QuestID = 0;
         };
     }
 }

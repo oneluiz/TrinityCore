@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -27,6 +27,7 @@
 #include "AuctionHouseMgr.h"
 #include "BattlefieldMgr.h"
 #include "BattlegroundMgr.h"
+#include "BattlePetMgr.h"
 #include "CalendarMgr.h"
 #include "Channel.h"
 #include "CharacterDatabaseCleaner.h"
@@ -59,6 +60,7 @@
 #include "SkillExtraItems.h"
 #include "SmartAI.h"
 #include "SupportMgr.h"
+#include "TaxiPathGraph.h"
 #include "TransportMgr.h"
 #include "Unit.h"
 #include "VMapFactory.h"
@@ -225,9 +227,9 @@ void World::AddSession(WorldSession* s)
     addSessQueue.add(s);
 }
 
-void World::AddInstanceSocket(std::shared_ptr<WorldSocket> sock, uint32 sessionAccountId)
+void World::AddInstanceSocket(std::weak_ptr<WorldSocket> sock, uint64 connectToKey)
 {
-    _linkSocketQueue.add(std::make_pair(sock, sessionAccountId));
+    _linkSocketQueue.add(std::make_pair(sock, connectToKey));
 }
 
 void World::AddSession_(WorldSession* s)
@@ -296,19 +298,28 @@ void World::AddSession_(WorldSession* s)
     }
 }
 
-void World::ProcessLinkInstanceSocket(std::pair<std::shared_ptr<WorldSocket>, uint32> linkInfo)
+void World::ProcessLinkInstanceSocket(std::pair<std::weak_ptr<WorldSocket>, uint64> linkInfo)
 {
-    WorldSession* session = FindSession(linkInfo.second);
-    if (!session)
+    if (std::shared_ptr<WorldSocket> sock = linkInfo.first.lock())
     {
-        linkInfo.first->SendAuthResponseError(AUTH_SESSION_EXPIRED);
-        linkInfo.first->DelayedCloseSocket();
-        return;
-    }
+        if (!sock->IsOpen())
+            return;
 
-    linkInfo.first->SetWorldSession(session);
-    session->AddInstanceConnection(linkInfo.first);
-    session->HandleContinuePlayerLogin();
+        WorldSession::ConnectToKey key;
+        key.Raw = linkInfo.second;
+
+        WorldSession* session = FindSession(uint32(key.Fields.AccountId));
+        if (!session || session->GetConnectToInstanceKey() != linkInfo.second)
+        {
+            sock->SendAuthResponseError(AUTH_SESSION_EXPIRED);
+            sock->DelayedCloseSocket();
+            return;
+        }
+
+        sock->SetWorldSession(session);
+        session->AddInstanceConnection(sock);
+        session->HandleContinuePlayerLogin();
+    }
 }
 
 bool World::HasRecentlyDisconnected(WorldSession* session)
@@ -419,9 +430,9 @@ void World::LoadConfigSettings(bool reload)
 
     m_defaultDbcLocale = LocaleConstant(sConfigMgr->GetIntDefault("DBC.Locale", 0));
 
-    if (m_defaultDbcLocale >= TOTAL_LOCALES)
+    if (m_defaultDbcLocale >= TOTAL_LOCALES || m_defaultDbcLocale < LOCALE_enUS || m_defaultDbcLocale == LOCALE_none)
     {
-        TC_LOG_ERROR("server.loading", "Incorrect DBC.Locale! Must be >= 0 and < %d (set to 0)", TOTAL_LOCALES);
+        TC_LOG_ERROR("server.loading", "Incorrect DBC.Locale! Must be >= 0 and < %d and not %d (set to 0)", TOTAL_LOCALES, LOCALE_none);
         m_defaultDbcLocale = LOCALE_enUS;
     }
 
@@ -496,6 +507,7 @@ void World::LoadConfigSettings(bool reload)
     rate_values[RATE_DROP_ITEM_REFERENCED_AMOUNT] = sConfigMgr->GetFloatDefault("Rate.Drop.Item.ReferencedAmount", 1.0f);
     rate_values[RATE_DROP_MONEY]  = sConfigMgr->GetFloatDefault("Rate.Drop.Money", 1.0f);
     rate_values[RATE_XP_KILL]     = sConfigMgr->GetFloatDefault("Rate.XP.Kill", 1.0f);
+    rate_values[RATE_XP_BG_KILL]  = sConfigMgr->GetFloatDefault("Rate.XP.BattlegroundKill", 1.0f);
     rate_values[RATE_XP_QUEST]    = sConfigMgr->GetFloatDefault("Rate.XP.Quest", 1.0f);
     rate_values[RATE_XP_EXPLORE]  = sConfigMgr->GetFloatDefault("Rate.XP.Explore", 1.0f);
     rate_values[RATE_REPAIRCOST]  = sConfigMgr->GetFloatDefault("Rate.RepairCost", 1.0f);
@@ -1035,12 +1047,12 @@ void World::LoadConfigSettings(bool reload)
 
     if (reload)
     {
-        uint32 val = sConfigMgr->GetIntDefault("Expansion", 2);
+        uint32 val = sConfigMgr->GetIntDefault("Expansion", CURRENT_EXPANSION);
         if (val != m_int_configs[CONFIG_EXPANSION])
             TC_LOG_ERROR("server.loading", "Expansion option can't be changed at worldserver.conf reload, using current value (%u).", m_int_configs[CONFIG_EXPANSION]);
     }
     else
-        m_int_configs[CONFIG_EXPANSION] = sConfigMgr->GetIntDefault("Expansion", 2);
+        m_int_configs[CONFIG_EXPANSION] = sConfigMgr->GetIntDefault("Expansion", CURRENT_EXPANSION);
 
     m_int_configs[CONFIG_CHATFLOOD_MESSAGE_COUNT] = sConfigMgr->GetIntDefault("ChatFlood.MessageCount", 10);
     m_int_configs[CONFIG_CHATFLOOD_MESSAGE_DELAY] = sConfigMgr->GetIntDefault("ChatFlood.MessageDelay", 1);
@@ -1134,6 +1146,10 @@ void World::LoadConfigSettings(bool reload)
     m_int_configs[CONFIG_ARENA_START_MATCHMAKER_RATING]              = sConfigMgr->GetIntDefault ("Arena.ArenaStartMatchmakerRating", 1500);
     m_bool_configs[CONFIG_ARENA_SEASON_IN_PROGRESS]                  = sConfigMgr->GetBoolDefault("Arena.ArenaSeason.InProgress", false);
     m_bool_configs[CONFIG_ARENA_LOG_EXTENDED_INFO]                   = sConfigMgr->GetBoolDefault("ArenaLog.ExtendedInfo", false);
+    m_float_configs[CONFIG_ARENA_WIN_RATING_MODIFIER_1]              = sConfigMgr->GetFloatDefault("Arena.ArenaWinRatingModifier1", 48.0f);
+    m_float_configs[CONFIG_ARENA_WIN_RATING_MODIFIER_2]              = sConfigMgr->GetFloatDefault("Arena.ArenaWinRatingModifier2", 24.0f);
+    m_float_configs[CONFIG_ARENA_LOSE_RATING_MODIFIER]               = sConfigMgr->GetFloatDefault("Arena.ArenaLoseRatingModifier", 24.0f);
+    m_float_configs[CONFIG_ARENA_MATCHMAKER_RATING_MODIFIER]         = sConfigMgr->GetFloatDefault("Arena.ArenaMatchmakerRatingModifier", 24.0f);
 
     m_bool_configs[CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN]            = sConfigMgr->GetBoolDefault("OffhandCheckAtSpellUnlearn", true);
 
@@ -1275,6 +1291,8 @@ void World::LoadConfigSettings(bool reload)
     if (m_bool_configs[CONFIG_START_ALL_SPELLS])
         TC_LOG_WARN("server.loading", "PlayerStart.AllSpells enabled - may not function as intended!");
     m_int_configs[CONFIG_HONOR_AFTER_DUEL] = sConfigMgr->GetIntDefault("HonorPointsAfterDuel", 0);
+    m_bool_configs[CONFIG_RESET_DUEL_COOLDOWNS] = sConfigMgr->GetBoolDefault("ResetDuelCooldowns", false);
+    m_bool_configs[CONFIG_RESET_DUEL_HEALTH_MANA] = sConfigMgr->GetBoolDefault("ResetDuelHealthMana", false);
     m_bool_configs[CONFIG_START_ALL_EXPLORED] = sConfigMgr->GetBoolDefault("PlayerStart.MapsExplored", false);
     m_bool_configs[CONFIG_START_ALL_REP] = sConfigMgr->GetBoolDefault("PlayerStart.AllReputation", false);
     m_bool_configs[CONFIG_ALWAYS_MAXSKILL] = sConfigMgr->GetBoolDefault("AlwaysMaxWeaponSkill", false);
@@ -1455,19 +1473,22 @@ void World::SetInitialWorldSettings()
     uint32 server_type = IsFFAPvPRealm() ? uint32(REALM_TYPE_PVP) : getIntConfig(CONFIG_GAME_TYPE);
     uint32 realm_zone = getIntConfig(CONFIG_REALM_ZONE);
 
-    LoginDatabase.PExecute("UPDATE realmlist SET icon = %u, timezone = %u WHERE id = '%d'", server_type, realm_zone, realmHandle.Index);      // One-time query
+    LoginDatabase.PExecute("UPDATE realmlist SET icon = %u, timezone = %u WHERE id = '%d'", server_type, realm_zone, realm.Id.Realm);      // One-time query
 
     TC_LOG_INFO("server.loading", "Initialize data stores...");
     ///- Load DBCs
-    LoadDBCStores(m_dataPath);
+    LoadDBCStores(m_dataPath, m_defaultDbcLocale);
     ///- Load DB2s
-    sDB2Manager.LoadStores(m_dataPath);
+    sDB2Manager.LoadStores(m_dataPath, m_defaultDbcLocale);
     TC_LOG_INFO("misc", "Loading hotfix info...");
     sDB2Manager.LoadHotfixData();
     ///- Close hotfix database - it is only used during DB2 loading
     HotfixDatabase.Close();
     ///- Load GameTables
-    LoadGameTables(m_dataPath);
+    LoadGameTables(m_dataPath, m_defaultDbcLocale);
+
+    //Load weighted graph on taxi nodes path
+    sTaxiPathGraph.Initialize();
 
     sSpellMgr->LoadPetFamilySpellsStore();
 
@@ -1744,6 +1765,9 @@ void World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading Skill Extra Item Table...");
     LoadSkillExtraItemTable();
 
+    TC_LOG_INFO("server.loading", "Loading Skill Perfection Data Table...");
+    LoadSkillPerfectItemTable();
+
     TC_LOG_INFO("server.loading", "Loading Skill Fishing base level requirements...");
     sObjectMgr->LoadFishingBaseSkillLevel();
 
@@ -1913,7 +1937,7 @@ void World::SetInitialWorldSettings()
     m_startTime = m_gameTime;
 
     LoginDatabase.PExecute("INSERT INTO uptime (realmid, starttime, uptime, revision) VALUES(%u, %u, 0, '%s')",
-                            realmHandle.Index, uint32(m_startTime), GitRevision::GetFullVersion());       // One-time query
+                            realm.Id.Realm, uint32(m_startTime), GitRevision::GetFullVersion());       // One-time query
 
     m_timers[WUPDATE_WEATHERS].SetInterval(1*IN_MILLISECONDS);
     m_timers[WUPDATE_AUCTIONS].SetInterval(MINUTE*IN_MILLISECONDS);
@@ -2025,6 +2049,9 @@ void World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading realm names...");
     sObjectMgr->LoadRealmNames();
+
+    TC_LOG_INFO("server.loading", "Loading battle pets info...");
+    BattlePetMgr::Initialize();
 
     uint32 startupDuration = GetMSTimeDiffToNow(startupBegin);
 
@@ -2194,7 +2221,7 @@ void World::Update(uint32 diff)
 
         stmt->setUInt32(0, tmpDiff);
         stmt->setUInt16(1, uint16(maxOnlinePlayers));
-        stmt->setUInt32(2, realmHandle.Index);
+        stmt->setUInt32(2, realm.Id.Realm);
         stmt->setUInt32(3, uint32(m_startTime));
 
         LoginDatabase.Execute(stmt);
@@ -2261,7 +2288,10 @@ void World::Update(uint32 diff)
     if (m_timers[WUPDATE_CORPSES].Passed())
     {
         m_timers[WUPDATE_CORPSES].Reset();
-        sObjectAccessor->RemoveOldCorpses();
+        sMapMgr->DoForAllMaps([](Map* map)
+        {
+            map->RemoveOldCorpses();
+        });
     }
 
     ///- Process Game events when necessary
@@ -2794,7 +2824,7 @@ void World::SendServerMessage(ServerMessageType messageID, std::string stringPar
 
 void World::UpdateSessions(uint32 diff)
 {
-    std::pair<std::shared_ptr<WorldSocket>, uint32> linkInfo;
+    std::pair<std::weak_ptr<WorldSocket>, uint64> linkInfo;
     while (_linkSocketQueue.next(linkInfo))
         ProcessLinkInstanceSocket(std::move(linkInfo));
 
@@ -2911,13 +2941,13 @@ void World::_UpdateRealmCharCount(PreparedQueryResult resultCharCount)
 
         PreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_DEL_REALM_CHARACTERS_BY_REALM);
         stmt->setUInt32(0, accountId);
-        stmt->setUInt32(1, realmHandle.Index);
+        stmt->setUInt32(1, realm.Id.Realm);
         LoginDatabase.Execute(stmt);
 
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_INS_REALM_CHARACTERS);
         stmt->setUInt8(0, charCount);
         stmt->setUInt32(1, accountId);
-        stmt->setUInt32(2, realmHandle.Index);
+        stmt->setUInt32(2, realm.Id.Realm);
         LoginDatabase.Execute(stmt);
     }
 }
@@ -3091,7 +3121,7 @@ void World::ResetCurrencyWeekCap()
 void World::LoadDBAllowedSecurityLevel()
 {
     PreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_REALMLIST_SECURITY_LEVEL);
-    stmt->setInt32(0, int32(realmHandle.Index));
+    stmt->setInt32(0, int32(realm.Id.Realm));
     PreparedQueryResult result = LoginDatabase.Query(stmt);
 
     if (result)
@@ -3354,7 +3384,7 @@ void World::LoadCharacterInfoStore()
 
     _characterInfoStore.clear();
 
-    QueryResult result = CharacterDatabase.Query("SELECT guid, name, race, gender, class, level, deleteDate FROM characters");
+    QueryResult result = CharacterDatabase.Query("SELECT guid, name, account, race, gender, class, level, deleteDate FROM characters");
     if (!result)
     {
         TC_LOG_INFO("server.loading", "No character name data loaded, empty query");
@@ -3364,18 +3394,19 @@ void World::LoadCharacterInfoStore()
     do
     {
         Field* fields = result->Fetch();
-        AddCharacterInfo(ObjectGuid::Create<HighGuid::Player>(fields[0].GetUInt64()), fields[1].GetString(),
-            fields[3].GetUInt8() /*gender*/, fields[2].GetUInt8() /*race*/, fields[4].GetUInt8() /*class*/, fields[5].GetUInt8() /*level*/, fields[6].GetUInt32() != 0);
+        AddCharacterInfo(ObjectGuid::Create<HighGuid::Player>(fields[0].GetUInt64()), fields[2].GetUInt32(), fields[1].GetString(),
+            fields[4].GetUInt8() /*gender*/, fields[3].GetUInt8() /*race*/, fields[5].GetUInt8() /*class*/, fields[6].GetUInt8() /*level*/, fields[7].GetUInt32() != 0);
     }
     while (result->NextRow());
 
     TC_LOG_INFO("server.loading", "Loaded character infos for " SZFMTD " characters", _characterInfoStore.size());
 }
 
-void World::AddCharacterInfo(ObjectGuid const& guid, std::string const& name, uint8 gender, uint8 race, uint8 playerClass, uint8 level, bool isDeleted)
+void World::AddCharacterInfo(ObjectGuid const& guid, uint32 accountId, std::string const& name, uint8 gender, uint8 race, uint8 playerClass, uint8 level, bool isDeleted)
 {
     CharacterInfo& data = _characterInfoStore[guid];
     data.Name = name;
+    data.AccountId = accountId;
     data.Race = race;
     data.Sex = gender;
     data.Class = playerClass;
@@ -3423,11 +3454,6 @@ void World::UpdateCharacterInfoDeleted(ObjectGuid const& guid, bool deleted, std
         itr->second.Name = *name;
 }
 
-void World::UpdatePhaseDefinitions()
-{
-
-}
-
 void World::ReloadRBAC()
 {
     // Passive reload, we mark the data as invalidated and next time a permission is checked it will be reloaded
@@ -3437,7 +3463,12 @@ void World::ReloadRBAC()
             session->InvalidateRBACData();
 }
 
+void World::RemoveOldCorpses()
+{
+    m_timers[WUPDATE_CORPSES].SetCurrent(m_timers[WUPDATE_CORPSES].GetInterval());
+}
+
 uint32 GetVirtualRealmAddress()
 {
-    return uint32(realmHandle.Region) << 24 | uint32(realmHandle.Battlegroup) << 16 | realmHandle.Index;
+    return uint32(realm.Id.Region) << 24 | uint32(realm.Id.Site) << 16 | realm.Id.Realm;
 }

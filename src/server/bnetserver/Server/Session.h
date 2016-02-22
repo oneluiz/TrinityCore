@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -23,6 +23,7 @@
 #include "Socket.h"
 #include "BigNumber.h"
 #include "Callback.h"
+#include "MPSCQueue.h"
 #include <memory>
 #include <boost/asio/ip/tcp.hpp>
 
@@ -106,7 +107,6 @@ namespace Battlenet
         void HandleJoinRequestV2(WoWRealm::JoinRequestV2 const& joinRequest);
 
         // Friends
-        void HandleSocialNetworkCheckConnected(Friends::SocialNetworkCheckConnected const& socialNetworkCheckConnected);
 
         // Cache
         void HandleGetStreamItemsRequest(Cache::GetStreamItemsRequest const& getStreamItemsRequest);
@@ -114,7 +114,7 @@ namespace Battlenet
         void Start() override;
         bool Update() override;
 
-        void UpdateRealms(std::vector<Realm const*>& realms, std::vector<RealmId>& deletedRealms);
+        void UpdateRealms(std::vector<Realm const*>& realms, std::vector<RealmHandle>& deletedRealms);
 
         uint32 GetAccountId() const { return _accountInfo->Id; }
         uint32 GetGameAccountId() const { return _gameAccountInfo->Id; }
@@ -175,6 +175,13 @@ namespace Battlenet
 
         std::queue<ModuleType> _modulesWaitingForData;
 
+        struct EncryptableBuffer
+        {
+            MessageBuffer Buffer;
+            bool Encrypt;
+        };
+
+        MPSCQueue<EncryptableBuffer> _bufferQueue;
         PacketCrypt _crypt;
         bool _authed;
         bool _subscribedToRealmListUpdates;

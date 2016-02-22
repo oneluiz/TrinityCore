@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -53,7 +53,7 @@ Pet::Pet(Player* owner, PetType type) :
     }
 
     m_name = "Pet";
-    m_regenTimer = PET_FOCUS_REGEN_INTERVAL;
+    m_focusRegenTimer = PET_FOCUS_REGEN_INTERVAL;
 }
 
 Pet::~Pet()
@@ -590,22 +590,22 @@ void Pet::Update(uint32 diff)
             }
 
             //regenerate focus for hunter pets or energy for deathknight's ghoul
-            if (m_regenTimer)
+            if (m_focusRegenTimer)
             {
-                if (m_regenTimer > diff)
-                    m_regenTimer -= diff;
+                if (m_focusRegenTimer > diff)
+                    m_focusRegenTimer -= diff;
                 else
                 {
                     switch (getPowerType())
                     {
                         case POWER_FOCUS:
                             Regenerate(POWER_FOCUS);
-                            m_regenTimer += PET_FOCUS_REGEN_INTERVAL - diff;
-                            if (!m_regenTimer) ++m_regenTimer;
+                            m_focusRegenTimer += PET_FOCUS_REGEN_INTERVAL - diff;
+                            if (!m_focusRegenTimer) ++m_focusRegenTimer;
 
                             // Reset if large diff (lag) causes focus to get 'stuck'
-                            if (m_regenTimer > PET_FOCUS_REGEN_INTERVAL)
-                                m_regenTimer = PET_FOCUS_REGEN_INTERVAL;
+                            if (m_focusRegenTimer > PET_FOCUS_REGEN_INTERVAL)
+                                m_focusRegenTimer = PET_FOCUS_REGEN_INTERVAL;
 
                             break;
 
@@ -616,7 +616,7 @@ void Pet::Update(uint32 diff)
                         //    if (!m_regenTimer) ++m_regenTimer;
                         //    break;
                         default:
-                            m_regenTimer = 0;
+                            m_focusRegenTimer = 0;
                             break;
                     }
                 }
@@ -1726,25 +1726,22 @@ uint8 Pet::GetMaxTalentPointsForLevel(uint8 level) const
 
 void Pet::ToggleAutocast(SpellInfo const* spellInfo, bool apply)
 {
+    ASSERT(spellInfo);
+
     if (!spellInfo->IsAutocastable())
         return;
 
-    uint32 spellid = spellInfo->Id;
-
-    PetSpellMap::iterator itr = m_spells.find(spellid);
+    PetSpellMap::iterator itr = m_spells.find(spellInfo->Id);
     if (itr == m_spells.end())
         return;
 
-    uint32 i;
+    auto autospellItr = std::find(m_autospells.begin(), m_autospells.end(), spellInfo->Id);
 
     if (apply)
     {
-        for (i = 0; i < m_autospells.size() && m_autospells[i] != spellid; ++i)
-            ;                                               // just search
-
-        if (i == m_autospells.size())
+        if (autospellItr == m_autospells.end())
         {
-            m_autospells.push_back(spellid);
+            m_autospells.push_back(spellInfo->Id);
 
             if (itr->second.active != ACT_ENABLED)
             {
@@ -1756,13 +1753,10 @@ void Pet::ToggleAutocast(SpellInfo const* spellInfo, bool apply)
     }
     else
     {
-        AutoSpellList::iterator itr2 = m_autospells.begin();
-        for (i = 0; i < m_autospells.size() && m_autospells[i] != spellid; ++i, ++itr2)
-            ;                                               // just search
-
-        if (i < m_autospells.size())
+        if (autospellItr != m_autospells.end())
         {
-            m_autospells.erase(itr2);
+            m_autospells.erase(autospellItr);
+
             if (itr->second.active != ACT_DISABLED)
             {
                 itr->second.active = ACT_DISABLED;

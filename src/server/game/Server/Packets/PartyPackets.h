@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -360,6 +360,18 @@ namespace WorldPackets
             ObjectGuid Target;
             int8 PartyIndex = 0;
             bool Apply = false;
+        };
+
+        class SetPartyAssignment final : public ClientPacket
+        {
+        public:
+            SetPartyAssignment(WorldPacket&& packet) : ClientPacket(CMSG_SET_PARTY_ASSIGNMENT, std::move(packet)) { }
+        
+            void Read() override;
+            uint8 Assignment = 0;
+            uint8 PartyIndex = 0;
+            ObjectGuid Target;
+            bool Set = false;
         };
 
         class DoReadyCheck final : public ClientPacket

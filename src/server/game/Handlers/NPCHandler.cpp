@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -129,7 +129,6 @@ void WorldSession::SendTrainerList(ObjectGuid guid, const std::string& strTitle)
         TrainerSpell const* tSpell = &itr->second;
 
         bool valid = true;
-        bool primary_prof_first_rank = false;
         for (uint8 i = 0; i < MAX_TRAINERSPELL_ABILITY_REQS; ++i)
         {
             if (!tSpell->ReqAbility[i])
@@ -139,9 +138,6 @@ void WorldSession::SendTrainerList(ObjectGuid guid, const std::string& strTitle)
                 valid = false;
                 break;
             }
-            SpellInfo const* learnedSpellInfo = sSpellMgr->GetSpellInfo(tSpell->ReqAbility[i]);
-            if (learnedSpellInfo && learnedSpellInfo->IsPrimaryProfessionFirstRank())
-                primary_prof_first_rank = true;
         }
 
         if (!valid)
@@ -260,7 +256,7 @@ void WorldSession::SendTrainerBuyFailed(ObjectGuid trainerGUID, uint32 spellID, 
 
 void WorldSession::HandleGossipHelloOpcode(WorldPackets::NPC::Hello& packet)
 {
-    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(packet.Unit, UNIT_NPC_FLAG_NONE);
+    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(packet.Unit, UNIT_NPC_FLAG_GOSSIP);
     if (!unit)
     {
         TC_LOG_DEBUG("network", "WORLD: HandleGossipHelloOpcode - %s not found or you can not interact with him.", packet.Unit.ToString().c_str());
@@ -300,7 +296,6 @@ void WorldSession::HandleGossipHelloOpcode(WorldPackets::NPC::Hello& packet)
     unit->AI()->sGossipHello(_player);
 }
 
-
 void WorldSession::HandleGossipSelectOptionOpcode(WorldPackets::NPC::GossipSelectOption& packet)
 {
     if (!_player->PlayerTalkClass->GetGossipMenu().GetItem(packet.GossipIndex))
@@ -314,20 +309,19 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPackets::NPC::GossipSelec
     GameObject* go = nullptr;
     if (packet.GossipUnit.IsCreatureOrVehicle())
     {
-        unit = GetPlayer()->GetNPCIfCanInteractWith(packet.GossipUnit, UNIT_NPC_FLAG_NONE);
+        unit = GetPlayer()->GetNPCIfCanInteractWith(packet.GossipUnit, UNIT_NPC_FLAG_GOSSIP);
         if (!unit)
         {
-
             TC_LOG_DEBUG("network", "WORLD: HandleGossipSelectOptionOpcode - %s not found or you can't interact with him.", packet.GossipUnit.ToString().c_str());
             return;
         }
     }
     else if (packet.GossipUnit.IsGameObject())
     {
-        go = _player->GetMap()->GetGameObject(packet.GossipUnit);
+        go = _player->GetGameObjectIfCanInteractWith(packet.GossipUnit);
         if (!go)
         {
-            TC_LOG_DEBUG("network", "WORLD: HandleGossipSelectOptionOpcode - %s not found.", packet.GossipUnit.ToString().c_str());
+            TC_LOG_DEBUG("network", "WORLD: HandleGossipSelectOptionOpcode - %s not found or you can't interact with it.", packet.GossipUnit.ToString().c_str());
             return;
         }
     }
@@ -409,10 +403,12 @@ void WorldSession::SendSpiritResurrect()
 
     // get corpse nearest graveyard
     WorldSafeLocsEntry const* corpseGrave = NULL;
-    Corpse* corpse = _player->GetCorpse();
-    if (corpse)
-        corpseGrave = sObjectMgr->GetClosestGraveYard(
-            corpse->GetPositionX(), corpse->GetPositionY(), corpse->GetPositionZ(), corpse->GetMapId(), _player->GetTeam());
+    WorldLocation corpseLocation = _player->GetCorpseLocation();
+    if (_player->HasCorpse())
+    {
+        corpseGrave = sObjectMgr->GetClosestGraveYard(corpseLocation.GetPositionX(), corpseLocation.GetPositionY(),
+            corpseLocation.GetPositionZ(), corpseLocation.GetMapId(), _player->GetTeam());
+    }
 
     // now can spawn bones
     _player->SpawnCorpseBones();
@@ -467,14 +463,9 @@ void WorldSession::SendBindPoint(Creature* npc)
     _player->PlayerTalkClass->SendCloseGossip();
 }
 
-void WorldSession::HandleListStabledPetsOpcode(WorldPacket& recvData)
+void WorldSession::HandleRequestStabledPets(WorldPackets::NPC::RequestStabledPets& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: Recv MSG_LIST_STABLED_PETS");
-    ObjectGuid npcGUID;
-
-    recvData >> npcGUID;
-
-    if (!CheckStableMaster(npcGUID))
+    if (!CheckStableMaster(packet.StableMaster))
         return;
 
     // remove fake death
@@ -485,7 +476,7 @@ void WorldSession::HandleListStabledPetsOpcode(WorldPacket& recvData)
     if (GetPlayer()->IsMounted())
         GetPlayer()->RemoveAurasByType(SPELL_AURA_MOUNTED);
 
-    SendStablePet(npcGUID);
+    SendStablePet(packet.StableMaster);
 }
 
 void WorldSession::SendStablePet(ObjectGuid guid)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -502,7 +502,7 @@ void BattlegroundMgr::LoadBattlegroundTemplates()
         float dist                   = fields[7].GetFloat();
         bgTemplate.MaxStartDistSq    = dist * dist;
         bgTemplate.Weight            = fields[8].GetUInt8();
-        bgTemplate.ScriptId          = sObjectMgr->GetScriptId(fields[9].GetCString());
+        bgTemplate.ScriptId          = sObjectMgr->GetScriptId(fields[9].GetString());
         bgTemplate.BattlemasterEntry = bl;
 
         if (bgTemplate.MaxPlayersPerTeam == 0 || bgTemplate.MinPlayersPerTeam > bgTemplate.MaxPlayersPerTeam)
@@ -592,14 +592,16 @@ void BattlegroundMgr::SendToBattleground(Player* player, uint32 instanceId, Batt
         TC_LOG_ERROR("bg.battleground", "BattlegroundMgr::SendToBattleground: Instance %u (bgType %u) not found while trying to teleport player %s", instanceId, bgTypeId, player->GetName().c_str());
 }
 
-void BattlegroundMgr::SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid guid)
+void BattlegroundMgr::SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid const& guid)
 {
-    WorldPacket data(SMSG_AREA_SPIRIT_HEALER_TIME, 12);
     uint32 time_ = 30000 - bg->GetLastResurrectTime();      // resurrect every 30 seconds
     if (time_ == uint32(-1))
         time_ = 0;
-    data << guid << time_;
-    player->GetSession()->SendPacket(&data);
+
+    WorldPackets::Battleground::AreaSpiritHealerTime areaSpiritHealerTime;
+    areaSpiritHealerTime.HealerGuid = guid;
+    areaSpiritHealerTime.TimeLeft = time_;
+    player->GetSession()->SendPacket(areaSpiritHealerTime.Write());
 }
 
 bool BattlegroundMgr::IsArenaType(BattlegroundTypeId bgTypeId)
@@ -716,7 +718,8 @@ void BattlegroundMgr::ToggleArenaTesting()
 
 void BattlegroundMgr::SetHolidayWeekends(uint32 mask)
 {
-    for (uint32 bgtype = 1; bgtype < MAX_BATTLEGROUND_TYPE_ID; ++bgtype)
+    // The current code supports battlegrounds up to BattlegroundTypeId(31)
+    for (uint32 bgtype = 1; bgtype < MAX_BATTLEGROUND_TYPE_ID && bgtype < 32; ++bgtype)
         if (Battleground* bg = GetBattlegroundTemplate(BattlegroundTypeId(bgtype)))
             bg->SetHoliday((mask & (1 << bgtype)) != 0);
 }
