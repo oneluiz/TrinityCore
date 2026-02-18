@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -37,6 +37,7 @@ void AddSC_boss_ambassador_hellmaw();
 void AddSC_boss_blackheart_the_inciter();
 void AddSC_boss_grandmaster_vorpil();
 void AddSC_boss_murmur();
+void AddSC_shadow_labyrinth();
 void AddSC_instance_shadow_labyrinth();
 
 // Black Temple
@@ -72,6 +73,7 @@ void AddSC_instance_the_slave_pens();
 void AddSC_boss_mennu_the_betrayer();
 void AddSC_boss_rokmar_the_crackler();
 void AddSC_boss_quagmirran();
+void AddSC_boss_ahune();
 
 // Coilfang Reservoir - The Underbog
 void AddSC_instance_the_underbog();
@@ -114,7 +116,7 @@ void AddSC_boss_kaelthas();
 void AddSC_boss_void_reaver();
 void AddSC_boss_high_astromancer_solarian();
 void AddSC_instance_the_eye();
-void AddSC_the_eye();
+// void AddSC_the_eye();
 void AddSC_boss_gatewatcher_iron_hand();     //TK The Mechanar
 void AddSC_boss_gatewatcher_gyrokill();
 void AddSC_boss_nethermancer_sepethrea();
@@ -129,9 +131,9 @@ void AddSC_hellfire_peninsula();
 void AddSC_nagrand();
 void AddSC_netherstorm();
 void AddSC_shadowmoon_valley();
-void AddSC_shattrath_city();
+// void AddSC_shattrath_city();
 void AddSC_terokkar_forest();
-void AddSC_zangarmarsh();
+// void AddSC_zangarmarsh();
 
 // The name of this function should match:
 // void Add${NameOfDirectory}Scripts()
@@ -158,6 +160,7 @@ void AddOutlandScripts()
     AddSC_boss_blackheart_the_inciter();
     AddSC_boss_grandmaster_vorpil();
     AddSC_boss_murmur();
+    AddSC_shadow_labyrinth();
     AddSC_instance_shadow_labyrinth();
 
     // Black Temple
@@ -193,6 +196,7 @@ void AddOutlandScripts()
     AddSC_boss_mennu_the_betrayer();
     AddSC_boss_rokmar_the_crackler();
     AddSC_boss_quagmirran();
+    AddSC_boss_ahune();
 
     // Coilfang Reservoir - The Underbog
     AddSC_instance_the_underbog();
@@ -235,7 +239,7 @@ void AddOutlandScripts()
     AddSC_boss_void_reaver();
     AddSC_boss_high_astromancer_solarian();
     AddSC_instance_the_eye();
-    AddSC_the_eye();
+    // AddSC_the_eye();
     AddSC_boss_gatewatcher_iron_hand();     //TK The Mechanar
     AddSC_boss_gatewatcher_gyrokill();
     AddSC_boss_nethermancer_sepethrea();
@@ -250,7 +254,7 @@ void AddOutlandScripts()
     AddSC_nagrand();
     AddSC_netherstorm();
     AddSC_shadowmoon_valley();
-    AddSC_shattrath_city();
+    // AddSC_shattrath_city();
     AddSC_terokkar_forest();
-    AddSC_zangarmarsh();
+    // AddSC_zangarmarsh();
 }

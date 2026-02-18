@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -24,16 +23,27 @@ SDCategory: Razorfen Kraul
 EndScriptData */
 
 #include "ScriptMgr.h"
+#include "GameObject.h"
 #include "InstanceScript.h"
+#include "Map.h"
+#include "Unit.h"
 #include "razorfen_kraul.h"
-#include "Player.h"
 
 #define WARD_KEEPERS_NR 2
+
+static constexpr DungeonEncounterData Encounters[] =
+{
+    { BOSS_HUNTER_BONETUSK, { { 1656 } } },
+    { BOSS_ROOGUG, { { 438 } } },
+    { BOSS_WARLORD_RAMTUSK, { { 1659 } } },
+    { BOSS_GROYAT_THE_BLIND_HUNTER, { { 1660 } } },
+    { BOSS_CHARLGA_RAZORFLANK, { { 1661 } } },
+};
 
 class instance_razorfen_kraul : public InstanceMapScript
 {
 public:
-    instance_razorfen_kraul() : InstanceMapScript("instance_razorfen_kraul", 47) { }
+    instance_razorfen_kraul() : InstanceMapScript(RFKScriptName, 47) { }
 
     InstanceScript* GetInstanceScript(InstanceMap* map) const override
     {
@@ -42,25 +52,28 @@ public:
 
     struct instance_razorfen_kraul_InstanceMapScript : public InstanceScript
     {
-        instance_razorfen_kraul_InstanceMapScript(Map* map) : InstanceScript(map)
+        instance_razorfen_kraul_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
         {
             SetHeaders(DataHeader);
+            SetBossNumber(MAX_ENCOUNTER);
+            LoadDungeonEncounterData(Encounters);
             WardKeeperDeath = 0;
         }
 
         ObjectGuid DoorWardGUID;
         int WardKeeperDeath;
 
-        Player* GetPlayerInMap()
+        void OnUnitDeath(Unit* unit) override
         {
-            Map::PlayerList const& players = instance->GetPlayers();
-            for (Map::PlayerList::const_iterator itr = players.begin(); itr != players.end(); ++itr)
+            switch (unit->GetEntry())
             {
-                if (Player* player = itr->GetSource())
-                    return player;
+                case NPC_HUNTER_BONETUSK:           SetBossState(BOSS_HUNTER_BONETUSK, DONE); break;
+                case NPC_ROOGUG:                    SetBossState(BOSS_ROOGUG, DONE); break;
+                case NPC_WARLORD_RAMTUSK:           SetBossState(BOSS_WARLORD_RAMTUSK, DONE); break;
+                case NPC_GROYAT_THE_BLIND_HUNTER:   SetBossState(BOSS_GROYAT_THE_BLIND_HUNTER, DONE); break;
+                case NPC_CHARLGA_RAZORFLANK:        SetBossState(BOSS_CHARLGA_RAZORFLANK, DONE); break;
+                default:                            break;
             }
-            TC_LOG_DEBUG("scripts", "Instance Razorfen Kraul: GetPlayerInMap, but PlayerList is empty!");
-            return NULL;
         }
 
         void OnGameObjectCreate(GameObject* go) override
@@ -68,7 +81,7 @@ public:
             switch (go->GetEntry())
             {
                 case 21099: DoorWardGUID = go->GetGUID(); break;
-                case 20920: go->SetUInt32Value(GAMEOBJECT_FACTION, 0); break; // big fat fugly hack
+                case 20920: go->SetFaction(FACTION_NONE); break; // big fat fugly hack
             }
         }
 
@@ -77,7 +90,7 @@ public:
             if (WardKeeperDeath == WARD_KEEPERS_NR)
                 if (GameObject* go = instance->GetGameObject(DoorWardGUID))
                 {
-                    go->SetUInt32Value(GAMEOBJECT_FLAGS, 33);
+                    go->SetFlag(GO_FLAG_IN_USE | GO_FLAG_NODESPAWN);
                     go->SetGoState(GO_STATE_ACTIVE);
                 }
         }

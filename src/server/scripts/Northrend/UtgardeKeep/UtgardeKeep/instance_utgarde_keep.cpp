@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,20 +16,28 @@
  */
 
 #include "ScriptMgr.h"
+#include "Creature.h"
+#include "GameObject.h"
 #include "InstanceScript.h"
 #include "utgarde_keep.h"
 
-DoorData const doorData[] =
+static constexpr DoorData doorData[] =
 {
-    { GO_GIANT_PORTCULLIS_1,    DATA_INGVAR,    DOOR_TYPE_PASSAGE },
-    { GO_GIANT_PORTCULLIS_2,    DATA_INGVAR,    DOOR_TYPE_PASSAGE },
-    { 0,                        0,              DOOR_TYPE_ROOM } // END
+    { GO_GIANT_PORTCULLIS_1,    DATA_INGVAR,    EncounterDoorBehavior::OpenWhenDone },
+    { GO_GIANT_PORTCULLIS_2,    DATA_INGVAR,    EncounterDoorBehavior::OpenWhenDone },
 };
 
-MinionData const minionData[] =
+static constexpr MinionData minionData[] =
 {
     { NPC_SKARVALD,     DATA_SKARVALD_DALRONN },
-    { NPC_DALRONN,      DATA_SKARVALD_DALRONN }
+    { NPC_DALRONN,      DATA_SKARVALD_DALRONN },
+};
+
+static constexpr DungeonEncounterData encounters[] =
+{
+    { DATA_PRINCE_KELESETH, {{ 2026 }} },
+    { DATA_SKARVALD_DALRONN, {{ 2024 }} },
+    { DATA_INGVAR, {{ 2025 }} }
 };
 
 class instance_utgarde_keep : public InstanceMapScript
@@ -39,12 +47,13 @@ class instance_utgarde_keep : public InstanceMapScript
 
         struct instance_utgarde_keep_InstanceMapScript : public InstanceScript
         {
-            instance_utgarde_keep_InstanceMapScript(Map* map) : InstanceScript(map)
+            instance_utgarde_keep_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
             {
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
                 LoadDoorData(doorData);
                 LoadMinionData(minionData);
+                LoadDungeonEncounterData(encounters);
             }
 
             void OnCreatureCreate(Creature* creature) override
@@ -85,6 +94,8 @@ class instance_utgarde_keep : public InstanceMapScript
 
             void OnGameObjectCreate(GameObject* go) override
             {
+                InstanceScript::OnGameObjectCreate(go);
+
                 switch (go->GetEntry())
                 {
                     case GO_BELLOW_1:
@@ -123,23 +134,6 @@ class instance_utgarde_keep : public InstanceMapScript
                         Forges[2].AnvilGUID = go->GetGUID();
                         HandleGameObject(ObjectGuid::Empty, Forges[2].Event != NOT_STARTED, go);
                         break;
-                    case GO_GIANT_PORTCULLIS_1:
-                    case GO_GIANT_PORTCULLIS_2:
-                        AddDoor(go, true);
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            void OnGameObjectRemove(GameObject* go) override
-            {
-                switch (go->GetEntry())
-                {
-                    case GO_GIANT_PORTCULLIS_1:
-                    case GO_GIANT_PORTCULLIS_2:
-                        AddDoor(go, false);
-                        break;
                     default:
                         break;
                 }
@@ -177,9 +171,6 @@ class instance_utgarde_keep : public InstanceMapScript
                         HandleGameObject(Forges[i].BellowGUID, data != NOT_STARTED);
                         HandleGameObject(Forges[i].FireGUID, data != NOT_STARTED);
                         Forges[i].Event = data;
-
-                        if (data == DONE)
-                            SaveToDB();
                         break;
                     }
                     default:
@@ -187,16 +178,11 @@ class instance_utgarde_keep : public InstanceMapScript
                 }
             }
 
-            void WriteSaveDataMore(std::ostringstream& data) override
+            void AfterDataLoad() override
             {
-                for (uint8 i = 0; i < 3; ++i)
-                    data << Forges[i].Event << ' ';
-            }
-
-            void ReadSaveDataMore(std::istringstream& data) override
-            {
-                for (uint8 i = 0; i < 3; ++i)
-                    data >> Forges[i].Event;
+                if (GetBossState(DATA_PRINCE_KELESETH) == DONE)
+                    for (uint8 i = 0; i < 3; ++i)
+                        Forges[i].Event = DONE;
             }
 
         protected:

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,146 +16,135 @@
  */
 
 #include "PetPackets.h"
+#include "PacketOperators.h"
 
-WorldPacket const* WorldPackets::Pet::PetSpells::Write()
+namespace WorldPackets::Pet
+{
+WorldPacket const* PetSpells::Write()
 {
     _worldPacket << PetGUID;
-    _worldPacket << int16(CreatureFamily);
-    _worldPacket << int16(Specialization);
-    _worldPacket << int32(TimeLimit);
-
-    uint32 petModeAndOrders = ReactState + (CommandState << 8) + (Flag << 16);
-    _worldPacket << uint32(petModeAndOrders);
-
-    for (uint32 actionButton : ActionButtons)
-        _worldPacket << int32(actionButton);
-
-    _worldPacket << int32(Actions.size());
-    _worldPacket << int32(Cooldowns.size());
-    _worldPacket << int32(SpellHistory.size());
+    _worldPacket << uint16(_CreatureFamily);
+    _worldPacket << uint16(Specialization);
+    _worldPacket << uint32(TimeLimit);
+    _worldPacket << uint8(CommandState);
+    _worldPacket << uint8(Flag);
+    _worldPacket << uint8(ReactState);
+    _worldPacket.append(ActionButtons.data(), ActionButtons.size());
+    _worldPacket << Size<uint32>(Actions);
+    _worldPacket << Size<uint32>(Cooldowns);
+    _worldPacket << Size<uint32>(SpellHistory);
 
     for (uint32 action : Actions)
-        _worldPacket << action;
+        _worldPacket << uint32(action);
 
     for (PetSpellCooldown const& cooldown : Cooldowns)
     {
         _worldPacket << int32(cooldown.SpellID);
         _worldPacket << int32(cooldown.Duration);
         _worldPacket << int32(cooldown.CategoryDuration);
-        _worldPacket << int16(cooldown.Category);
+        _worldPacket << float(cooldown.ModRate);
+        _worldPacket << uint16(cooldown.Category);
     }
 
     for (PetSpellHistory const& history : SpellHistory)
     {
         _worldPacket << int32(history.CategoryID);
         _worldPacket << int32(history.RecoveryTime);
+        _worldPacket << float(history.ChargeModRate);
         _worldPacket << int8(history.ConsumedCharges);
     }
 
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Pet::PetStableList::Write()
+WorldPacket const* PetStableResult::Write()
 {
-    _worldPacket << StableMaster;
-
-    _worldPacket << uint32(Pets.size());
-    for (PetStableInfo const& pet : Pets)
-    {
-        _worldPacket << int32(pet.PetSlot);
-        _worldPacket << int32(pet.PetNumber);
-        _worldPacket << int32(pet.CreatureID);
-        _worldPacket << int32(pet.DisplayID);
-        _worldPacket << int32(pet.ExperienceLevel);
-        _worldPacket << int32(pet.PetFlags);
-
-        _worldPacket << int8(pet.PetName.length());
-        _worldPacket.WriteString(pet.PetName);
-    }
+    _worldPacket << int32(Result);
 
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Pet::PetLearnedSpells::Write()
+WorldPacket const* PetLearnedSpells::Write()
 {
-    _worldPacket << uint32(Spells.size());
+    _worldPacket << Size<uint32>(Spells);
     for (uint32 spell : Spells)
         _worldPacket << int32(spell);
+
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Pet::PetUnlearnedSpells::Write()
+WorldPacket const* PetUnlearnedSpells::Write()
 {
-    _worldPacket << uint32(Spells.size());
+    _worldPacket << Size<uint32>(Spells);
     for (uint32 spell : Spells)
         _worldPacket << int32(spell);
+
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Pet::PetNameInvalid::Write()
+WorldPacket const* PetNameInvalid::Write()
 {
+    _worldPacket << uint32(Result);
     _worldPacket << RenameData.PetGUID;
     _worldPacket << int32(RenameData.PetNumber);
 
-    _worldPacket << uint8(RenameData.NewName.length());
+    _worldPacket << SizedString::BitsSize<8>(RenameData.NewName);
+    _worldPacket << OptionalInit(RenameData.DeclinedNames);
 
-    _worldPacket.WriteBit(RenameData.HasDeclinedNames);
-    _worldPacket.FlushBits();
-
-    if (RenameData.HasDeclinedNames)
+    if (RenameData.DeclinedNames)
     {
         for (int32 i = 0; i < MAX_DECLINED_NAME_CASES; i++)
-        {
-            _worldPacket.WriteBits(RenameData.DeclinedNames.name[i].length(), 7);
-            _worldPacket.FlushBits();
-        }
+            _worldPacket << SizedString::BitsSize<7>(RenameData.DeclinedNames->name[i]);
+
+        _worldPacket.FlushBits();
 
         for (int32 i = 0; i < MAX_DECLINED_NAME_CASES; i++)
-            _worldPacket << RenameData.DeclinedNames.name[i];
+            _worldPacket << SizedString::Data(RenameData.DeclinedNames->name[i]);
     }
+    else
+        _worldPacket.FlushBits();
 
-    _worldPacket.WriteString(RenameData.NewName);
+    _worldPacket << SizedString::Data(RenameData.NewName);
+
     return &_worldPacket;
 }
 
-void WorldPackets::Pet::PetRename::Read()
+void PetRename::Read()
 {
     _worldPacket >> RenameData.PetGUID;
     _worldPacket >> RenameData.PetNumber;
 
-    int8 nameLen = 0;
-    _worldPacket >> nameLen;
+    _worldPacket >> SizedString::BitsSize<8>(RenameData.NewName);
+    _worldPacket >> OptionalInit(RenameData.DeclinedNames);
 
-    RenameData.HasDeclinedNames = _worldPacket.ReadBit();
-    if (RenameData.HasDeclinedNames)
+    if (RenameData.DeclinedNames)
     {
-        int32 count[MAX_DECLINED_NAME_CASES];
         for (int32 i = 0; i < MAX_DECLINED_NAME_CASES; i++)
-            count[i] = _worldPacket.ReadBits(7);
+            _worldPacket >> SizedString::BitsSize<7>(RenameData.DeclinedNames->name[i]);
 
         for (int32 i = 0; i < MAX_DECLINED_NAME_CASES; i++)
-            RenameData.DeclinedNames.name[i] = _worldPacket.ReadString(count[i]);
+            _worldPacket >> SizedString::Data(RenameData.DeclinedNames->name[i]);
     }
 
-    RenameData.NewName = _worldPacket.ReadString(nameLen);
+    _worldPacket >> SizedString::Data(RenameData.NewName);
 }
 
-void WorldPackets::Pet::PetAction::Read()
+void PetAction::Read()
 {
     _worldPacket >> PetGUID;
-    
+
     _worldPacket >> Action;
     _worldPacket >> TargetGUID;
-    
+
     _worldPacket >> ActionPosition;
 }
 
-void WorldPackets::Pet::PetStopAttack::Read()
+void PetStopAttack::Read()
 {
     _worldPacket >> PetGUID;
 }
 
-void WorldPackets::Pet::PetSetAction::Read()
+void PetSetAction::Read()
 {
     _worldPacket >> PetGUID;
 
@@ -163,25 +152,71 @@ void WorldPackets::Pet::PetSetAction::Read()
     _worldPacket >> Action;
 }
 
-void WorldPackets::Pet::PetAbandon::Read()
+void PetAbandon::Read()
 {
     _worldPacket >> Pet;
 }
 
-void WorldPackets::Pet::PetSpellAutocast::Read()
+void PetAbandonByNumber::Read()
+{
+    _worldPacket >> PetNumber;
+}
+
+void PetSpellAutocast::Read()
 {
     _worldPacket >> PetGUID;
     _worldPacket >> SpellID;
-    AutocastEnabled = _worldPacket.ReadBit();
+    _worldPacket >> Bits<1>(AutocastEnabled);
 }
 
-void WorldPackets::Pet::DismissCritter::Read()
+void DismissCritter::Read()
 {
     _worldPacket >> CritterGUID;
 }
 
-void WorldPackets::Pet::PetCancelAura::Read()
+void PetCancelAura::Read()
 {
     _worldPacket >> PetGUID;
     _worldPacket >> SpellID;
+}
+
+WorldPacket const* SetPetSpecialization::Write()
+{
+    _worldPacket << uint16(SpecID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* PetActionFeedback::Write()
+{
+    _worldPacket << int32(Response);
+    _worldPacket << int32(SpellID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* PetActionSound::Write()
+{
+    _worldPacket << UnitGUID;
+    _worldPacket << int32(Action);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* PetTameFailure::Write()
+{
+    _worldPacket << uint32(Result);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* PetMode::Write()
+{
+    _worldPacket << PetGUID;
+    _worldPacket << uint8(CommandState);
+    _worldPacket << uint8(Flag);
+    _worldPacket << uint8(ReactState);
+
+    return &_worldPacket;
+}
 }

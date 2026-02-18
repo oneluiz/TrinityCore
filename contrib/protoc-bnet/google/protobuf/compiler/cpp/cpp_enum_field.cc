@@ -285,7 +285,10 @@ GenerateSwappingCode(io::Printer* printer) const {
 
 void RepeatedEnumFieldGenerator::
 GenerateConstructorCode(io::Printer* printer) const {
-  // Not needed for repeated fields.
+  if (descriptor_->options().packed()
+      && HasGeneratedMethods(descriptor_->file())) {
+    printer->Print(variables_, "_$name$_cached_byte_size_ = 0;\n");
+  }
 }
 
 void RepeatedEnumFieldGenerator::

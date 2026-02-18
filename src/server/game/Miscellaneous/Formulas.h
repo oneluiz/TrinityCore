@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,13 +18,38 @@
 #ifndef TRINITY_FORMULAS_H
 #define TRINITY_FORMULAS_H
 
-#include "World.h"
-#include "SharedDefines.h"
-#include "ScriptMgr.h"
+#include "Creature.h"
+#include "GameTables.h"
+#include "Map.h"
 #include "Player.h"
+#include "ScriptMgr.h"
+#include "SharedDefines.h"
+#include "World.h"
 
 namespace Trinity
 {
+    inline uint32 GetExpansionForLevel(uint32 level)
+    {
+        if (level < 30)
+            return EXPANSION_CLASSIC;
+        else if (level < 35)
+            return EXPANSION_CATACLYSM;
+        else if (level < 40)
+            return EXPANSION_WARLORDS_OF_DRAENOR;
+        else if (level < 45)
+            return EXPANSION_BATTLE_FOR_AZEROTH;
+        else if (level < 50)
+            return EXPANSION_MISTS_OF_PANDARIA;
+        else if (level < 60)
+            return EXPANSION_SHADOWLANDS;
+        else if (level < 70)
+            return EXPANSION_DRAGONFLIGHT;
+        else if (level < 80)
+            return EXPANSION_THE_WAR_WITHIN;
+        else
+            return CURRENT_EXPANSION;
+    }
+
     namespace Honor
     {
         inline float hk_honor_at_level_f(uint8 level, float multiplier = 1.0f)
@@ -120,11 +144,8 @@ namespace Trinity
         {
             uint32 baseGain;
 
-            GtOCTLevelExperienceEntry const* BaseExpPlayer = sGtOCTLevelExperienceStore.EvaluateTable(pl_level - 1, 1);
-            GtOCTLevelExperienceEntry const* BaseExpMob = sGtOCTLevelExperienceStore.EvaluateTable(mob_level - 1, 1);
-
-            GtOCTLevelExperienceEntry const* CoefPlayer = sGtOCTLevelExperienceStore.EvaluateTable(pl_level - 1, 4);
-            GtOCTLevelExperienceEntry const* CoefMob = sGtOCTLevelExperienceStore.EvaluateTable(mob_level - 1, 4);
+            GtXpEntry const* xpPlayer = sXpGameTable.GetRow(pl_level);
+            GtXpEntry const* xpMob = sXpGameTable.GetRow(mob_level);
 
             if (mob_level >= pl_level)
             {
@@ -132,7 +153,7 @@ namespace Trinity
                 if (nLevelDiff > 4)
                     nLevelDiff = 4;
 
-                baseGain = uint32(round(BaseExpPlayer->Data * (1 + 0.05f * nLevelDiff)));
+                baseGain = uint32(round(xpPlayer->PerKill * (1 + 0.05f * nLevelDiff)));
             }
             else
             {
@@ -140,10 +161,17 @@ namespace Trinity
                 if (mob_level > gray_level)
                 {
                     uint8 ZD = GetZeroDifference(pl_level);
-                    baseGain = uint32(round(BaseExpMob->Data * ((1 - ((pl_level - mob_level) / float(ZD))) * (CoefMob->Data / CoefPlayer->Data))));
+                    baseGain = uint32(round(xpMob->PerKill * ((1 - ((pl_level - mob_level) / float(ZD))) * (xpMob->Divisor / xpPlayer->Divisor))));
                 }
                 else
                     baseGain = 0;
+            }
+
+            if (sWorld->getIntConfig(CONFIG_MIN_CREATURE_SCALED_XP_RATIO) && pl_level != mob_level)
+            {
+                // Use mob level instead of player level to avoid overscaling on gain in a min is enforced
+                uint32 baseGainMin = BaseGain(pl_level, pl_level) * sWorld->getIntConfig(CONFIG_MIN_CREATURE_SCALED_XP_RATIO) / 100;
+                baseGain = std::max(baseGainMin, baseGain);
             }
 
             sScriptMgr->OnBaseGainCalculation(baseGain, pl_level, mob_level);
@@ -155,20 +183,19 @@ namespace Trinity
             Creature* creature = u->ToCreature();
             uint32 gain = 0;
 
-            if (!creature || (!creature->IsTotem() && !creature->IsPet() && !creature->IsCritter() &&
-                !(creature->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_NO_XP_AT_KILL)))
+            if (!creature || creature->CanGiveExperience())
             {
                 float xpMod = 1.0f;
 
-                gain = BaseGain(player->getLevel(), u->getLevel());
+                gain = BaseGain(player->GetLevel(), u->GetLevelForTarget(player));
 
                 if (gain && creature)
                 {
                     // Players get only 10% xp for killing creatures of lower expansion levels than himself
-                    if ((uint32(creature->GetCreatureTemplate()->expansion) < GetExpansionForLevel(player->getLevel())))
+                    if ((uint32(creature->GetCreatureDifficulty()->GetHealthScalingExpansion()) < GetExpansionForLevel(player->GetLevel())))
                         gain = uint32(round(gain / 10.0f));
 
-                    if (creature->isElite())
+                    if (creature->IsElite())
                     {
                         // Elites in instances have a 2.75x XP bonus instead of the regular 2x world bonus.
                         if (u->GetMap()->IsDungeon())
@@ -181,6 +208,9 @@ namespace Trinity
                 }
 
                 xpMod *= isBattleGround ? sWorld->getRate(RATE_XP_BG_KILL) : sWorld->getRate(RATE_XP_KILL);
+                if (creature && creature->m_PlayerDamageReq) // if players dealt less than 50% of the damage and were credited anyway (due to CREATURE_FLAG_EXTRA_NO_PLAYER_DAMAGE_REQ), scale XP gained appropriately (linear scaling)
+                    xpMod *= 1.0f - 2.0f * creature->m_PlayerDamageReq / creature->GetMaxHealth();
+
                 gain = uint32(gain * xpMod);
             }
 

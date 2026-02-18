@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,96 +15,79 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LoginRESTService_h__
-#define LoginRESTService_h__
+#ifndef TRINITYCORE_LOGIN_REST_SERVICE_H
+#define TRINITYCORE_LOGIN_REST_SERVICE_H
 
-#include "Session.h"
-#include "Define.h"
+#include "HttpService.h"
 #include "Login.pb.h"
-#include <boost/asio/io_service.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ip/address.hpp>
-#include <boost/asio/deadline_timer.hpp>
-#include <atomic>
-#include <mutex>
-#include <thread>
+#include "LoginHttpSession.h"
 
-struct soap;
-struct soap_plugin;
+namespace Battlenet
+{
+enum class SrpVersion : int8
+{
+    v1  = 1,
+    v2  = 2
+};
 
-class LoginRESTService
+enum class SrpHashFunction
+{
+    Sha256  = 0,
+    Sha512  = 1
+};
+
+enum class BanMode
+{
+    BAN_IP = 0,
+    BAN_ACCOUNT = 1
+};
+
+class LoginRESTService final : public Trinity::Net::Http::HttpService<LoginHttpSession>
 {
 public:
-    LoginRESTService() : _stopped(false), _port(0) { }
+    using RequestHandlerResult = Trinity::Net::Http::RequestHandlerResult;
+    using HttpRequest = Trinity::Net::Http::Request;
+    using HttpResponse = Trinity::Net::Http::Response;
+    using HttpRequestContext = Trinity::Net::Http::RequestContext;
+    using HttpSessionState = Trinity::Net::Http::SessionState;
+
+    LoginRESTService() : HttpService("login"), _port(0), _firstLocalAddressIndex(0), _loginTicketDuration(0) { }
 
     static LoginRESTService& Instance();
 
-    bool Start(boost::asio::io_service& ioService);
-    void Stop();
+    bool StartNetwork(Trinity::Asio::IoContext& ioContext, std::string const& bindIp, uint16 port, int32 threadCount = 1) override;
 
-    boost::asio::ip::tcp::endpoint const& GetAddressForClient(boost::asio::ip::address const& address) const;
+    std::string const& GetHostnameForClient(boost::asio::ip::address const& address) const;
+    uint16 GetPort() const { return _port; }
 
-    std::unique_ptr<Battlenet::Session::AccountInfo> VerifyLoginTicket(std::string const& id);
+    std::shared_ptr<Trinity::Net::Http::SessionState> CreateNewSessionState(boost::asio::ip::address const& address) override;
 
 private:
-    void Run();
+    static std::string ExtractAuthorization(HttpRequest const& request);
 
-    friend int32 handle_get_plugin(soap* soapClient);
-    int32 HandleGet(soap* soapClient);
+    RequestHandlerResult HandleGetForm(std::shared_ptr<LoginHttpSession> session, HttpRequestContext& context) const;
+    static RequestHandlerResult HandleGetGameAccounts(std::shared_ptr<LoginHttpSession> session, HttpRequestContext& context);
+    RequestHandlerResult HandleGetPortal(std::shared_ptr<LoginHttpSession> session, HttpRequestContext& context) const;
 
-    friend int32 handle_post_plugin(soap* soapClient);
-    int32 HandlePost(soap* soapClient);
+    RequestHandlerResult HandlePostLogin(std::shared_ptr<LoginHttpSession> session, HttpRequestContext& context) const;
+    static RequestHandlerResult HandlePostLoginSrpChallenge(std::shared_ptr<LoginHttpSession> session, HttpRequestContext& context);
+    RequestHandlerResult HandlePostRefreshLoginTicket(std::shared_ptr<LoginHttpSession> session, HttpRequestContext& context) const;
 
-    int32 SendResponse(soap* soapClient, google::protobuf::Message const& response);
+    static std::unique_ptr<Trinity::Crypto::SRP::BnetSRP6Base> CreateSrpImplementation(SrpVersion version, SrpHashFunction hashFunction,
+        std::string const& username, Trinity::Crypto::SRP::Salt const& salt, Trinity::Crypto::SRP::Verifier const& verifier);
 
-    std::string CalculateShaPassHash(std::string const& name, std::string const& password);
+    void MigrateLegacyPasswordHashes() const;
 
-    void AddLoginTicket(std::string const& id, std::unique_ptr<Battlenet::Session::AccountInfo> accountInfo);
-    void CleanupLoginTickets(boost::system::error_code const& error);
-
-    struct LoginTicket
-    {
-        LoginTicket& operator=(LoginTicket&& right);
-
-        std::string Id;
-        std::unique_ptr<Battlenet::Session::AccountInfo> Account;
-        std::time_t ExpiryTime;
-    };
-
-    struct ResponseCodePlugin
-    {
-        static char const* const PluginId;
-        static int32 Init(soap* s, soap_plugin*, void*);
-        static void Destroy(soap* s, soap_plugin* p);
-        static int32 ChangeResponse(soap* s, int32 originalResponse, size_t contentLength);
-
-        int32(*fresponse)(soap* s, int32 status, size_t length);
-        int32 ErrorCode;
-    };
-
-    struct ContentTypePlugin
-    {
-        static char const* const PluginId;
-        static int32 Init(soap* s, soap_plugin* p, void*);
-        static void Destroy(soap* s, soap_plugin* p);
-        static int32 OnSetHeader(soap* s, char const* key, char const* value);
-
-        int32(*fposthdr)(soap* s, char const* key, char const* value);
-        char const* ContentType;
-    };
-
-    std::thread _thread;
-    std::atomic<bool> _stopped;
-    Battlenet::JSON::Login::FormInputs _formInputs;
-    std::string _bindIP;
-    int32 _port;
-    boost::asio::ip::tcp::endpoint _externalAddress;
-    boost::asio::ip::tcp::endpoint _localAddress;
-    std::mutex _loginTicketMutex;
-    std::unordered_map<std::string, LoginTicket> _validLoginTickets;
-    boost::asio::deadline_timer* _loginTicketCleanupTimer;
+    JSON::Login::FormInputs _formInputs;
+    uint16 _port;
+    std::string _externalHostname;
+    std::string _localHostname;
+    std::vector<boost::asio::ip::address> _addresses;
+    std::size_t _firstLocalAddressIndex; // index inside _addresses where the first local address can be found
+    uint32 _loginTicketDuration;
 };
+}
 
-#define sLoginService LoginRESTService::Instance()
+#define sLoginService Battlenet::LoginRESTService::Instance()
 
-#endif // LoginRESTService_h__
+#endif // TRINITYCORE_LOGIN_REST_SERVICE_H

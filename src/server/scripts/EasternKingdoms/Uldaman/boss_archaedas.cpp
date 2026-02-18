@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2007 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -27,9 +26,14 @@ On his death the vault door opens.
 EndScriptData */
 
 #include "ScriptMgr.h"
-#include "ScriptedCreature.h"
-#include "uldaman.h"
+#include "GameObject.h"
+#include "GameObjectAI.h"
+#include "InstanceScript.h"
+#include "ObjectAccessor.h"
 #include "Player.h"
+#include "ScriptedCreature.h"
+#include "SpellInfo.h"
+#include "uldaman.h"
 
 enum Says
 {
@@ -63,12 +67,11 @@ class boss_archaedas : public CreatureScript
         {
         }
 
-        struct boss_archaedasAI : public ScriptedAI
+        struct boss_archaedasAI : public BossAI
         {
-            boss_archaedasAI(Creature* creature) : ScriptedAI(creature)
+            boss_archaedasAI(Creature* creature) : BossAI(creature, BOSS_ARCHAEDAS)
             {
                 Initialize();
-                instance = me->GetInstanceScript();
             }
 
             void Initialize()
@@ -89,16 +92,16 @@ class boss_archaedas : public CreatureScript
 
             bool bGuardiansAwake;
             bool bVaultWalkersAwake;
-            InstanceScript* instance;
 
             void Reset() override
             {
+                _Reset();
                 Initialize();
 
                 instance->SetData(0, 5);    // respawn any dead minions
-                me->setFaction(35);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetFaction(FACTION_FRIENDLY);
+                me->SetUninteractible(true);
+                me->SetControlled(true, UNIT_STATE_ROOT);
                 me->AddAura(SPELL_FREEZE_ANIM, me);
             }
 
@@ -110,24 +113,25 @@ class boss_archaedas : public CreatureScript
                 {
                     DoCast(minion, SPELL_AWAKEN_VAULT_WALKER, flag);
                     minion->CastSpell(minion, SPELL_ARCHAEDAS_AWAKEN, true);
-                    minion->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                    minion->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
-                    minion->setFaction(14);
+                    minion->SetUninteractible(false);
+                    minion->SetControlled(false, UNIT_STATE_ROOT);
+                    minion->SetFaction(FACTION_MONSTER);
                     minion->RemoveAura(SPELL_MINION_FREEZE_ANIM);
                 }
             }
 
-            void EnterCombat(Unit* /*who*/) override
+            void JustEngagedWith(Unit* who) override
             {
-                me->setFaction(14);
-                me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                _JustEngagedWith(who);
+                me->SetFaction(FACTION_MONSTER);
+                me->SetUninteractible(false);
+                me->SetControlled(false, UNIT_STATE_ROOT);
             }
 
-            void SpellHit(Unit* /*caster*/, const SpellInfo* spell) override
+            void SpellHit(WorldObject* /*caster*/, SpellInfo const* spellInfo) override
             {
                 // Being woken up from the altar, start the awaken sequence
-                if (spell == sSpellMgr->GetSpellInfo(SPELL_ARCHAEDAS_AWAKEN))
+                if (spellInfo->Id == SPELL_ARCHAEDAS_AWAKEN)
                 {
                     Talk(SAY_AGGRO);
                     iAwakenTimer = 4000;
@@ -198,20 +202,18 @@ class boss_archaedas : public CreatureScript
                     //45 seconds until we should cast this agian
                     uiTremorTimer  = 45000;
                 } else uiTremorTimer  -= uiDiff;
-
-                DoMeleeAttackIfReady();
             }
 
             void JustDied (Unit* /*killer*/) override
             {
-                instance->SetData(DATA_ANCIENT_DOOR, DONE);      // open the vault door
+                _JustDied();
                 instance->SetData(DATA_MINIONS, SPECIAL);        // deactivate his minions
             }
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return GetInstanceAI<boss_archaedasAI>(creature);
+            return GetUldamanAI<boss_archaedasAI>(creature);
         }
 };
 
@@ -259,26 +261,26 @@ class npc_archaedas_minions : public CreatureScript
             {
                 Initialize();
 
-                me->setFaction(35);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetFaction(35);
+                me->SetUninteractible(true);
+                me->SetControlled(true, UNIT_STATE_ROOT);
                 me->RemoveAllAuras();
                 me->AddAura(SPELL_MINION_FREEZE_ANIM, me);
             }
 
-            void EnterCombat(Unit* /*who*/) override
+            void JustEngagedWith(Unit* /*who*/) override
             {
-                me->setFaction (14);
+                me->SetFaction(FACTION_MONSTER);
                 me->RemoveAllAuras();
-                me->RemoveFlag (UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                me->RemoveFlag (UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetUninteractible(false);
+                me->SetControlled(false, UNIT_STATE_ROOT);
                 bAmIAwake = true;
             }
 
-            void SpellHit(Unit * /*caster*/, const SpellInfo* spell) override
+            void SpellHit(WorldObject* /*caster*/, SpellInfo const* spellInfo) override
             {
                 // time to wake up, start animation
-                if (spell == sSpellMgr->GetSpellInfo(SPELL_ARCHAEDAS_AWAKEN))
+                if (spellInfo->Id == SPELL_ARCHAEDAS_AWAKEN)
                 {
                     iAwakenTimer = 5000;
                     bWakingUp = true;
@@ -310,14 +312,12 @@ class npc_archaedas_minions : public CreatureScript
                 //Return since we have no target
                 if (!UpdateVictim())
                     return;
-
-                DoMeleeAttackIfReady();
             }
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return GetInstanceAI<npc_archaedas_minionsAI>(creature);
+            return GetUldamanAI<npc_archaedas_minionsAI>(creature);
         }
 };
 
@@ -348,18 +348,18 @@ class npc_stonekeepers : public CreatureScript
 
             void Reset() override
             {
-                me->setFaction(35);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetFaction(FACTION_FRIENDLY);
+                me->SetUninteractible(true);
+                me->SetControlled(true, UNIT_STATE_ROOT);
                 me->RemoveAllAuras();
                 me->AddAura(SPELL_MINION_FREEZE_ANIM, me);
             }
 
-            void EnterCombat(Unit* /*who*/) override
+            void JustEngagedWith(Unit* /*who*/) override
             {
-                me->setFaction(14);
-                me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetFaction(FACTION_FRIENDLY);
+                me->SetUninteractible(false);
+                me->SetControlled(false, UNIT_STATE_ROOT);
             }
 
             void UpdateAI(uint32 /*diff*/) override
@@ -367,11 +367,9 @@ class npc_stonekeepers : public CreatureScript
                 //Return since we have no target
                 if (!UpdateVictim())
                     return;
-
-                DoMeleeAttackIfReady();
             }
 
-            void JustDied(Unit* /*attacker*/) override
+            void JustDied(Unit* /*killer*/) override
             {
                 DoCast (me, SPELL_SELF_DESTRUCT, true);
                 instance->SetData(DATA_STONE_KEEPERS, IN_PROGRESS);    // activate next stonekeeper
@@ -380,7 +378,7 @@ class npc_stonekeepers : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return GetInstanceAI<npc_stonekeepersAI>(creature);
+            return GetUldamanAI<npc_stonekeepersAI>(creature);
         }
 };
 
@@ -394,22 +392,26 @@ EndScriptData */
 class go_altar_of_archaedas : public GameObjectScript
 {
     public:
+        go_altar_of_archaedas() : GameObjectScript("go_altar_of_archaedas") { }
 
-        go_altar_of_archaedas()
-            : GameObjectScript("go_altar_of_archaedas")
+        struct go_altar_of_archaedasAI : public GameObjectAI
         {
-        }
+            go_altar_of_archaedasAI(GameObject* go) : GameObjectAI(go), instance(go->GetInstanceScript()) { }
 
-        bool OnGossipHello(Player* player, GameObject* /*go*/) override
-        {
-            InstanceScript* instance = player->GetInstanceScript();
-            if (!instance)
+            InstanceScript* instance;
+
+            bool OnGossipHello(Player* player) override
+            {
+                player->CastSpell(player, SPELL_BOSS_OBJECT_VISUAL, false);
+
+                instance->SetGuidData(0, player->GetGUID());     // activate archaedas
                 return false;
+            }
+        };
 
-            player->CastSpell (player, SPELL_BOSS_OBJECT_VISUAL, false);
-
-            instance->SetGuidData(0, player->GetGUID());     // activate archaedas
-            return false;
+        GameObjectAI* GetAI(GameObject* go) const override
+        {
+            return GetUldamanAI<go_altar_of_archaedasAI>(go);
         }
 };
 
@@ -422,4 +424,3 @@ void AddSC_boss_archaedas()
     new npc_stonekeepers();
     new go_altar_of_archaedas();
 }
-

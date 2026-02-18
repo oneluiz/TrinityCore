@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,8 +19,8 @@
 #define Random_h__
 
 #include "Define.h"
+#include "Duration.h"
 #include <limits>
-#include <random>
 
 /* Return a random number in the range min..max. */
 TC_COMMON_API int32 irand(int32 min, int32 max);
@@ -34,14 +34,20 @@ TC_COMMON_API uint32 urandms(uint32 min, uint32 max);
 /* Return a random number in the range 0 .. UINT32_MAX. */
 TC_COMMON_API uint32 rand32();
 
+/* Return a random time in the range min..max (up to millisecond precision). Only works for values where millisecond difference is a valid uint32. */
+TC_COMMON_API Milliseconds randtime(Milliseconds min, Milliseconds max);
+
 /* Return a random number in the range min..max */
 TC_COMMON_API float frand(float min, float max);
 
-/* Return a random double from 0.0 to 1.0 (exclusive). */
-TC_COMMON_API double rand_norm();
+/* Return a random float from 0.0 to 1.0 (exclusive). */
+TC_COMMON_API float rand_norm();
 
-/* Return a random double from 0.0 to 100.0 (exclusive). */
-TC_COMMON_API double rand_chance();
+/* Return a random float from 0.0 to 100.0 (exclusive). */
+TC_COMMON_API float rand_chance();
+
+/* Return a random number in the range 0..count (exclusive) with each value having a different chance of happening */
+TC_COMMON_API uint32 urandweighted(size_t count, double const* chances);
 
 /* Return true if a random roll fits in the specified chance (range 0-100). */
 inline bool roll_chance_f(float chance)
@@ -56,40 +62,16 @@ inline bool roll_chance_i(int chance)
 }
 
 /*
-* SFMT wrapper satisfying UniformRandomNumberGenerator concept for use in <random> algorithms
+* Wrapper satisfying UniformRandomNumberGenerator concept for use in <random> algorithms
 */
-class TC_COMMON_API SFMTEngine
+class RandomEngine
 {
 public:
     typedef uint32 result_type;
 
-    static TRINITY_CONSTEXPR result_type min() { return std::numeric_limits<result_type>::min(); }
-    static TRINITY_CONSTEXPR result_type max() { return std::numeric_limits<result_type>::max(); }
+    static constexpr result_type min() { return std::numeric_limits<result_type>::min(); }
+    static constexpr result_type max() { return std::numeric_limits<result_type>::max(); }
     result_type operator()() const { return rand32(); }
-
-    static SFMTEngine& Instance();
 };
-
-// Ugly, horrible, i don't even..., hack for VS2013 to work around missing discrete_distribution(iterator, iterator) constructor
-namespace Trinity
-{
-#if COMPILER == COMPILER_MICROSOFT && _MSC_VER <= 1800
-    template<typename T>
-    struct discrete_distribution_param : public std::discrete_distribution<T>::param_type
-    {
-        typedef typename std::discrete_distribution<T>::param_type base;
-
-        template<typename InIt>
-        discrete_distribution_param(InIt begin, InIt end) : base(_Noinit())
-        {
-            this->_Pvec.assign(begin, end);
-            this->_Init();
-        }
-    };
-#else
-    template<typename T>
-    using discrete_distribution_param = typename std::discrete_distribution<T>::param_type;
-#endif
-}
 
 #endif // Random_h__

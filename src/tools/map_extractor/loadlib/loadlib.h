@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -20,16 +19,10 @@
 #define LOAD_LIB_H
 
 #include "Define.h"
-#ifdef PLATFORM_WINDOWS
-#undef PLATFORM_WINDOWS
-#endif
-#include "CascLib.h"
+#include "CascHandles.h"
 #include <map>
+#include <memory>
 #include <string>
-
-#ifndef _WIN32
-int GetLastError();
-#endif
 
 #define FILE_FORMAT_VERSION    18
 
@@ -71,10 +64,10 @@ public:
     uint32 size;
 
     template<class T>
-    T* As() { return (T*)data; }
+    T* As() const { return (T*)data; }
     void parseSubChunks();
-    std::multimap<std::string, FileChunk*> subchunks;
-    FileChunk* GetSubChunk(std::string const& name);
+    std::multimap<std::string_view, FileChunk> subchunks;
+    FileChunk const* GetSubChunk(std::string_view name) const;
 };
 
 class ChunkedFile
@@ -89,12 +82,13 @@ public:
     ChunkedFile();
     virtual ~ChunkedFile();
     bool prepareLoadedData();
-    bool loadFile(HANDLE mpq, std::string const& fileName, bool log = true);
+    bool loadFile(std::shared_ptr<CASC::Storage const> mpq, std::string const& fileName, bool log = true);
+    bool loadFile(std::shared_ptr<CASC::Storage const> mpq, uint32 fileDataId, std::string const& description, bool log = true);
     void free();
 
     void parseChunks();
-    std::multimap<std::string, FileChunk*> chunks;
-    FileChunk* GetChunk(std::string const& name);
+    std::multimap<std::string_view, FileChunk> chunks;
+    FileChunk const* GetChunk(std::string_view name) const;
 };
 
 #pragma pack(pop)

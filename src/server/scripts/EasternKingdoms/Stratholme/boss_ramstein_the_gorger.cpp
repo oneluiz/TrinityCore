@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -26,6 +25,7 @@ EndScriptData */
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 #include "stratholme.h"
+#include "TemporarySummon.h"
 
 enum Spells
 {
@@ -45,15 +45,14 @@ public:
 
     CreatureAI* GetAI(Creature* creature) const override
     {
-        return GetInstanceAI<boss_ramstein_the_gorgerAI>(creature);
+        return GetStratholmeAI<boss_ramstein_the_gorgerAI>(creature);
     }
 
-    struct boss_ramstein_the_gorgerAI : public ScriptedAI
+    struct boss_ramstein_the_gorgerAI : public BossAI
     {
-        boss_ramstein_the_gorgerAI(Creature* creature) : ScriptedAI(creature)
+        boss_ramstein_the_gorgerAI(Creature* creature) : BossAI(creature, BOSS_RAMSTEIN_THE_GORGER)
         {
             Initialize();
-            instance = me->GetInstanceScript();
         }
 
         void Initialize()
@@ -62,29 +61,25 @@ public:
             Knockout_Timer = 12000;
         }
 
-        InstanceScript* instance;
-
         uint32 Trample_Timer;
         uint32 Knockout_Timer;
 
         void Reset() override
         {
+            BossAI::Reset();
+
             Initialize();
         }
 
-        void EnterCombat(Unit* /*who*/) override
+        void JustDied(Unit* killer) override
         {
-        }
+            BossAI::JustDied(killer);
 
-        void JustDied(Unit* /*killer*/) override
-        {
             for (uint8 i = 0; i < 30; ++i)
             {
-                if (Creature* mob = me->SummonCreature(NPC_MINDLESS_UNDEAD, 3969.35f+irand(-10, 10), -3391.87f+irand(-10, 10), 119.11f, 5.91f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 1800000))
+                if (Creature* mob = me->SummonCreature(NPC_MINDLESS_UNDEAD, 3969.35f+irand(-10, 10), -3391.87f+irand(-10, 10), 119.11f, 5.91f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 30min))
                     mob->AI()->AttackStart(me->SelectNearestTarget(100.0f));
             }
-
-            instance->SetData(TYPE_RAMSTEIN, DONE);
         }
 
         void UpdateAI(uint32 diff) override
@@ -106,11 +101,8 @@ public:
                 DoCastVictim(SPELL_KNOCKOUT);
                 Knockout_Timer = 10000;
             } else Knockout_Timer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
-
 };
 
 void AddSC_boss_ramstein_the_gorger()

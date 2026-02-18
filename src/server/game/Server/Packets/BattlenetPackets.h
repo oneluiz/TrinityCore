@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,12 +15,13 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BattlenetPackets_h__
-#define BattlenetPackets_h__
+#ifndef TRINITYCORE_BATTLENET_PACKETS_H
+#define TRINITYCORE_BATTLENET_PACKETS_H
 
 #include "Packet.h"
-#include "MessageBuffer.h"
 #include "BattlenetRpcErrorCodes.h"
+#include "MessageBuffer.h"
+#include <array>
 
 namespace WorldPackets
 {
@@ -39,7 +40,7 @@ namespace WorldPackets
         class Notification final : public ServerPacket
         {
         public:
-            Notification() : ServerPacket(SMSG_BATTLENET_NOTIFICATION, 8 + 8 + 4 + 4) { }
+            explicit Notification() : ServerPacket(SMSG_BATTLENET_NOTIFICATION, 8 + 8 + 4 + 4) { }
 
             WorldPacket const* Write() override;
 
@@ -50,7 +51,7 @@ namespace WorldPackets
         class Response final : public ServerPacket
         {
         public:
-            Response() : ServerPacket(SMSG_BATTLENET_RESPONSE, 4 + 8 + 8 + 4 + 4) { }
+            explicit Response() : ServerPacket(SMSG_BATTLENET_RESPONSE, 4 + 8 + 8 + 4 + 4) { }
 
             WorldPacket const* Write() override;
 
@@ -59,32 +60,33 @@ namespace WorldPackets
             ByteBuffer Data;
         };
 
-        class SetSessionState final : public ServerPacket
+        class ConnectionStatus final : public ServerPacket
         {
         public:
-            SetSessionState() : ServerPacket(SMSG_BATTLENET_SET_SESSION_STATE, 1) { }
+            explicit ConnectionStatus() : ServerPacket(SMSG_BATTLE_NET_CONNECTION_STATUS, 1) { }
 
             WorldPacket const* Write() override;
 
             uint8 State = 0;
+            bool SuppressNotification = true;
         };
 
-        class RealmListTicket final : public ServerPacket
+        class ChangeRealmTicketResponse final : public ServerPacket
         {
         public:
-            RealmListTicket() : ServerPacket(SMSG_BATTLENET_REALM_LIST_TICKET) { }
+            explicit ChangeRealmTicketResponse() : ServerPacket(SMSG_CHANGE_REALM_TICKET_RESPONSE) { }
 
             WorldPacket const* Write() override;
 
-            uint32 Token;
-            bool Allow;
+            uint32 Token = 0;
+            bool Allow = false;
             ByteBuffer Ticket;
         };
 
         class Request final : public ClientPacket
         {
         public:
-            Request(WorldPacket&& packet) : ClientPacket(CMSG_BATTLENET_REQUEST, std::move(packet)) { }
+            explicit Request(WorldPacket&& packet) : ClientPacket(CMSG_BATTLENET_REQUEST, std::move(packet)) { }
 
             void Read() override;
 
@@ -92,17 +94,17 @@ namespace WorldPackets
             MessageBuffer Data;
         };
 
-        class RequestRealmListTicket final : public ClientPacket
+        class ChangeRealmTicket final : public ClientPacket
         {
         public:
-            RequestRealmListTicket(WorldPacket&& packet) : ClientPacket(CMSG_BATTLENET_REQUEST_REALM_LIST_TICKET, std::move(packet)) { }
+            explicit ChangeRealmTicket(WorldPacket&& packet) : ClientPacket(CMSG_CHANGE_REALM_TICKET, std::move(packet)) { }
 
             void Read() override;
 
             uint32 Token = 0;
-            std::array<uint8, 32> Secret;
+            std::array<uint8, 32> Secret = { };
         };
     }
 }
 
-#endif // BattlenetPackets_h__
+#endif // TRINITYCORE_BATTLENET_PACKETS_H

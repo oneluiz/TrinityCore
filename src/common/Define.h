@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -21,7 +20,7 @@
 
 #include "CompilerDefs.h"
 
-#if COMPILER == COMPILER_GNU
+#if TRINITY_COMPILER == TRINITY_COMPILER_GNU
 #  if !defined(__STDC_FORMAT_MACROS)
 #    define __STDC_FORMAT_MACROS
 #  endif
@@ -37,6 +36,9 @@
 #    undef _GLIBCXX_SYNCHRONIZATION_HAPPENS_AFTER
 #    define _GLIBCXX_SYNCHRONIZATION_HAPPENS_BEFORE(A) ANNOTATE_HAPPENS_BEFORE(A)
 #    define _GLIBCXX_SYNCHRONIZATION_HAPPENS_AFTER(A)  ANNOTATE_HAPPENS_AFTER(A)
+#  endif
+#  if defined(VALGRIND)
+#    include <valgrind/memcheck.h>
 #  endif
 #endif
 
@@ -55,20 +57,11 @@
 #  endif
 #endif
 
-#if PLATFORM == PLATFORM_WINDOWS
-#  define TRINITY_PATH_MAX MAX_PATH
-#  define _USE_MATH_DEFINES
-#  ifndef DECLSPEC_NORETURN
-#    define DECLSPEC_NORETURN __declspec(noreturn)
-#  endif //DECLSPEC_NORETURN
-#  ifndef DECLSPEC_DEPRECATED
-#    define DECLSPEC_DEPRECATED __declspec(deprecated)
-#  endif //DECLSPEC_DEPRECATED
-#else //PLATFORM != PLATFORM_WINDOWS
+#if TRINITY_PLATFORM == TRINITY_PLATFORM_WINDOWS
+#  define TRINITY_PATH_MAX 260
+#else // TRINITY_PLATFORM != TRINITY_PLATFORM_WINDOWS
 #  define TRINITY_PATH_MAX PATH_MAX
-#  define DECLSPEC_NORETURN
-#  define DECLSPEC_DEPRECATED
-#endif //PLATFORM
+#endif // TRINITY_PLATFORM
 
 #if !defined(COREDEBUG)
 #  define TRINITY_INLINE inline
@@ -79,27 +72,17 @@
 #  define TRINITY_INLINE
 #endif //!COREDEBUG
 
-#if COMPILER == COMPILER_GNU
-#  define ATTR_NORETURN __attribute__((__noreturn__))
+#if TRINITY_COMPILER == TRINITY_COMPILER_GNU
 #  define ATTR_PRINTF(F, V) __attribute__ ((__format__ (__printf__, F, V)))
-#  define ATTR_DEPRECATED __attribute__((__deprecated__))
-#  define TRINITY_CONSTEXPR constexpr
-#else //COMPILER != COMPILER_GNU
-#  define ATTR_NORETURN
+#else //TRINITY_COMPILER != TRINITY_COMPILER_GNU
 #  define ATTR_PRINTF(F, V)
-#  define ATTR_DEPRECATED
-#if _MSC_VER >= 1900
-#  define TRINITY_CONSTEXPR constexpr
-#else
-#  define TRINITY_CONSTEXPR
-#endif
-#endif //COMPILER == COMPILER_GNU
+#endif //TRINITY_COMPILER == TRINITY_COMPILER_GNU
 
 #ifdef TRINITY_API_USE_DYNAMIC_LINKING
-#  if COMPILER == COMPILER_MICROSOFT
+#  if TRINITY_COMPILER == TRINITY_COMPILER_MICROSOFT
 #    define TC_API_EXPORT __declspec(dllexport)
 #    define TC_API_IMPORT __declspec(dllimport)
-#  elif COMPILER == COMPILER_GNU
+#  elif TRINITY_COMPILER == TRINITY_COMPILER_GNU
 #    define TC_API_EXPORT __attribute__((visibility("default")))
 #    define TC_API_IMPORT
 #  else
@@ -116,10 +99,22 @@
 #  define TC_COMMON_API TC_API_IMPORT
 #endif
 
+#ifdef TRINITY_API_EXPORT_PROTO
+#  define TC_PROTO_API TC_API_EXPORT
+#else
+#  define TC_PROTO_API TC_API_IMPORT
+#endif
+
 #ifdef TRINITY_API_EXPORT_DATABASE
 #  define TC_DATABASE_API TC_API_EXPORT
 #else
 #  define TC_DATABASE_API TC_API_IMPORT
+#endif
+
+#ifdef TRINITY_API_EXPORT_NETWORK
+#  define TC_NETWORK_API TC_API_EXPORT
+#else
+#  define TC_NETWORK_API TC_API_IMPORT
 #endif
 
 #ifdef TRINITY_API_EXPORT_SHARED
@@ -134,6 +129,12 @@
 #  define TC_GAME_API TC_API_IMPORT
 #endif
 
+#ifdef TRINITY_API_EXPORT_MMAPS_COMMON
+#  define TC_MMAPS_COMMON_API TC_API_EXPORT
+#else
+#  define TC_MMAPS_COMMON_API TC_API_IMPORT
+#endif
+
 #define UI64FMTD "%" PRIu64
 #define UI64LIT(N) UINT64_C(N)
 
@@ -141,6 +142,9 @@
 #define SI64LIT(N) INT64_C(N)
 
 #define SZFMTD "%" PRIuPTR
+
+#define STRING_VIEW_FMT "%.*s"
+#define STRING_VIEW_FMT_ARG(str) static_cast<int>((str).length()), (str).data()
 
 typedef int64_t int64;
 typedef int32_t int32;
@@ -153,18 +157,13 @@ typedef uint8_t uint8;
 
 enum DBCFormer
 {
-    FT_NA = 'x',                                            //not used or unknown, 4 byte size
-    FT_NA_BYTE = 'X',                                       //not used or unknown, byte
-    FT_STRING = 's',                                        //char*
-    FT_STRING_NOT_LOCALIZED = 'S',                          //char* but without locale in DB2
-    FT_FLOAT = 'f',                                         //float
-    FT_INT = 'i',                                           //uint32
-    FT_BYTE = 'b',                                          //uint8
-    FT_LONG = 'l',                                          //uint64
-    FT_SORT = 'd',                                          //sorted by this field, field is not included
-    FT_IND = 'n',                                           //the same, but parsed to data
-    FT_SQL_PRESENT = 'p',                                   //Used in sql format to mark column present in sql dbc
-    FT_SQL_ABSENT = 'a'                                     //Used in sql format to mark column absent in sql dbc
+    FT_STRING = 's',                                        // LocalizedString*
+    FT_STRING_NOT_LOCALIZED = 'S',                          // char*
+    FT_FLOAT = 'f',                                         // float
+    FT_INT = 'i',                                           // uint32
+    FT_BYTE = 'b',                                          // uint8
+    FT_SHORT = 'h',                                         // uint16
+    FT_LONG = 'l'                                           // uint64
 };
 
 #endif //TRINITY_DEFINE_H

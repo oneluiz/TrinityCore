@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -25,14 +24,14 @@ EndScriptData */
 
 /* ContentData
 npc_aged_dying_ancient_kodo
-go_demon_portal
 EndContentData */
 
 #include "ScriptMgr.h"
+#include "GameObjectAI.h"
+#include "MotionMaster.h"
+#include "Player.h"
 #include "ScriptedCreature.h"
 #include "ScriptedGossip.h"
-#include "ScriptedEscortAI.h"
-#include "Player.h"
 #include "SpellInfo.h"
 
 enum DyingKodo
@@ -74,47 +73,55 @@ public:
             }
         }
 
-        void SpellHit(Unit* caster, SpellInfo const* spell) override
+        void SpellHit(WorldObject* caster, SpellInfo const* spellInfo) override
         {
-            if (spell->Id == SPELL_KODO_KOMBO_ITEM)
+            Unit* unitCaster = caster->ToUnit();
+            if (!unitCaster)
+                return;
+
+            if (spellInfo->Id == SPELL_KODO_KOMBO_ITEM)
             {
-                if (!(caster->HasAura(SPELL_KODO_KOMBO_PLAYER_BUFF) || me->HasAura(SPELL_KODO_KOMBO_DESPAWN_BUFF))
+                if (!(unitCaster->HasAura(SPELL_KODO_KOMBO_PLAYER_BUFF) || me->HasAura(SPELL_KODO_KOMBO_DESPAWN_BUFF))
                     && (me->GetEntry() == NPC_AGED_KODO || me->GetEntry() == NPC_DYING_KODO || me->GetEntry() == NPC_ANCIENT_KODO))
                 {
-                    caster->CastSpell(caster, SPELL_KODO_KOMBO_PLAYER_BUFF, true);
+                    unitCaster->CastSpell(unitCaster, SPELL_KODO_KOMBO_PLAYER_BUFF, true);
                     DoCast(me, SPELL_KODO_KOMBO_DESPAWN_BUFF, true);
 
                     me->UpdateEntry(NPC_TAMED_KODO);
                     me->CombatStop();
-                    me->DeleteThreatList();
-                    me->SetSpeed(MOVE_RUN, 0.6f, true);
-                    me->GetMotionMaster()->MoveFollow(caster, PET_FOLLOW_DIST, me->GetFollowAngle());
+                    me->SetFaction(FACTION_FRIENDLY);
+                    me->SetSpeedRate(MOVE_RUN, 0.6f);
+
+                    EngagementOver();
+
+                    me->GetMotionMaster()->MoveFollow(unitCaster, PET_FOLLOW_DIST, me->GetFollowAngle());
                     me->setActive(true);
+                    me->RemoveNpcFlag(UNIT_NPC_FLAG_GOSSIP);
                 }
             }
-            else if (spell->Id == SPELL_KODO_KOMBO_GOSSIP)
+            else if (spellInfo->Id == SPELL_KODO_KOMBO_GOSSIP)
             {
-                me->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
+                me->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
                 me->SetHomePosition(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation());
                 me->GetMotionMaster()->Clear();
                 me->GetMotionMaster()->MoveIdle();
                 me->setActive(false);
-                me->DespawnOrUnsummon(60000);
+                me->DespawnOrUnsummon(60s);
             }
         }
-    };
 
-    bool OnGossipHello(Player* player, Creature* creature) override
-    {
-        if (player->HasAura(SPELL_KODO_KOMBO_PLAYER_BUFF) && creature->HasAura(SPELL_KODO_KOMBO_DESPAWN_BUFF))
+        bool OnGossipHello(Player* player) override
         {
-            player->TalkedToCreature(creature->GetEntry(), ObjectGuid::Empty);
-            player->RemoveAurasDueToSpell(SPELL_KODO_KOMBO_PLAYER_BUFF);
-        }
+            if (player->HasAura(SPELL_KODO_KOMBO_PLAYER_BUFF) && me->HasAura(SPELL_KODO_KOMBO_DESPAWN_BUFF))
+            {
+                player->TalkedToCreature(me->GetEntry(), ObjectGuid::Empty);
+                player->RemoveAurasDueToSpell(SPELL_KODO_KOMBO_PLAYER_BUFF);
+            }
 
-        player->SEND_GOSSIP_MENU(player->GetGossipTextId(creature), creature->GetGUID());
-        return true;
-    }
+            SendGossipMenuFor(player, player->GetGossipTextId(me), me->GetGUID());
+            return true;
+        }
+    };
 
     CreatureAI* GetAI(Creature* creature) const override
     {
@@ -123,35 +130,7 @@ public:
 
 };
 
-/*######
-## go_demon_portal
-######*/
-
-enum DemonPortal
-{
-    NPC_DEMON_GUARDIAN          = 11937,
-    QUEST_PORTAL_OF_THE_LEGION  = 5581
-};
-
-class go_demon_portal : public GameObjectScript
-{
-    public:
-        go_demon_portal() : GameObjectScript("go_demon_portal") { }
-
-        bool OnGossipHello(Player* player, GameObject* go) override
-        {
-            if (player->GetQuestStatus(QUEST_PORTAL_OF_THE_LEGION) == QUEST_STATUS_INCOMPLETE && !go->FindNearestCreature(NPC_DEMON_GUARDIAN, 5.0f, true))
-            {
-                if (Creature* guardian = player->SummonCreature(NPC_DEMON_GUARDIAN, go->GetPositionX(), go->GetPositionY(), go->GetPositionZ(), 0.0f, TEMPSUMMON_DEAD_DESPAWN, 0))
-                    guardian->AI()->AttackStart(player);
-            }
-
-            return true;
-        }
-};
-
 void AddSC_desolace()
 {
     new npc_aged_dying_ancient_kodo();
-    new go_demon_portal();
 }

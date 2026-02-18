@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,12 +18,34 @@
 #ifndef UpdateFetcher_h__
 #define UpdateFetcher_h__
 
-#include <DBUpdater.h>
-
+#include "Common.h"
+#include "DatabaseEnvFwd.h"
 #include <functional>
+#include <set>
 #include <string>
-#include <memory>
+#include <unordered_map>
 #include <vector>
+
+namespace boost
+{
+    namespace filesystem
+    {
+        class path;
+    }
+}
+
+struct TC_DATABASE_API UpdateResult
+{
+    UpdateResult()
+        : updated(0), recent(0), archived(0) { }
+
+    UpdateResult(size_t const updated_, size_t const recent_, size_t const archived_)
+        : updated(updated_), recent(recent_), archived(archived_) { }
+
+    size_t updated;
+    size_t recent;
+    size_t archived;
+};
 
 class TC_DATABASE_API UpdateFetcher
 {
@@ -34,6 +56,7 @@ public:
         std::function<void(std::string const&)> const& apply,
         std::function<void(Path const& path)> const& applyFile,
         std::function<QueryResult(std::string const&)> const& retrieve);
+    ~UpdateFetcher();
 
     UpdateResult Update(bool const redundancyChecks, bool const allowRehash,
                   bool const archivedRedundancy, int32 const cleanDeadReferencesMaxCount) const;
@@ -64,39 +87,38 @@ private:
 
         uint64 const timestamp;
 
-        static inline State StateConvert(std::string const& state)
+        static inline State StateConvert(std::string_view const& state)
         {
-            return (state == "RELEASED") ? RELEASED : ARCHIVED;
+            return (state == "RELEASED"sv) ? RELEASED : ARCHIVED;
         }
 
-        static inline std::string StateConvert(State const state)
+        static inline std::string_view StateConvert(State const state)
         {
-            return (state == RELEASED) ? "RELEASED" : "ARCHIVED";
+            return (state == RELEASED) ? "RELEASED"sv : "ARCHIVED"sv;
         }
 
-        std::string GetStateAsString() const
+        std::string_view GetStateAsString() const
         {
             return StateConvert(state);
         }
     };
 
-    struct DirectoryEntry
-    {
-        DirectoryEntry(Path const& path_, State state_) : path(path_), state(state_) { }
-
-        Path const path;
-
-        State const state;
-    };
+    struct DirectoryEntry;
 
     typedef std::pair<Path, State> LocaleFileEntry;
 
     struct PathCompare
     {
-        inline bool operator() (LocaleFileEntry const& left, LocaleFileEntry const& right) const
+        static std::string MakeComparisonObject(LocaleFileEntry const& arg);
+        static std::string const& MakeComparisonObject(std::string const& arg) { return arg; }
+
+        template<typename L, typename R>
+        bool operator()(L const& left, R const& right) const
         {
-            return left.first.filename().string() < right.first.filename().string();
+            return PathCompare::MakeComparisonObject(left) < PathCompare::MakeComparisonObject(right);
         }
+
+        using is_transparent = int;
     };
 
     typedef std::set<LocaleFileEntry, PathCompare> LocaleFileStorage;
@@ -112,7 +134,6 @@ private:
     AppliedFileStorage ReceiveAppliedFiles() const;
 
     std::string ReadSQLUpdate(Path const& file) const;
-    std::string CalculateHash(std::string const& query) const;
 
     uint32 Apply(Path const& path) const;
 
@@ -122,7 +143,7 @@ private:
 
     void UpdateState(std::string const& name, State const state) const;
 
-    Path const _sourceDirectory;
+    std::unique_ptr<Path> const _sourceDirectory;
 
     std::function<void(std::string const&)> const _apply;
     std::function<void(Path const& path)> const _applyFile;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,8 +17,8 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
-#include "SpellScript.h"
 #include "SpellAuraEffects.h"
+#include "SpellScript.h"
 #include "zulaman.h"
 
 enum Says
@@ -56,10 +56,10 @@ class boss_hexlord_malacrass : public CreatureScript
                 _Reset();
             }
 
-            void EnterCombat(Unit* /*who*/) override
+            void JustEngagedWith(Unit* who) override
             {
                 Talk(SAY_AGGRO);
-                _EnterCombat();
+                BossAI::JustEngagedWith(who);
             }
 
             void JustDied(Unit* /*killer*/) override
@@ -93,17 +93,16 @@ class boss_hexlord_malacrass : public CreatureScript
                     }
                 }
                 */
-
-                DoMeleeAttackIfReady();
             }
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return GetInstanceAI<boss_hex_lord_malacrassAI>(creature);
+            return GetZulAmanAI<boss_hex_lord_malacrassAI>(creature);
         }
 };
 
+// 43522 - Unstable Affliction
 class spell_hexlord_unstable_affliction : public SpellScriptLoader
 {
     public:
@@ -111,19 +110,15 @@ class spell_hexlord_unstable_affliction : public SpellScriptLoader
 
         class spell_hexlord_unstable_affliction_AuraScript : public AuraScript
         {
-            PrepareAuraScript(spell_hexlord_unstable_affliction_AuraScript);
-
             bool Validate(SpellInfo const* /*spell*/) override
             {
-                if (!sSpellMgr->GetSpellInfo(SPELL_WL_UNSTABLE_AFFL_DISPEL))
-                    return false;
-                return true;
+                return ValidateSpellInfo({ SPELL_WL_UNSTABLE_AFFL_DISPEL });
             }
 
             void HandleDispel(DispelInfo* dispelInfo)
             {
                 if (Unit* caster = GetCaster())
-                    caster->CastSpell(dispelInfo->GetDispeller(), SPELL_WL_UNSTABLE_AFFL_DISPEL, true, NULL, GetEffect(EFFECT_0));
+                    caster->CastSpell(dispelInfo->GetDispeller(), SPELL_WL_UNSTABLE_AFFL_DISPEL, GetEffect(EFFECT_0));
             }
 
             void Register() override

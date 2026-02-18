@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -23,35 +22,50 @@
 #include "DBCEnums.h"
 #include "Battleground.h"
 #include "BattlegroundQueue.h"
+#include "UniqueTrackablePtr.h"
+#include <unordered_map>
 
-typedef std::map<uint32, Battleground*> BattlegroundContainer;
+class Battleground;
+struct BattlemasterListEntry;
+
+typedef std::map<uint32, Trinity::unique_trackable_ptr<Battleground>> BattlegroundContainer;
 typedef std::set<uint32> BattlegroundClientIdsContainer;
 
 typedef std::unordered_map<uint32, BattlegroundTypeId> BattleMastersMap;
 
-#define WS_CURRENCY_RESET_TIME 20001                    // Custom worldstate
+enum BattlegroundMisc
+{
+    BATTLEGROUND_OBJECTIVE_UPDATE_INTERVAL      = 1000
+};
 
 struct BattlegroundData
 {
     BattlegroundContainer m_Battlegrounds;
     BattlegroundClientIdsContainer m_ClientBattlegroundIds[MAX_BATTLEGROUND_BRACKETS];
-    BGFreeSlotQueueContainer BGFreeSlotQueue;
 };
 
 struct BattlegroundTemplate
 {
     BattlegroundTypeId Id;
-    uint16 MinPlayersPerTeam;
-    uint16 MaxPlayersPerTeam;
-    uint8 MinLevel;
-    uint8 MaxLevel;
-    Position StartLocation[BG_TEAMS_COUNT];
+    WorldSafeLocsEntry const* StartLocation[PVP_TEAMS_COUNT] = { };
     float MaxStartDistSq;
     uint8 Weight;
     uint32 ScriptId;
     BattlemasterListEntry const* BattlemasterEntry;
+    std::vector<int32> MapIDs;
 
-    bool IsArena() const { return BattlemasterEntry->InstanceType == MAP_ARENA; }
+    bool IsArena() const;
+    uint16 GetMinPlayersPerTeam() const;
+    uint16 GetMaxPlayersPerTeam() const;
+    uint8 GetMinLevel() const;
+    uint8 GetMaxLevel() const;
+};
+
+struct BattlegroundScriptTemplate
+{
+    int32 MapId;
+    BattlegroundTypeId Id;
+    uint32 ScriptId;
 };
 
 namespace WorldPackets
@@ -74,52 +88,53 @@ class TC_GAME_API BattlegroundMgr
         ~BattlegroundMgr();
 
     public:
+        BattlegroundMgr(BattlegroundMgr const& right) = delete;
+        BattlegroundMgr(BattlegroundMgr&& right) = delete;
+        BattlegroundMgr& operator=(BattlegroundMgr const& right) = delete;
+        BattlegroundMgr& operator=(BattlegroundMgr&& right) = delete;
+
         static BattlegroundMgr* instance();
 
         void Update(uint32 diff);
 
         /* Packet Building */
         void SendBattlegroundList(Player* player, ObjectGuid const& guid, BattlegroundTypeId bgTypeId);
-        void BuildBattlegroundStatusHeader(WorldPackets::Battleground::BattlefieldStatusHeader* battlefieldStatus, Battleground* bg, Player* player, uint32 ticketId, uint32 joinTime, uint32 arenaType);
-        void BuildBattlegroundStatusNone(WorldPackets::Battleground::BattlefieldStatusNone* battlefieldStatus, Player* player, uint32 ticketId, uint32 joinTime, uint32 arenaType);
-        void BuildBattlegroundStatusNeedConfirmation(WorldPackets::Battleground::BattlefieldStatusNeedConfirmation* battlefieldStatus, Battleground* bg, Player* player, uint32 ticketId, uint32 joinTime, uint32 timeout, uint32 arenaType);
-        void BuildBattlegroundStatusActive(WorldPackets::Battleground::BattlefieldStatusActive* battlefieldStatus, Battleground* bg, Player* player, uint32 ticketId, uint32 joinTime, uint32 arenaType);
-        void BuildBattlegroundStatusQueued(WorldPackets::Battleground::BattlefieldStatusQueued* battlefieldStatus, Battleground* bg, Player* player, uint32 ticketId, uint32 joinTime, uint32 avgWaitTime, uint32 arenaType, bool asGroup);
-        void BuildBattlegroundStatusFailed(WorldPackets::Battleground::BattlefieldStatusFailed* battlefieldStatus, Battleground* bg, Player* pPlayer, uint32 ticketId, uint32 arenaType, GroupJoinBattlegroundResult result, ObjectGuid const* errorGuid = nullptr);
-        void SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid const& guid);
+        static void BuildBattlegroundStatusHeader(WorldPackets::Battleground::BattlefieldStatusHeader* header, Player const* player, uint32 ticketId, uint32 joinTime, BattlegroundQueueTypeId queueId);
+        static void BuildBattlegroundStatusNone(WorldPackets::Battleground::BattlefieldStatusNone* battlefieldStatus, Player const* player, uint32 ticketId, uint32 joinTime);
+        static void BuildBattlegroundStatusNeedConfirmation(WorldPackets::Battleground::BattlefieldStatusNeedConfirmation* battlefieldStatus, Battleground const* bg, Player const* player, uint32 ticketId, uint32 joinTime, uint32 timeout, BattlegroundQueueTypeId queueId);
+        static void BuildBattlegroundStatusActive(WorldPackets::Battleground::BattlefieldStatusActive* battlefieldStatus, Battleground const* bg, Player const* player, uint32 ticketId, uint32 joinTime, BattlegroundQueueTypeId queueId);
+        static void BuildBattlegroundStatusQueued(WorldPackets::Battleground::BattlefieldStatusQueued* battlefieldStatus, Player const* player, uint32 ticketId, uint32 joinTime, BattlegroundQueueTypeId queueId, uint32 avgWaitTime, bool asGroup);
+        static void BuildBattlegroundStatusFailed(WorldPackets::Battleground::BattlefieldStatusFailed* battlefieldStatus, BattlegroundQueueTypeId queueId, Player const* player, uint32 ticketId, GroupJoinBattlegroundResult result, ObjectGuid const* errorGuid = nullptr);
 
         /* Battlegrounds */
         Battleground* GetBattleground(uint32 InstanceID, BattlegroundTypeId bgTypeId);
-        Battleground* GetBattlegroundTemplate(BattlegroundTypeId bgTypeId);
-        Battleground* CreateNewBattleground(BattlegroundTypeId bgTypeId, PvPDifficultyEntry const* bracketEntry, uint8 arenaType, bool isRated);
+        Battleground* CreateNewBattleground(BattlegroundQueueTypeId queueId, BattlegroundBracketId bracketId);
 
         void AddBattleground(Battleground* bg);
-        void RemoveBattleground(BattlegroundTypeId bgTypeId, uint32 instanceId);
-        void AddToBGFreeSlotQueue(BattlegroundTypeId bgTypeId, Battleground* bg);
-        void RemoveFromBGFreeSlotQueue(BattlegroundTypeId bgTypeId, uint32 instanceId);
-        BGFreeSlotQueueContainer& GetBGFreeSlotQueueStore(BattlegroundTypeId bgTypeId);
+        void AddToBGFreeSlotQueue(Battleground* bg);
+        void RemoveFromBGFreeSlotQueue(uint32 mapId, uint32 instanceId);
+        BGFreeSlotQueueContainer& GetBGFreeSlotQueueStore(uint32 mapId);
 
         void LoadBattlegroundTemplates();
         void DeleteAllBattlegrounds();
 
-        void SendToBattleground(Player* player, uint32 InstanceID, BattlegroundTypeId bgTypeId);
+        static void SendToBattleground(Player* player, Battleground const* battleground);
 
         /* Battleground queues */
-        BattlegroundQueue& GetBattlegroundQueue(BattlegroundQueueTypeId bgQueueTypeId) { return m_BattlegroundQueues[bgQueueTypeId]; }
-        void ScheduleQueueUpdate(uint32 arenaMatchmakerRating, uint8 arenaType, BattlegroundQueueTypeId bgQueueTypeId, BattlegroundTypeId bgTypeId, BattlegroundBracketId bracket_id);
+        static bool IsValidQueueId(BattlegroundQueueTypeId bgQueueTypeId);
+        BattlegroundQueue& GetBattlegroundQueue(BattlegroundQueueTypeId bgQueueTypeId) { return m_BattlegroundQueues.emplace(bgQueueTypeId, bgQueueTypeId).first->second; }
+        void ScheduleQueueUpdate(uint32 arenaMatchmakerRating, BattlegroundQueueTypeId bgQueueTypeId, BattlegroundBracketId bracket_id);
         uint32 GetPrematureFinishTime() const;
 
-        void ToggleArenaTesting();
+        // Return whether toggling was successful. In case of a non-existing battlemasterListId, or this battlemasterListId is not an arena, this would return false.
+        bool ToggleArenaTesting(uint32 battlemasterListId);
         void ToggleTesting();
 
-        void SetHolidayWeekends(uint32 mask);
-
-        bool isArenaTesting() const { return m_ArenaTesting; }
+        bool isArenaTesting() const { return m_ArenaTesting != 0; }
         bool isTesting() const { return m_Testing; }
 
-        static BattlegroundQueueTypeId BGQueueTypeId(BattlegroundTypeId bgTypeId, uint8 arenaType);
-        static BattlegroundTypeId BGTemplateId(BattlegroundQueueTypeId bgQueueTypeId);
-        static uint8 BGArenaType(BattlegroundQueueTypeId bgQueueTypeId);
+        static bool IsRandomBattleground(uint32 battlemasterListId);
+        static BattlegroundQueueTypeId BGQueueTypeId(uint16 battlemasterListId, BattlegroundQueueIdType type, bool rated, uint8 teamSize);
 
         static HolidayIds BGTypeToWeekendHolidayId(BattlegroundTypeId bgTypeId);
         static BattlegroundTypeId WeekendHolidayIdToBGType(HolidayIds holiday);
@@ -137,23 +152,6 @@ class TC_GAME_API BattlegroundMgr
             return BATTLEGROUND_TYPE_NONE;
         }
 
-    private:
-        bool CreateBattleground(BattlegroundTemplate const* bgTemplate);
-        uint32 CreateClientVisibleInstanceId(BattlegroundTypeId bgTypeId, BattlegroundBracketId bracket_id);
-        static bool IsArenaType(BattlegroundTypeId bgTypeId);
-        BattlegroundTypeId GetRandomBG(BattlegroundTypeId id);
-
-        typedef std::map<BattlegroundTypeId, BattlegroundData> BattlegroundDataContainer;
-        BattlegroundDataContainer bgDataStore;
-
-        BattlegroundQueue m_BattlegroundQueues[MAX_BATTLEGROUND_QUEUE_TYPES];
-
-        std::vector<uint64> m_QueueUpdateScheduler;
-        uint32 m_NextRatedArenaUpdate;
-        bool   m_ArenaTesting;
-        bool   m_Testing;
-        BattleMastersMap mBattleMastersMap;
-
         BattlegroundTemplate const* GetBattlegroundTemplateByTypeId(BattlegroundTypeId id)
         {
             BattlegroundTemplateMap::const_iterator itr = _battlegroundTemplates.find(id);
@@ -161,6 +159,38 @@ class TC_GAME_API BattlegroundMgr
                 return &itr->second;
             return nullptr;
         }
+
+        void LoadBattlegroundScriptTemplate();
+        BattlegroundScriptTemplate const* FindBattlegroundScriptTemplate(uint32 mapId, BattlegroundTypeId bgTypeId) const;
+
+        static void QueuePlayerForArena(Player const* player, uint8 teamSize, uint8 roles);
+
+    private:
+        uint32 CreateClientVisibleInstanceId(BattlegroundTypeId bgTypeId, BattlegroundBracketId bracket_id);
+        static bool IsArenaType(BattlegroundTypeId bgTypeId);
+        BattlegroundTypeId GetRandomBG(BattlegroundTypeId id);
+
+        typedef std::map<BattlegroundTypeId, BattlegroundData> BattlegroundDataContainer;
+        BattlegroundDataContainer bgDataStore;
+
+        std::map<BattlegroundQueueTypeId, BattlegroundQueue> m_BattlegroundQueues;
+        std::map<uint32 /*mapId*/, BGFreeSlotQueueContainer> m_BGFreeSlotQueue;
+
+        struct ScheduledQueueUpdate
+        {
+            uint32 ArenaMatchmakerRating;
+            BattlegroundQueueTypeId QueueId;
+            BattlegroundBracketId BracketId;
+
+            bool operator==(ScheduledQueueUpdate const& right) const = default;
+        };
+
+        std::vector<ScheduledQueueUpdate> m_QueueUpdateScheduler;
+        uint32 m_NextRatedArenaUpdate;
+        uint32 m_UpdateTimer;
+        uint32 m_ArenaTesting;
+        bool   m_Testing;
+        BattleMastersMap mBattleMastersMap;
 
         BattlegroundTemplate const* GetBattlegroundTemplateByMapId(uint32 mapId)
         {
@@ -170,12 +200,12 @@ class TC_GAME_API BattlegroundMgr
             return nullptr;
         }
 
-        typedef std::map<BattlegroundTypeId, uint8 /*weight*/> BattlegroundSelectionWeightMap;
-
         typedef std::map<BattlegroundTypeId, BattlegroundTemplate> BattlegroundTemplateMap;
         typedef std::map<uint32 /*mapId*/, BattlegroundTemplate*> BattlegroundMapTemplateContainer;
         BattlegroundTemplateMap _battlegroundTemplates;
         BattlegroundMapTemplateContainer _battlegroundMapTemplates;
+
+        std::map<std::pair<int32, uint32>, BattlegroundScriptTemplate> _battlegroundScriptTemplates;
 };
 
 #define sBattlegroundMgr BattlegroundMgr::instance()

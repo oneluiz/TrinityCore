@@ -39,21 +39,23 @@ namespace presence {
 namespace v1 {
 
 // Internal implementation detail -- do not call these.
-void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
 void protobuf_AssignDesc_presence_5fservice_2eproto();
 void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
 class SubscribeRequest;
-class SubscribeNotificationRequest;
 class UnsubscribeRequest;
 class UpdateRequest;
 class QueryRequest;
 class QueryResponse;
-class OwnershipRequest;
+class BatchSubscribeRequest;
+class SubscribeResult;
+class BatchSubscribeResponse;
+class BatchUnsubscribeRequest;
 
 // ===================================================================
 
-class TC_SHARED_API SubscribeRequest : public ::google::protobuf::Message {
+class TC_PROTO_API SubscribeRequest : public ::google::protobuf::Message {
  public:
   SubscribeRequest();
   virtual ~SubscribeRequest();
@@ -81,19 +83,6 @@ class TC_SHARED_API SubscribeRequest : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   SubscribeRequest* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const SubscribeRequest& from);
-  void MergeFrom(const SubscribeRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -143,12 +132,17 @@ class TC_SHARED_API SubscribeRequest : public ::google::protobuf::Message {
   inline ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >*
       mutable_program();
 
-  // optional bool flag_public = 5 [default = true, deprecated = true];
-  inline bool has_flag_public() const PROTOBUF_DEPRECATED;
-  inline void clear_flag_public() PROTOBUF_DEPRECATED;
-  static const int kFlagPublicFieldNumber = 5;
-  inline bool flag_public() const PROTOBUF_DEPRECATED;
-  inline void set_flag_public(bool value) PROTOBUF_DEPRECATED;
+  // repeated .bgs.protocol.presence.v1.FieldKey key = 6;
+  inline int key_size() const;
+  inline void clear_key();
+  static const int kKeyFieldNumber = 6;
+  inline const ::bgs::protocol::presence::v1::FieldKey& key(int index) const;
+  inline ::bgs::protocol::presence::v1::FieldKey* mutable_key(int index);
+  inline ::bgs::protocol::presence::v1::FieldKey* add_key();
+  inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >&
+      key() const;
+  inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >*
+      mutable_key();
 
   // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.SubscribeRequest)
  private:
@@ -158,8 +152,6 @@ class TC_SHARED_API SubscribeRequest : public ::google::protobuf::Message {
   inline void clear_has_entity_id();
   inline void set_has_object_id();
   inline void clear_has_object_id();
-  inline void set_has_flag_public();
-  inline void clear_has_flag_public();
 
   ::google::protobuf::UnknownFieldSet _unknown_fields_;
 
@@ -169,8 +161,8 @@ class TC_SHARED_API SubscribeRequest : public ::google::protobuf::Message {
   ::bgs::protocol::EntityId* entity_id_;
   ::google::protobuf::uint64 object_id_;
   ::google::protobuf::RepeatedField< ::google::protobuf::uint32 > program_;
-  bool flag_public_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+  ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey > key_;
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
   friend void protobuf_AssignDesc_presence_5fservice_2eproto();
   friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
@@ -179,88 +171,7 @@ class TC_SHARED_API SubscribeRequest : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
-class TC_SHARED_API SubscribeNotificationRequest : public ::google::protobuf::Message {
- public:
-  SubscribeNotificationRequest();
-  virtual ~SubscribeNotificationRequest();
-
-  SubscribeNotificationRequest(const SubscribeNotificationRequest& from);
-
-  inline SubscribeNotificationRequest& operator=(const SubscribeNotificationRequest& from) {
-    CopyFrom(from);
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
-    return _unknown_fields_;
-  }
-
-  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
-    return &_unknown_fields_;
-  }
-
-  static const ::google::protobuf::Descriptor* descriptor();
-  static const SubscribeNotificationRequest& default_instance();
-
-  void Swap(SubscribeNotificationRequest* other);
-
-  // implements Message ----------------------------------------------
-
-  SubscribeNotificationRequest* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const SubscribeNotificationRequest& from);
-  void MergeFrom(const SubscribeNotificationRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
-  int GetCachedSize() const { return _cached_size_; }
-  private:
-  void SharedCtor();
-  void SharedDtor();
-  void SetCachedSize(int size) const;
-  public:
-  ::google::protobuf::Metadata GetMetadata() const;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  // required .bgs.protocol.EntityId entity_id = 1;
-  inline bool has_entity_id() const;
-  inline void clear_entity_id();
-  static const int kEntityIdFieldNumber = 1;
-  inline const ::bgs::protocol::EntityId& entity_id() const;
-  inline ::bgs::protocol::EntityId* mutable_entity_id();
-  inline ::bgs::protocol::EntityId* release_entity_id();
-  inline void set_allocated_entity_id(::bgs::protocol::EntityId* entity_id);
-
-  // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.SubscribeNotificationRequest)
- private:
-  inline void set_has_entity_id();
-  inline void clear_has_entity_id();
-
-  ::google::protobuf::UnknownFieldSet _unknown_fields_;
-
-  ::google::protobuf::uint32 _has_bits_[1];
-  mutable int _cached_size_;
-  ::bgs::protocol::EntityId* entity_id_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
-  friend void protobuf_AssignDesc_presence_5fservice_2eproto();
-  friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
-
-  void InitAsDefaultInstance();
-  static SubscribeNotificationRequest* default_instance_;
-};
-// -------------------------------------------------------------------
-
-class TC_SHARED_API UnsubscribeRequest : public ::google::protobuf::Message {
+class TC_PROTO_API UnsubscribeRequest : public ::google::protobuf::Message {
  public:
   UnsubscribeRequest();
   virtual ~UnsubscribeRequest();
@@ -288,19 +199,6 @@ class TC_SHARED_API UnsubscribeRequest : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   UnsubscribeRequest* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const UnsubscribeRequest& from);
-  void MergeFrom(const UnsubscribeRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -354,7 +252,7 @@ class TC_SHARED_API UnsubscribeRequest : public ::google::protobuf::Message {
   ::bgs::protocol::EntityId* agent_id_;
   ::bgs::protocol::EntityId* entity_id_;
   ::google::protobuf::uint64 object_id_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
   friend void protobuf_AssignDesc_presence_5fservice_2eproto();
   friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
@@ -363,7 +261,7 @@ class TC_SHARED_API UnsubscribeRequest : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
-class TC_SHARED_API UpdateRequest : public ::google::protobuf::Message {
+class TC_PROTO_API UpdateRequest : public ::google::protobuf::Message {
  public:
   UpdateRequest();
   virtual ~UpdateRequest();
@@ -391,19 +289,6 @@ class TC_SHARED_API UpdateRequest : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   UpdateRequest* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const UpdateRequest& from);
-  void MergeFrom(const UpdateRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -437,7 +322,7 @@ class TC_SHARED_API UpdateRequest : public ::google::protobuf::Message {
   inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldOperation >*
       mutable_field_operation();
 
-  // optional bool no_create = 3 [default = false];
+  // optional bool no_create = 3;
   inline bool has_no_create() const;
   inline void clear_no_create();
   static const int kNoCreateFieldNumber = 3;
@@ -470,7 +355,7 @@ class TC_SHARED_API UpdateRequest : public ::google::protobuf::Message {
   ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldOperation > field_operation_;
   ::bgs::protocol::EntityId* agent_id_;
   bool no_create_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
   friend void protobuf_AssignDesc_presence_5fservice_2eproto();
   friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
@@ -479,7 +364,7 @@ class TC_SHARED_API UpdateRequest : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
-class TC_SHARED_API QueryRequest : public ::google::protobuf::Message {
+class TC_PROTO_API QueryRequest : public ::google::protobuf::Message {
  public:
   QueryRequest();
   virtual ~QueryRequest();
@@ -507,19 +392,6 @@ class TC_SHARED_API QueryRequest : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   QueryRequest* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const QueryRequest& from);
-  void MergeFrom(const QueryRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -576,7 +448,7 @@ class TC_SHARED_API QueryRequest : public ::google::protobuf::Message {
   ::bgs::protocol::EntityId* entity_id_;
   ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey > key_;
   ::bgs::protocol::EntityId* agent_id_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
   friend void protobuf_AssignDesc_presence_5fservice_2eproto();
   friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
@@ -585,7 +457,7 @@ class TC_SHARED_API QueryRequest : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
-class TC_SHARED_API QueryResponse : public ::google::protobuf::Message {
+class TC_PROTO_API QueryResponse : public ::google::protobuf::Message {
  public:
   QueryResponse();
   virtual ~QueryResponse();
@@ -613,19 +485,6 @@ class TC_SHARED_API QueryResponse : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   QueryResponse* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const QueryResponse& from);
-  void MergeFrom(const QueryResponse& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -658,7 +517,7 @@ class TC_SHARED_API QueryResponse : public ::google::protobuf::Message {
   ::google::protobuf::uint32 _has_bits_[1];
   mutable int _cached_size_;
   ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::Field > field_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
   friend void protobuf_AssignDesc_presence_5fservice_2eproto();
   friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
@@ -667,14 +526,14 @@ class TC_SHARED_API QueryResponse : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
-class TC_SHARED_API OwnershipRequest : public ::google::protobuf::Message {
+class TC_PROTO_API BatchSubscribeRequest : public ::google::protobuf::Message {
  public:
-  OwnershipRequest();
-  virtual ~OwnershipRequest();
+  BatchSubscribeRequest();
+  virtual ~BatchSubscribeRequest();
 
-  OwnershipRequest(const OwnershipRequest& from);
+  BatchSubscribeRequest(const BatchSubscribeRequest& from);
 
-  inline OwnershipRequest& operator=(const OwnershipRequest& from) {
+  inline BatchSubscribeRequest& operator=(const BatchSubscribeRequest& from) {
     CopyFrom(from);
     return *this;
   }
@@ -688,26 +547,13 @@ class TC_SHARED_API OwnershipRequest : public ::google::protobuf::Message {
   }
 
   static const ::google::protobuf::Descriptor* descriptor();
-  static const OwnershipRequest& default_instance();
+  static const BatchSubscribeRequest& default_instance();
 
-  void Swap(OwnershipRequest* other);
+  void Swap(BatchSubscribeRequest* other);
 
   // implements Message ----------------------------------------------
 
-  OwnershipRequest* New() const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const OwnershipRequest& from);
-  void MergeFrom(const OwnershipRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
+  BatchSubscribeRequest* New() const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -720,7 +566,124 @@ class TC_SHARED_API OwnershipRequest : public ::google::protobuf::Message {
 
   // accessors -------------------------------------------------------
 
-  // required .bgs.protocol.EntityId entity_id = 1;
+  // optional .bgs.protocol.EntityId agent_id = 1;
+  inline bool has_agent_id() const;
+  inline void clear_agent_id();
+  static const int kAgentIdFieldNumber = 1;
+  inline const ::bgs::protocol::EntityId& agent_id() const;
+  inline ::bgs::protocol::EntityId* mutable_agent_id();
+  inline ::bgs::protocol::EntityId* release_agent_id();
+  inline void set_allocated_agent_id(::bgs::protocol::EntityId* agent_id);
+
+  // repeated .bgs.protocol.EntityId entity_id = 2;
+  inline int entity_id_size() const;
+  inline void clear_entity_id();
+  static const int kEntityIdFieldNumber = 2;
+  inline const ::bgs::protocol::EntityId& entity_id(int index) const;
+  inline ::bgs::protocol::EntityId* mutable_entity_id(int index);
+  inline ::bgs::protocol::EntityId* add_entity_id();
+  inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >&
+      entity_id() const;
+  inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >*
+      mutable_entity_id();
+
+  // repeated fixed32 program = 3;
+  inline int program_size() const;
+  inline void clear_program();
+  static const int kProgramFieldNumber = 3;
+  inline ::google::protobuf::uint32 program(int index) const;
+  inline void set_program(int index, ::google::protobuf::uint32 value);
+  inline void add_program(::google::protobuf::uint32 value);
+  inline const ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >&
+      program() const;
+  inline ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >*
+      mutable_program();
+
+  // repeated .bgs.protocol.presence.v1.FieldKey key = 4;
+  inline int key_size() const;
+  inline void clear_key();
+  static const int kKeyFieldNumber = 4;
+  inline const ::bgs::protocol::presence::v1::FieldKey& key(int index) const;
+  inline ::bgs::protocol::presence::v1::FieldKey* mutable_key(int index);
+  inline ::bgs::protocol::presence::v1::FieldKey* add_key();
+  inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >&
+      key() const;
+  inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >*
+      mutable_key();
+
+  // optional uint64 object_id = 5;
+  inline bool has_object_id() const;
+  inline void clear_object_id();
+  static const int kObjectIdFieldNumber = 5;
+  inline ::google::protobuf::uint64 object_id() const;
+  inline void set_object_id(::google::protobuf::uint64 value);
+
+  // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.BatchSubscribeRequest)
+ private:
+  inline void set_has_agent_id();
+  inline void clear_has_agent_id();
+  inline void set_has_object_id();
+  inline void clear_has_object_id();
+
+  ::google::protobuf::UnknownFieldSet _unknown_fields_;
+
+  ::google::protobuf::uint32 _has_bits_[1];
+  mutable int _cached_size_;
+  ::bgs::protocol::EntityId* agent_id_;
+  ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId > entity_id_;
+  ::google::protobuf::RepeatedField< ::google::protobuf::uint32 > program_;
+  ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey > key_;
+  ::google::protobuf::uint64 object_id_;
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void protobuf_AssignDesc_presence_5fservice_2eproto();
+  friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
+
+  void InitAsDefaultInstance();
+  static BatchSubscribeRequest* default_instance_;
+};
+// -------------------------------------------------------------------
+
+class TC_PROTO_API SubscribeResult : public ::google::protobuf::Message {
+ public:
+  SubscribeResult();
+  virtual ~SubscribeResult();
+
+  SubscribeResult(const SubscribeResult& from);
+
+  inline SubscribeResult& operator=(const SubscribeResult& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _unknown_fields_;
+  }
+
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return &_unknown_fields_;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const SubscribeResult& default_instance();
+
+  void Swap(SubscribeResult* other);
+
+  // implements Message ----------------------------------------------
+
+  SubscribeResult* New() const;
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  public:
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // optional .bgs.protocol.EntityId entity_id = 1;
   inline bool has_entity_id() const;
   inline void clear_entity_id();
   static const int kEntityIdFieldNumber = 1;
@@ -729,40 +692,204 @@ class TC_SHARED_API OwnershipRequest : public ::google::protobuf::Message {
   inline ::bgs::protocol::EntityId* release_entity_id();
   inline void set_allocated_entity_id(::bgs::protocol::EntityId* entity_id);
 
-  // optional bool release_ownership = 2 [default = false];
-  inline bool has_release_ownership() const;
-  inline void clear_release_ownership();
-  static const int kReleaseOwnershipFieldNumber = 2;
-  inline bool release_ownership() const;
-  inline void set_release_ownership(bool value);
+  // optional uint32 result = 2;
+  inline bool has_result() const;
+  inline void clear_result();
+  static const int kResultFieldNumber = 2;
+  inline ::google::protobuf::uint32 result() const;
+  inline void set_result(::google::protobuf::uint32 value);
 
-  // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.OwnershipRequest)
+  // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.SubscribeResult)
  private:
   inline void set_has_entity_id();
   inline void clear_has_entity_id();
-  inline void set_has_release_ownership();
-  inline void clear_has_release_ownership();
+  inline void set_has_result();
+  inline void clear_has_result();
 
   ::google::protobuf::UnknownFieldSet _unknown_fields_;
 
   ::google::protobuf::uint32 _has_bits_[1];
   mutable int _cached_size_;
   ::bgs::protocol::EntityId* entity_id_;
-  bool release_ownership_;
-  friend void TC_SHARED_API protobuf_AddDesc_presence_5fservice_2eproto();
+  ::google::protobuf::uint32 result_;
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
   friend void protobuf_AssignDesc_presence_5fservice_2eproto();
   friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
 
   void InitAsDefaultInstance();
-  static OwnershipRequest* default_instance_;
+  static SubscribeResult* default_instance_;
+};
+// -------------------------------------------------------------------
+
+class TC_PROTO_API BatchSubscribeResponse : public ::google::protobuf::Message {
+ public:
+  BatchSubscribeResponse();
+  virtual ~BatchSubscribeResponse();
+
+  BatchSubscribeResponse(const BatchSubscribeResponse& from);
+
+  inline BatchSubscribeResponse& operator=(const BatchSubscribeResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _unknown_fields_;
+  }
+
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return &_unknown_fields_;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const BatchSubscribeResponse& default_instance();
+
+  void Swap(BatchSubscribeResponse* other);
+
+  // implements Message ----------------------------------------------
+
+  BatchSubscribeResponse* New() const;
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  public:
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // repeated .bgs.protocol.presence.v1.SubscribeResult subscribe_failed = 1;
+  inline int subscribe_failed_size() const;
+  inline void clear_subscribe_failed();
+  static const int kSubscribeFailedFieldNumber = 1;
+  inline const ::bgs::protocol::presence::v1::SubscribeResult& subscribe_failed(int index) const;
+  inline ::bgs::protocol::presence::v1::SubscribeResult* mutable_subscribe_failed(int index);
+  inline ::bgs::protocol::presence::v1::SubscribeResult* add_subscribe_failed();
+  inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::SubscribeResult >&
+      subscribe_failed() const;
+  inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::SubscribeResult >*
+      mutable_subscribe_failed();
+
+  // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.BatchSubscribeResponse)
+ private:
+
+  ::google::protobuf::UnknownFieldSet _unknown_fields_;
+
+  ::google::protobuf::uint32 _has_bits_[1];
+  mutable int _cached_size_;
+  ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::SubscribeResult > subscribe_failed_;
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void protobuf_AssignDesc_presence_5fservice_2eproto();
+  friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
+
+  void InitAsDefaultInstance();
+  static BatchSubscribeResponse* default_instance_;
+};
+// -------------------------------------------------------------------
+
+class TC_PROTO_API BatchUnsubscribeRequest : public ::google::protobuf::Message {
+ public:
+  BatchUnsubscribeRequest();
+  virtual ~BatchUnsubscribeRequest();
+
+  BatchUnsubscribeRequest(const BatchUnsubscribeRequest& from);
+
+  inline BatchUnsubscribeRequest& operator=(const BatchUnsubscribeRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _unknown_fields_;
+  }
+
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return &_unknown_fields_;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const BatchUnsubscribeRequest& default_instance();
+
+  void Swap(BatchUnsubscribeRequest* other);
+
+  // implements Message ----------------------------------------------
+
+  BatchUnsubscribeRequest* New() const;
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  public:
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // optional .bgs.protocol.EntityId agent_id = 1;
+  inline bool has_agent_id() const;
+  inline void clear_agent_id();
+  static const int kAgentIdFieldNumber = 1;
+  inline const ::bgs::protocol::EntityId& agent_id() const;
+  inline ::bgs::protocol::EntityId* mutable_agent_id();
+  inline ::bgs::protocol::EntityId* release_agent_id();
+  inline void set_allocated_agent_id(::bgs::protocol::EntityId* agent_id);
+
+  // repeated .bgs.protocol.EntityId entity_id = 2;
+  inline int entity_id_size() const;
+  inline void clear_entity_id();
+  static const int kEntityIdFieldNumber = 2;
+  inline const ::bgs::protocol::EntityId& entity_id(int index) const;
+  inline ::bgs::protocol::EntityId* mutable_entity_id(int index);
+  inline ::bgs::protocol::EntityId* add_entity_id();
+  inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >&
+      entity_id() const;
+  inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >*
+      mutable_entity_id();
+
+  // optional uint64 object_id = 3;
+  inline bool has_object_id() const;
+  inline void clear_object_id();
+  static const int kObjectIdFieldNumber = 3;
+  inline ::google::protobuf::uint64 object_id() const;
+  inline void set_object_id(::google::protobuf::uint64 value);
+
+  // @@protoc_insertion_point(class_scope:bgs.protocol.presence.v1.BatchUnsubscribeRequest)
+ private:
+  inline void set_has_agent_id();
+  inline void clear_has_agent_id();
+  inline void set_has_object_id();
+  inline void clear_has_object_id();
+
+  ::google::protobuf::UnknownFieldSet _unknown_fields_;
+
+  ::google::protobuf::uint32 _has_bits_[1];
+  mutable int _cached_size_;
+  ::bgs::protocol::EntityId* agent_id_;
+  ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId > entity_id_;
+  ::google::protobuf::uint64 object_id_;
+  friend void TC_PROTO_API protobuf_AddDesc_presence_5fservice_2eproto();
+  friend void protobuf_AssignDesc_presence_5fservice_2eproto();
+  friend void protobuf_ShutdownFile_presence_5fservice_2eproto();
+
+  void InitAsDefaultInstance();
+  static BatchUnsubscribeRequest* default_instance_;
 };
 // ===================================================================
 
-class TC_SHARED_API PresenceService : public ServiceBase
+class TC_PROTO_API PresenceService : public ServiceBase
 {
  public:
 
   explicit PresenceService(bool use_original_hash);
+  PresenceService(PresenceService const&) = delete;
+  PresenceService(PresenceService&&) = delete;
+  PresenceService& operator=(PresenceService const&) = delete;
+  PresenceService& operator=(PresenceService&&) = delete;
   virtual ~PresenceService();
 
   typedef std::integral_constant<uint32, 0xFA0796FFu> OriginalHash;
@@ -770,34 +897,27 @@ class TC_SHARED_API PresenceService : public ServiceBase
 
   static google::protobuf::ServiceDescriptor const* descriptor();
 
-  // client methods --------------------------------------------------
-
-  void Subscribe(::bgs::protocol::presence::v1::SubscribeRequest const* request, std::function<void(::bgs::protocol::NoData const*)> responseCallback);
-  void Unsubscribe(::bgs::protocol::presence::v1::UnsubscribeRequest const* request, std::function<void(::bgs::protocol::NoData const*)> responseCallback);
-  void Update(::bgs::protocol::presence::v1::UpdateRequest const* request, std::function<void(::bgs::protocol::NoData const*)> responseCallback);
-  void Query(::bgs::protocol::presence::v1::QueryRequest const* request, std::function<void(::bgs::protocol::presence::v1::QueryResponse const*)> responseCallback);
-  void Ownership(::bgs::protocol::presence::v1::OwnershipRequest const* request, std::function<void(::bgs::protocol::NoData const*)> responseCallback);
-  void SubscribeNotification(::bgs::protocol::presence::v1::SubscribeNotificationRequest const* request, std::function<void(::bgs::protocol::NoData const*)> responseCallback);
-  // server methods --------------------------------------------------
-
-  void CallServerMethod(uint32 token, uint32 methodId, MessageBuffer buffer) override final;
+  void CallServerMethod(uint32 token, uint32 methodId, MessageBuffer buffer) final;
 
  protected:
-  virtual uint32 HandleSubscribe(::bgs::protocol::presence::v1::SubscribeRequest const* request, ::bgs::protocol::NoData* response);
-  virtual uint32 HandleUnsubscribe(::bgs::protocol::presence::v1::UnsubscribeRequest const* request, ::bgs::protocol::NoData* response);
-  virtual uint32 HandleUpdate(::bgs::protocol::presence::v1::UpdateRequest const* request, ::bgs::protocol::NoData* response);
-  virtual uint32 HandleQuery(::bgs::protocol::presence::v1::QueryRequest const* request, ::bgs::protocol::presence::v1::QueryResponse* response);
-  virtual uint32 HandleOwnership(::bgs::protocol::presence::v1::OwnershipRequest const* request, ::bgs::protocol::NoData* response);
-  virtual uint32 HandleSubscribeNotification(::bgs::protocol::presence::v1::SubscribeNotificationRequest const* request, ::bgs::protocol::NoData* response);
+  // server methods --------------------------------------------------
+  virtual uint32 HandleSubscribe(::bgs::protocol::presence::v1::SubscribeRequest const* request, ::bgs::protocol::NoData* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+  virtual uint32 HandleUnsubscribe(::bgs::protocol::presence::v1::UnsubscribeRequest const* request, ::bgs::protocol::NoData* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+  virtual uint32 HandleUpdate(::bgs::protocol::presence::v1::UpdateRequest const* request, ::bgs::protocol::NoData* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+  virtual uint32 HandleQuery(::bgs::protocol::presence::v1::QueryRequest const* request, ::bgs::protocol::presence::v1::QueryResponse* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+  virtual uint32 HandleBatchSubscribe(::bgs::protocol::presence::v1::BatchSubscribeRequest const* request, ::bgs::protocol::presence::v1::BatchSubscribeResponse* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+  virtual uint32 HandleBatchUnsubscribe(::bgs::protocol::presence::v1::BatchUnsubscribeRequest const* request, ::bgs::protocol::NoData* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
 
  private:
-  uint32 service_hash_;
-
-  GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(PresenceService);
+  void ParseAndHandleSubscribe(uint32 token, uint32 methodId, MessageBuffer& buffer);
+  void ParseAndHandleUnsubscribe(uint32 token, uint32 methodId, MessageBuffer& buffer);
+  void ParseAndHandleUpdate(uint32 token, uint32 methodId, MessageBuffer& buffer);
+  void ParseAndHandleQuery(uint32 token, uint32 methodId, MessageBuffer& buffer);
+  void ParseAndHandleBatchSubscribe(uint32 token, uint32 methodId, MessageBuffer& buffer);
+  void ParseAndHandleBatchUnsubscribe(uint32 token, uint32 methodId, MessageBuffer& buffer);
 };
 
 // ===================================================================
-
 
 // ===================================================================
 
@@ -939,73 +1059,34 @@ SubscribeRequest::mutable_program() {
   return &program_;
 }
 
-// optional bool flag_public = 5 [default = true, deprecated = true];
-inline bool SubscribeRequest::has_flag_public() const {
-  return (_has_bits_[0] & 0x00000010u) != 0;
+// repeated .bgs.protocol.presence.v1.FieldKey key = 6;
+inline int SubscribeRequest::key_size() const {
+  return key_.size();
 }
-inline void SubscribeRequest::set_has_flag_public() {
-  _has_bits_[0] |= 0x00000010u;
+inline void SubscribeRequest::clear_key() {
+  key_.Clear();
 }
-inline void SubscribeRequest::clear_has_flag_public() {
-  _has_bits_[0] &= ~0x00000010u;
+inline const ::bgs::protocol::presence::v1::FieldKey& SubscribeRequest::key(int index) const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.SubscribeRequest.key)
+  return key_.Get(index);
 }
-inline void SubscribeRequest::clear_flag_public() {
-  flag_public_ = true;
-  clear_has_flag_public();
+inline ::bgs::protocol::presence::v1::FieldKey* SubscribeRequest::mutable_key(int index) {
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.SubscribeRequest.key)
+  return key_.Mutable(index);
 }
-inline bool SubscribeRequest::flag_public() const {
-  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.SubscribeRequest.flag_public)
-  return flag_public_;
+inline ::bgs::protocol::presence::v1::FieldKey* SubscribeRequest::add_key() {
+  // @@protoc_insertion_point(field_add:bgs.protocol.presence.v1.SubscribeRequest.key)
+  return key_.Add();
 }
-inline void SubscribeRequest::set_flag_public(bool value) {
-  set_has_flag_public();
-  flag_public_ = value;
-  // @@protoc_insertion_point(field_set:bgs.protocol.presence.v1.SubscribeRequest.flag_public)
+inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >&
+SubscribeRequest::key() const {
+  // @@protoc_insertion_point(field_list:bgs.protocol.presence.v1.SubscribeRequest.key)
+  return key_;
 }
-
-// -------------------------------------------------------------------
-
-// SubscribeNotificationRequest
-
-// required .bgs.protocol.EntityId entity_id = 1;
-inline bool SubscribeNotificationRequest::has_entity_id() const {
-  return (_has_bits_[0] & 0x00000001u) != 0;
-}
-inline void SubscribeNotificationRequest::set_has_entity_id() {
-  _has_bits_[0] |= 0x00000001u;
-}
-inline void SubscribeNotificationRequest::clear_has_entity_id() {
-  _has_bits_[0] &= ~0x00000001u;
-}
-inline void SubscribeNotificationRequest::clear_entity_id() {
-  if (entity_id_ != NULL) entity_id_->::bgs::protocol::EntityId::Clear();
-  clear_has_entity_id();
-}
-inline const ::bgs::protocol::EntityId& SubscribeNotificationRequest::entity_id() const {
-  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.SubscribeNotificationRequest.entity_id)
-  return entity_id_ != NULL ? *entity_id_ : *default_instance_->entity_id_;
-}
-inline ::bgs::protocol::EntityId* SubscribeNotificationRequest::mutable_entity_id() {
-  set_has_entity_id();
-  if (entity_id_ == NULL) entity_id_ = new ::bgs::protocol::EntityId;
-  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.SubscribeNotificationRequest.entity_id)
-  return entity_id_;
-}
-inline ::bgs::protocol::EntityId* SubscribeNotificationRequest::release_entity_id() {
-  clear_has_entity_id();
-  ::bgs::protocol::EntityId* temp = entity_id_;
-  entity_id_ = NULL;
-  return temp;
-}
-inline void SubscribeNotificationRequest::set_allocated_entity_id(::bgs::protocol::EntityId* entity_id) {
-  delete entity_id_;
-  entity_id_ = entity_id;
-  if (entity_id) {
-    set_has_entity_id();
-  } else {
-    clear_has_entity_id();
-  }
-  // @@protoc_insertion_point(field_set_allocated:bgs.protocol.presence.v1.SubscribeNotificationRequest.entity_id)
+inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >*
+SubscribeRequest::mutable_key() {
+  // @@protoc_insertion_point(field_mutable_list:bgs.protocol.presence.v1.SubscribeRequest.key)
+  return &key_;
 }
 
 // -------------------------------------------------------------------
@@ -1193,7 +1274,7 @@ UpdateRequest::mutable_field_operation() {
   return &field_operation_;
 }
 
-// optional bool no_create = 3 [default = false];
+// optional bool no_create = 3;
 inline bool UpdateRequest::has_no_create() const {
   return (_has_bits_[0] & 0x00000004u) != 0;
 }
@@ -1410,39 +1491,198 @@ QueryResponse::mutable_field() {
 
 // -------------------------------------------------------------------
 
-// OwnershipRequest
+// BatchSubscribeRequest
 
-// required .bgs.protocol.EntityId entity_id = 1;
-inline bool OwnershipRequest::has_entity_id() const {
+// optional .bgs.protocol.EntityId agent_id = 1;
+inline bool BatchSubscribeRequest::has_agent_id() const {
   return (_has_bits_[0] & 0x00000001u) != 0;
 }
-inline void OwnershipRequest::set_has_entity_id() {
+inline void BatchSubscribeRequest::set_has_agent_id() {
   _has_bits_[0] |= 0x00000001u;
 }
-inline void OwnershipRequest::clear_has_entity_id() {
+inline void BatchSubscribeRequest::clear_has_agent_id() {
   _has_bits_[0] &= ~0x00000001u;
 }
-inline void OwnershipRequest::clear_entity_id() {
+inline void BatchSubscribeRequest::clear_agent_id() {
+  if (agent_id_ != NULL) agent_id_->::bgs::protocol::EntityId::Clear();
+  clear_has_agent_id();
+}
+inline const ::bgs::protocol::EntityId& BatchSubscribeRequest::agent_id() const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchSubscribeRequest.agent_id)
+  return agent_id_ != NULL ? *agent_id_ : *default_instance_->agent_id_;
+}
+inline ::bgs::protocol::EntityId* BatchSubscribeRequest::mutable_agent_id() {
+  set_has_agent_id();
+  if (agent_id_ == NULL) agent_id_ = new ::bgs::protocol::EntityId;
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.BatchSubscribeRequest.agent_id)
+  return agent_id_;
+}
+inline ::bgs::protocol::EntityId* BatchSubscribeRequest::release_agent_id() {
+  clear_has_agent_id();
+  ::bgs::protocol::EntityId* temp = agent_id_;
+  agent_id_ = NULL;
+  return temp;
+}
+inline void BatchSubscribeRequest::set_allocated_agent_id(::bgs::protocol::EntityId* agent_id) {
+  delete agent_id_;
+  agent_id_ = agent_id;
+  if (agent_id) {
+    set_has_agent_id();
+  } else {
+    clear_has_agent_id();
+  }
+  // @@protoc_insertion_point(field_set_allocated:bgs.protocol.presence.v1.BatchSubscribeRequest.agent_id)
+}
+
+// repeated .bgs.protocol.EntityId entity_id = 2;
+inline int BatchSubscribeRequest::entity_id_size() const {
+  return entity_id_.size();
+}
+inline void BatchSubscribeRequest::clear_entity_id() {
+  entity_id_.Clear();
+}
+inline const ::bgs::protocol::EntityId& BatchSubscribeRequest::entity_id(int index) const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchSubscribeRequest.entity_id)
+  return entity_id_.Get(index);
+}
+inline ::bgs::protocol::EntityId* BatchSubscribeRequest::mutable_entity_id(int index) {
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.BatchSubscribeRequest.entity_id)
+  return entity_id_.Mutable(index);
+}
+inline ::bgs::protocol::EntityId* BatchSubscribeRequest::add_entity_id() {
+  // @@protoc_insertion_point(field_add:bgs.protocol.presence.v1.BatchSubscribeRequest.entity_id)
+  return entity_id_.Add();
+}
+inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >&
+BatchSubscribeRequest::entity_id() const {
+  // @@protoc_insertion_point(field_list:bgs.protocol.presence.v1.BatchSubscribeRequest.entity_id)
+  return entity_id_;
+}
+inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >*
+BatchSubscribeRequest::mutable_entity_id() {
+  // @@protoc_insertion_point(field_mutable_list:bgs.protocol.presence.v1.BatchSubscribeRequest.entity_id)
+  return &entity_id_;
+}
+
+// repeated fixed32 program = 3;
+inline int BatchSubscribeRequest::program_size() const {
+  return program_.size();
+}
+inline void BatchSubscribeRequest::clear_program() {
+  program_.Clear();
+}
+inline ::google::protobuf::uint32 BatchSubscribeRequest::program(int index) const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchSubscribeRequest.program)
+  return program_.Get(index);
+}
+inline void BatchSubscribeRequest::set_program(int index, ::google::protobuf::uint32 value) {
+  program_.Set(index, value);
+  // @@protoc_insertion_point(field_set:bgs.protocol.presence.v1.BatchSubscribeRequest.program)
+}
+inline void BatchSubscribeRequest::add_program(::google::protobuf::uint32 value) {
+  program_.Add(value);
+  // @@protoc_insertion_point(field_add:bgs.protocol.presence.v1.BatchSubscribeRequest.program)
+}
+inline const ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >&
+BatchSubscribeRequest::program() const {
+  // @@protoc_insertion_point(field_list:bgs.protocol.presence.v1.BatchSubscribeRequest.program)
+  return program_;
+}
+inline ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >*
+BatchSubscribeRequest::mutable_program() {
+  // @@protoc_insertion_point(field_mutable_list:bgs.protocol.presence.v1.BatchSubscribeRequest.program)
+  return &program_;
+}
+
+// repeated .bgs.protocol.presence.v1.FieldKey key = 4;
+inline int BatchSubscribeRequest::key_size() const {
+  return key_.size();
+}
+inline void BatchSubscribeRequest::clear_key() {
+  key_.Clear();
+}
+inline const ::bgs::protocol::presence::v1::FieldKey& BatchSubscribeRequest::key(int index) const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchSubscribeRequest.key)
+  return key_.Get(index);
+}
+inline ::bgs::protocol::presence::v1::FieldKey* BatchSubscribeRequest::mutable_key(int index) {
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.BatchSubscribeRequest.key)
+  return key_.Mutable(index);
+}
+inline ::bgs::protocol::presence::v1::FieldKey* BatchSubscribeRequest::add_key() {
+  // @@protoc_insertion_point(field_add:bgs.protocol.presence.v1.BatchSubscribeRequest.key)
+  return key_.Add();
+}
+inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >&
+BatchSubscribeRequest::key() const {
+  // @@protoc_insertion_point(field_list:bgs.protocol.presence.v1.BatchSubscribeRequest.key)
+  return key_;
+}
+inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::FieldKey >*
+BatchSubscribeRequest::mutable_key() {
+  // @@protoc_insertion_point(field_mutable_list:bgs.protocol.presence.v1.BatchSubscribeRequest.key)
+  return &key_;
+}
+
+// optional uint64 object_id = 5;
+inline bool BatchSubscribeRequest::has_object_id() const {
+  return (_has_bits_[0] & 0x00000010u) != 0;
+}
+inline void BatchSubscribeRequest::set_has_object_id() {
+  _has_bits_[0] |= 0x00000010u;
+}
+inline void BatchSubscribeRequest::clear_has_object_id() {
+  _has_bits_[0] &= ~0x00000010u;
+}
+inline void BatchSubscribeRequest::clear_object_id() {
+  object_id_ = GOOGLE_ULONGLONG(0);
+  clear_has_object_id();
+}
+inline ::google::protobuf::uint64 BatchSubscribeRequest::object_id() const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchSubscribeRequest.object_id)
+  return object_id_;
+}
+inline void BatchSubscribeRequest::set_object_id(::google::protobuf::uint64 value) {
+  set_has_object_id();
+  object_id_ = value;
+  // @@protoc_insertion_point(field_set:bgs.protocol.presence.v1.BatchSubscribeRequest.object_id)
+}
+
+// -------------------------------------------------------------------
+
+// SubscribeResult
+
+// optional .bgs.protocol.EntityId entity_id = 1;
+inline bool SubscribeResult::has_entity_id() const {
+  return (_has_bits_[0] & 0x00000001u) != 0;
+}
+inline void SubscribeResult::set_has_entity_id() {
+  _has_bits_[0] |= 0x00000001u;
+}
+inline void SubscribeResult::clear_has_entity_id() {
+  _has_bits_[0] &= ~0x00000001u;
+}
+inline void SubscribeResult::clear_entity_id() {
   if (entity_id_ != NULL) entity_id_->::bgs::protocol::EntityId::Clear();
   clear_has_entity_id();
 }
-inline const ::bgs::protocol::EntityId& OwnershipRequest::entity_id() const {
-  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.OwnershipRequest.entity_id)
+inline const ::bgs::protocol::EntityId& SubscribeResult::entity_id() const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.SubscribeResult.entity_id)
   return entity_id_ != NULL ? *entity_id_ : *default_instance_->entity_id_;
 }
-inline ::bgs::protocol::EntityId* OwnershipRequest::mutable_entity_id() {
+inline ::bgs::protocol::EntityId* SubscribeResult::mutable_entity_id() {
   set_has_entity_id();
   if (entity_id_ == NULL) entity_id_ = new ::bgs::protocol::EntityId;
-  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.OwnershipRequest.entity_id)
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.SubscribeResult.entity_id)
   return entity_id_;
 }
-inline ::bgs::protocol::EntityId* OwnershipRequest::release_entity_id() {
+inline ::bgs::protocol::EntityId* SubscribeResult::release_entity_id() {
   clear_has_entity_id();
   ::bgs::protocol::EntityId* temp = entity_id_;
   entity_id_ = NULL;
   return temp;
 }
-inline void OwnershipRequest::set_allocated_entity_id(::bgs::protocol::EntityId* entity_id) {
+inline void SubscribeResult::set_allocated_entity_id(::bgs::protocol::EntityId* entity_id) {
   delete entity_id_;
   entity_id_ = entity_id;
   if (entity_id) {
@@ -1450,33 +1690,165 @@ inline void OwnershipRequest::set_allocated_entity_id(::bgs::protocol::EntityId*
   } else {
     clear_has_entity_id();
   }
-  // @@protoc_insertion_point(field_set_allocated:bgs.protocol.presence.v1.OwnershipRequest.entity_id)
+  // @@protoc_insertion_point(field_set_allocated:bgs.protocol.presence.v1.SubscribeResult.entity_id)
 }
 
-// optional bool release_ownership = 2 [default = false];
-inline bool OwnershipRequest::has_release_ownership() const {
+// optional uint32 result = 2;
+inline bool SubscribeResult::has_result() const {
   return (_has_bits_[0] & 0x00000002u) != 0;
 }
-inline void OwnershipRequest::set_has_release_ownership() {
+inline void SubscribeResult::set_has_result() {
   _has_bits_[0] |= 0x00000002u;
 }
-inline void OwnershipRequest::clear_has_release_ownership() {
+inline void SubscribeResult::clear_has_result() {
   _has_bits_[0] &= ~0x00000002u;
 }
-inline void OwnershipRequest::clear_release_ownership() {
-  release_ownership_ = false;
-  clear_has_release_ownership();
+inline void SubscribeResult::clear_result() {
+  result_ = 0u;
+  clear_has_result();
 }
-inline bool OwnershipRequest::release_ownership() const {
-  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.OwnershipRequest.release_ownership)
-  return release_ownership_;
+inline ::google::protobuf::uint32 SubscribeResult::result() const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.SubscribeResult.result)
+  return result_;
 }
-inline void OwnershipRequest::set_release_ownership(bool value) {
-  set_has_release_ownership();
-  release_ownership_ = value;
-  // @@protoc_insertion_point(field_set:bgs.protocol.presence.v1.OwnershipRequest.release_ownership)
+inline void SubscribeResult::set_result(::google::protobuf::uint32 value) {
+  set_has_result();
+  result_ = value;
+  // @@protoc_insertion_point(field_set:bgs.protocol.presence.v1.SubscribeResult.result)
 }
 
+// -------------------------------------------------------------------
+
+// BatchSubscribeResponse
+
+// repeated .bgs.protocol.presence.v1.SubscribeResult subscribe_failed = 1;
+inline int BatchSubscribeResponse::subscribe_failed_size() const {
+  return subscribe_failed_.size();
+}
+inline void BatchSubscribeResponse::clear_subscribe_failed() {
+  subscribe_failed_.Clear();
+}
+inline const ::bgs::protocol::presence::v1::SubscribeResult& BatchSubscribeResponse::subscribe_failed(int index) const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchSubscribeResponse.subscribe_failed)
+  return subscribe_failed_.Get(index);
+}
+inline ::bgs::protocol::presence::v1::SubscribeResult* BatchSubscribeResponse::mutable_subscribe_failed(int index) {
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.BatchSubscribeResponse.subscribe_failed)
+  return subscribe_failed_.Mutable(index);
+}
+inline ::bgs::protocol::presence::v1::SubscribeResult* BatchSubscribeResponse::add_subscribe_failed() {
+  // @@protoc_insertion_point(field_add:bgs.protocol.presence.v1.BatchSubscribeResponse.subscribe_failed)
+  return subscribe_failed_.Add();
+}
+inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::SubscribeResult >&
+BatchSubscribeResponse::subscribe_failed() const {
+  // @@protoc_insertion_point(field_list:bgs.protocol.presence.v1.BatchSubscribeResponse.subscribe_failed)
+  return subscribe_failed_;
+}
+inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::presence::v1::SubscribeResult >*
+BatchSubscribeResponse::mutable_subscribe_failed() {
+  // @@protoc_insertion_point(field_mutable_list:bgs.protocol.presence.v1.BatchSubscribeResponse.subscribe_failed)
+  return &subscribe_failed_;
+}
+
+// -------------------------------------------------------------------
+
+// BatchUnsubscribeRequest
+
+// optional .bgs.protocol.EntityId agent_id = 1;
+inline bool BatchUnsubscribeRequest::has_agent_id() const {
+  return (_has_bits_[0] & 0x00000001u) != 0;
+}
+inline void BatchUnsubscribeRequest::set_has_agent_id() {
+  _has_bits_[0] |= 0x00000001u;
+}
+inline void BatchUnsubscribeRequest::clear_has_agent_id() {
+  _has_bits_[0] &= ~0x00000001u;
+}
+inline void BatchUnsubscribeRequest::clear_agent_id() {
+  if (agent_id_ != NULL) agent_id_->::bgs::protocol::EntityId::Clear();
+  clear_has_agent_id();
+}
+inline const ::bgs::protocol::EntityId& BatchUnsubscribeRequest::agent_id() const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchUnsubscribeRequest.agent_id)
+  return agent_id_ != NULL ? *agent_id_ : *default_instance_->agent_id_;
+}
+inline ::bgs::protocol::EntityId* BatchUnsubscribeRequest::mutable_agent_id() {
+  set_has_agent_id();
+  if (agent_id_ == NULL) agent_id_ = new ::bgs::protocol::EntityId;
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.BatchUnsubscribeRequest.agent_id)
+  return agent_id_;
+}
+inline ::bgs::protocol::EntityId* BatchUnsubscribeRequest::release_agent_id() {
+  clear_has_agent_id();
+  ::bgs::protocol::EntityId* temp = agent_id_;
+  agent_id_ = NULL;
+  return temp;
+}
+inline void BatchUnsubscribeRequest::set_allocated_agent_id(::bgs::protocol::EntityId* agent_id) {
+  delete agent_id_;
+  agent_id_ = agent_id;
+  if (agent_id) {
+    set_has_agent_id();
+  } else {
+    clear_has_agent_id();
+  }
+  // @@protoc_insertion_point(field_set_allocated:bgs.protocol.presence.v1.BatchUnsubscribeRequest.agent_id)
+}
+
+// repeated .bgs.protocol.EntityId entity_id = 2;
+inline int BatchUnsubscribeRequest::entity_id_size() const {
+  return entity_id_.size();
+}
+inline void BatchUnsubscribeRequest::clear_entity_id() {
+  entity_id_.Clear();
+}
+inline const ::bgs::protocol::EntityId& BatchUnsubscribeRequest::entity_id(int index) const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchUnsubscribeRequest.entity_id)
+  return entity_id_.Get(index);
+}
+inline ::bgs::protocol::EntityId* BatchUnsubscribeRequest::mutable_entity_id(int index) {
+  // @@protoc_insertion_point(field_mutable:bgs.protocol.presence.v1.BatchUnsubscribeRequest.entity_id)
+  return entity_id_.Mutable(index);
+}
+inline ::bgs::protocol::EntityId* BatchUnsubscribeRequest::add_entity_id() {
+  // @@protoc_insertion_point(field_add:bgs.protocol.presence.v1.BatchUnsubscribeRequest.entity_id)
+  return entity_id_.Add();
+}
+inline const ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >&
+BatchUnsubscribeRequest::entity_id() const {
+  // @@protoc_insertion_point(field_list:bgs.protocol.presence.v1.BatchUnsubscribeRequest.entity_id)
+  return entity_id_;
+}
+inline ::google::protobuf::RepeatedPtrField< ::bgs::protocol::EntityId >*
+BatchUnsubscribeRequest::mutable_entity_id() {
+  // @@protoc_insertion_point(field_mutable_list:bgs.protocol.presence.v1.BatchUnsubscribeRequest.entity_id)
+  return &entity_id_;
+}
+
+// optional uint64 object_id = 3;
+inline bool BatchUnsubscribeRequest::has_object_id() const {
+  return (_has_bits_[0] & 0x00000004u) != 0;
+}
+inline void BatchUnsubscribeRequest::set_has_object_id() {
+  _has_bits_[0] |= 0x00000004u;
+}
+inline void BatchUnsubscribeRequest::clear_has_object_id() {
+  _has_bits_[0] &= ~0x00000004u;
+}
+inline void BatchUnsubscribeRequest::clear_object_id() {
+  object_id_ = GOOGLE_ULONGLONG(0);
+  clear_has_object_id();
+}
+inline ::google::protobuf::uint64 BatchUnsubscribeRequest::object_id() const {
+  // @@protoc_insertion_point(field_get:bgs.protocol.presence.v1.BatchUnsubscribeRequest.object_id)
+  return object_id_;
+}
+inline void BatchUnsubscribeRequest::set_object_id(::google::protobuf::uint64 value) {
+  set_has_object_id();
+  object_id_ = value;
+  // @@protoc_insertion_point(field_set:bgs.protocol.presence.v1.BatchUnsubscribeRequest.object_id)
+}
 
 // @@protoc_insertion_point(namespace_scope)
 
@@ -1488,8 +1860,6 @@ inline void OwnershipRequest::set_release_ownership(bool value) {
 #ifndef SWIG
 namespace google {
 namespace protobuf {
-
-
 }  // namespace google
 }  // namespace protobuf
 #endif  // SWIG

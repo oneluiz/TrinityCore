@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,14 +16,19 @@
  */
 
 #include "ChannelPackets.h"
+#include "Channel.h"
+#include "Errors.h"
+#include "PacketOperators.h"
 
-WorldPacket const* WorldPackets::Channel::ChannelListResponse::Write()
+namespace WorldPackets::Channel
 {
-    _worldPacket.WriteBit(_Display);
-    _worldPacket.WriteBits(_Channel.length(), 7);
+WorldPacket const* ChannelListResponse::Write()
+{
+    _worldPacket << Bits<1>(_Display);
+    _worldPacket << SizedString::BitsSize<7>(_Channel);
     _worldPacket << uint32(_ChannelFlags);
-    _worldPacket << uint32(_Members.size());
-    _worldPacket.WriteString(_Channel);
+    _worldPacket << Size<uint32>(_Members);
+    _worldPacket << SizedString::Data(_Channel);
 
     for (ChannelPlayer const& player : _Members)
     {
@@ -35,11 +40,11 @@ WorldPacket const* WorldPackets::Channel::ChannelListResponse::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Channel::ChannelNotify::Write()
+WorldPacket const* ChannelNotify::Write()
 {
-    _worldPacket.WriteBits(Type, 6);
-    _worldPacket.WriteBits(_Channel.length(), 7);
-    _worldPacket.WriteBits(Sender.length(), 6);
+    _worldPacket << Bits<6>(Type);
+    _worldPacket << SizedString::BitsSize<7>(_Channel);
+    _worldPacket << SizedString::BitsSize<6>(Sender);
 
     _worldPacket << SenderGuid;
     _worldPacket << SenderAccountID;
@@ -54,71 +59,102 @@ WorldPacket const* WorldPackets::Channel::ChannelNotify::Write()
         _worldPacket << uint8(NewFlags);
     }
 
-    _worldPacket.WriteString(_Channel);
-    _worldPacket.WriteString(Sender);
+    _worldPacket << SizedString::Data(_Channel);
+    _worldPacket << SizedString::Data(Sender);
 
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Channel::ChannelNotifyJoined::Write()
+WorldPacket const* ChannelNotifyJoined::Write()
 {
-    _worldPacket.WriteBits(_Channel.length(), 7);
-    _worldPacket.WriteBits(ChannelWelcomeMsg.length(), 10);
+    _worldPacket << SizedString::BitsSize<7>(_Channel);
+    _worldPacket << SizedString::BitsSize<11>(ChannelWelcomeMsg);
     _worldPacket << uint32(_ChannelFlags);
+    _worldPacket << uint8(Unknown1107);
     _worldPacket << int32(ChatChannelID);
     _worldPacket << uint64(InstanceID);
-    _worldPacket.WriteString(_Channel);
-    _worldPacket.WriteString(ChannelWelcomeMsg);
+    _worldPacket << ChannelGUID;
+    _worldPacket << SizedString::Data(_Channel);
+    _worldPacket << SizedString::Data(ChannelWelcomeMsg);
 
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Channel::ChannelNotifyLeft::Write()
+WorldPacket const* ChannelNotifyLeft::Write()
 {
-    _worldPacket.WriteBits(Channel.length(), 7);
-    _worldPacket.WriteBit(Suspended);
+    _worldPacket << SizedString::BitsSize<7>(Channel);
+    _worldPacket << Bits<1>(Suspended);
     _worldPacket << int32(ChatChannelID);
-    _worldPacket.WriteString(Channel);
+    _worldPacket << SizedString::Data(Channel);
 
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Channel::UserlistAdd::Write()
+WorldPacket const* UserlistAdd::Write()
 {
     _worldPacket << AddedUserGUID;
     _worldPacket << uint8(UserFlags);
     _worldPacket << uint32(_ChannelFlags);
     _worldPacket << uint32(ChannelID);
-    _worldPacket.WriteBits(ChannelName.length(), 7);
+    _worldPacket << SizedString::BitsSize<7>(ChannelName);
     _worldPacket.FlushBits();
-    _worldPacket.WriteString(ChannelName);
+
+    _worldPacket << SizedString::Data(ChannelName);
+
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Channel::UserlistRemove::Write()
+WorldPacket const* UserlistRemove::Write()
 {
     _worldPacket << RemovedUserGUID;
     _worldPacket << uint32(_ChannelFlags);
     _worldPacket << uint32(ChannelID);
-    _worldPacket.WriteBits(ChannelName.length(), 7);
+    _worldPacket << SizedString::BitsSize<7>(ChannelName);
     _worldPacket.FlushBits();
-    _worldPacket.WriteString(ChannelName);
+
+    _worldPacket << SizedString::Data(ChannelName);
+
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Channel::UserlistUpdate::Write()
+WorldPacket const* UserlistUpdate::Write()
 {
     _worldPacket << UpdatedUserGUID;
     _worldPacket << uint8(UserFlags);
     _worldPacket << uint32(_ChannelFlags);
-    _worldPacket << uint32(ChannelID);
-    _worldPacket.WriteBits(ChannelName.length(), 7);
+    _worldPacket << int32(ChannelID);
+    _worldPacket << SizedString::BitsSize<7>(ChannelName);
     _worldPacket.FlushBits();
-    _worldPacket.WriteString(ChannelName);
+
+    _worldPacket << SizedString::Data(ChannelName);
+
     return &_worldPacket;
 }
 
-void WorldPackets::Channel::ChannelPlayerCommand::Read()
+ChannelCommand::ChannelCommand(WorldPacket&& packet) : ClientPacket(std::move(packet))
+{
+    switch (packet.GetOpcode())
+    {
+        case CMSG_CHAT_CHANNEL_ANNOUNCEMENTS:
+        case CMSG_CHAT_CHANNEL_DECLINE_INVITE:
+        case CMSG_CHAT_CHANNEL_DISPLAY_LIST:
+        case CMSG_CHAT_CHANNEL_LIST:
+        case CMSG_CHAT_CHANNEL_OWNER:
+            break;
+        default:
+            ABORT();
+            break;
+    }
+}
+
+void ChannelCommand::Read()
+{
+    _worldPacket >> SizedString::BitsSize<7>(ChannelName);
+
+    _worldPacket >> SizedString::Data(ChannelName);
+}
+
+ChannelPlayerCommand::ChannelPlayerCommand(WorldPacket&& packet) : ClientPacket(std::move(packet))
 {
     switch (GetOpcode())
     {
@@ -126,60 +162,52 @@ void WorldPackets::Channel::ChannelPlayerCommand::Read()
         case CMSG_CHAT_CHANNEL_INVITE:
         case CMSG_CHAT_CHANNEL_KICK:
         case CMSG_CHAT_CHANNEL_MODERATOR:
-        case CMSG_CHAT_CHANNEL_MUTE:
         case CMSG_CHAT_CHANNEL_SET_OWNER:
         case CMSG_CHAT_CHANNEL_SILENCE_ALL:
-        case CMSG_CHAT_CHANNEL_SILENCE_VOICE:
         case CMSG_CHAT_CHANNEL_UNBAN:
         case CMSG_CHAT_CHANNEL_UNMODERATOR:
-        case CMSG_CHAT_CHANNEL_UNMUTE:
         case CMSG_CHAT_CHANNEL_UNSILENCE_ALL:
-        case CMSG_CHAT_CHANNEL_UNSILENCE_VOICE:
-        {
-            uint32 channelNameLength = _worldPacket.ReadBits(7);
-            uint32 nameLength = _worldPacket.ReadBits(9);
-            ChannelName = _worldPacket.ReadString(channelNameLength);
-            Name = _worldPacket.ReadString(nameLength);
             break;
-        }
-        case CMSG_CHAT_CHANNEL_ANNOUNCEMENTS:
-        case CMSG_CHAT_CHANNEL_DECLINE_INVITE:
-        case CMSG_CHAT_CHANNEL_DISPLAY_LIST:
-        case CMSG_CHAT_CHANNEL_LIST:
-        case CMSG_CHAT_CHANNEL_MODERATE:
-        case CMSG_CHAT_CHANNEL_OWNER:
-        case CMSG_CHAT_CHANNEL_VOICE_OFF:
-        case CMSG_CHAT_CHANNEL_VOICE_ON:
-        {
-            ChannelName = _worldPacket.ReadString(_worldPacket.ReadBits(7));
-            break;
-        }
-        case CMSG_CHAT_CHANNEL_PASSWORD:
-        {
-            uint32 channelNameLength = _worldPacket.ReadBits(7);
-            uint32 nameLength = _worldPacket.ReadBits(7);
-            ChannelName = _worldPacket.ReadString(channelNameLength);
-            Name = _worldPacket.ReadString(nameLength);
-            break;
-        }
         default:
+            ABORT();
             break;
     }
 }
 
-void WorldPackets::Channel::JoinChannel::Read()
+void ChannelPlayerCommand::Read()
 {
-    _worldPacket >> ChatChannelId;
-    CreateVoiceSession = _worldPacket.ReadBit();
-    Internal = _worldPacket.ReadBit();
-    uint32 channelLength = _worldPacket.ReadBits(7);
-    uint32 passwordLength = _worldPacket.ReadBits(7);
-    ChannelName = _worldPacket.ReadString(channelLength);
-    Password = _worldPacket.ReadString(passwordLength);
+    _worldPacket >> SizedString::BitsSize<7>(ChannelName);
+    _worldPacket >> SizedString::BitsSize<9>(Name);
+
+    _worldPacket >> SizedString::Data(ChannelName);
+    _worldPacket >> SizedString::Data(Name);
 }
 
-void WorldPackets::Channel::LeaveChannel::Read()
+void ChannelPassword::Read()
+{
+    _worldPacket >> SizedString::BitsSize<7>(ChannelName);
+    _worldPacket >> SizedString::BitsSize<7>(Password);
+
+    _worldPacket >> SizedString::Data(ChannelName);
+    _worldPacket >> SizedString::Data(Password);
+}
+
+void JoinChannel::Read()
+{
+    _worldPacket >> ChatChannelId;
+    _worldPacket >> Bits<1>(CreateVoiceSession);
+    _worldPacket >> Bits<1>(Internal);
+    _worldPacket >> SizedString::BitsSize<7>(ChannelName);
+    _worldPacket >> SizedString::BitsSize<7>(Password);
+
+    _worldPacket >> SizedString::Data(ChannelName);
+    _worldPacket >> SizedString::Data(Password);
+}
+
+void LeaveChannel::Read()
 {
     _worldPacket >> ZoneChannelID;
-    ChannelName = _worldPacket.ReadString(_worldPacket.ReadBits(7));
+    _worldPacket >> SizedString::BitsSize<7>(ChannelName);
+    _worldPacket >> SizedString::Data(ChannelName);
+}
 }

@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,29 +15,13 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-SDName: Terokkar_Forest
-SD%Complete: 85
-SDComment: Quest support: 9889, 10009, 10873, 10896, 10898, 11096, 10052, 10051. Skettis->Ogri'la Flight
-SDCategory: Terokkar Forest
-EndScriptData */
-
-/* ContentData
-npc_unkor_the_ruthless
-npc_infested_root_walker
-npc_rotting_forest_rager
-npc_floon
-npc_isla_starmane
-npc_slim
-EndContentData */
-
 #include "ScriptMgr.h"
-#include "ScriptedCreature.h"
-#include "ScriptedGossip.h"
-#include "ScriptedEscortAI.h"
+#include "Containers.h"
 #include "Group.h"
+#include "Map.h"
 #include "Player.h"
-#include "WorldSession.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
 
 /*######
 ## npc_unkor_the_ruthless
@@ -46,13 +29,11 @@ EndContentData */
 
 enum UnkorTheRuthless
 {
-    SAY_SUBMIT                      = 0,
-
-    FACTION_HOSTILE                 = 45,
-    FACTION_FRIENDLY                = 35,
-    QUEST_DONTKILLTHEFATONE         = 9889,
-
-    SPELL_PULVERIZE                 = 2676
+    SAY_SUBMIT              = 0,
+    REQUIRED_KILL_COUNT     = 10,
+    SPELL_PULVERIZE         = 2676,
+    QUEST_DONTKILLTHEFATONE = 9889,
+    NPC_BOULDERFIST_INVADER = 18260
 };
 
 class npc_unkor_the_ruthless : public CreatureScript
@@ -87,36 +68,37 @@ public:
         {
             Initialize();
             me->SetStandState(UNIT_STAND_STATE_STAND);
-            me->setFaction(FACTION_HOSTILE);
+            me->SetFaction(FACTION_OGRE);
         }
 
-        void EnterCombat(Unit* /*who*/) override { }
+        void JustEngagedWith(Unit* /*who*/) override { }
 
         void DoNice()
         {
             Talk(SAY_SUBMIT);
-            me->setFaction(FACTION_FRIENDLY);
+            me->SetFaction(FACTION_FRIENDLY);
             me->SetStandState(UNIT_STAND_STATE_SIT);
             me->RemoveAllAuras();
-            me->DeleteThreatList();
             me->CombatStop(true);
+            EngagementOver();
             UnkorUnfriendly_Timer = 60000;
         }
 
-        void DamageTaken(Unit* done_by, uint32 &damage) override
+        void DamageTaken(Unit* done_by, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override
         {
-            Player* player = done_by->ToPlayer();
+            if (!done_by || !me->HealthBelowPctDamaged(30, damage))
+                return;
 
-            if (player && me->HealthBelowPctDamaged(30, damage))
+            if (Player* player = done_by->ToPlayer())
             {
-                if (Group* group = player->GetGroup())
+                if (Group const* group = player->GetGroup())
                 {
-                    for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
+                    for (GroupReference const& itr : group->GetMembers())
                     {
-                        Player* groupie = itr->GetSource();
-                        if (groupie &&
+                        Player* groupie = itr.GetSource();
+                        if (groupie->IsInMap(player) &&
                             groupie->GetQuestStatus(QUEST_DONTKILLTHEFATONE) == QUEST_STATUS_INCOMPLETE &&
-                            groupie->GetReqKillOrCastCurrentCount(QUEST_DONTKILLTHEFATONE, 18260) == 10)
+                            groupie->GetReqKillOrCastCurrentCount(QUEST_DONTKILLTHEFATONE, NPC_BOULDERFIST_INVADER) == REQUIRED_KILL_COUNT)
                         {
                             groupie->AreaExploredOrEventHappens(QUEST_DONTKILLTHEFATONE);
                             if (!CanDoQuest)
@@ -125,7 +107,7 @@ public:
                     }
                 }
                 else if (player->GetQuestStatus(QUEST_DONTKILLTHEFATONE) == QUEST_STATUS_INCOMPLETE &&
-                    player->GetReqKillOrCastCurrentCount(QUEST_DONTKILLTHEFATONE, 18260) == 10)
+                    player->GetReqKillOrCastCurrentCount(QUEST_DONTKILLTHEFATONE, NPC_BOULDERFIST_INVADER) == REQUIRED_KILL_COUNT)
                 {
                     player->AreaExploredOrEventHappens(QUEST_DONTKILLTHEFATONE);
                     CanDoQuest = true;
@@ -160,509 +142,171 @@ public:
                 DoCast(me, SPELL_PULVERIZE);
                 Pulverize_Timer = 9000;
             } else Pulverize_Timer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 };
 
-/*######
-## npc_infested_root_walker
-######*/
-
-class npc_infested_root_walker : public CreatureScript
+// 40655 - Skyguard Flare
+class spell_skyguard_flare : public SpellScript
 {
-public:
-    npc_infested_root_walker() : CreatureScript("npc_infested_root_walker") { }
-
-    CreatureAI* GetAI(Creature* creature) const override
+    void ModDestHeight(SpellDestination& dest)
     {
-        return new npc_infested_root_walkerAI(creature);
+        dest._position.m_positionZ = GetCaster()->GetMap()->GetHeight(GetCaster()->GetPhaseShift(), dest._position.GetPositionX(), dest._position.GetPositionY(), MAX_HEIGHT);
     }
 
-    struct npc_infested_root_walkerAI : public ScriptedAI
+    void Register() override
     {
-        npc_infested_root_walkerAI(Creature* creature) : ScriptedAI(creature) { }
-
-        void Reset() override { }
-        void EnterCombat(Unit* /*who*/) override { }
-
-        void DamageTaken(Unit* done_by, uint32 &damage) override
-        {
-            if (done_by && done_by->GetTypeId() == TYPEID_PLAYER)
-                if (me->GetHealth() <= damage)
-                    if (rand32() % 100 < 75)
-                        //Summon Wood Mites
-                        DoCast(me, 39130, true);
-        }
-    };
-};
-
-/*######
-## npc_skywing
-######*/
-class npc_skywing : public CreatureScript
-{
-public:
-    npc_skywing() : CreatureScript("npc_skywing") { }
-
-    CreatureAI* GetAI(Creature* creature) const override
-    {
-        return new npc_skywingAI(creature);
-    }
-
-    struct npc_skywingAI : public npc_escortAI
-    {
-    public:
-        npc_skywingAI(Creature* creature) : npc_escortAI(creature) { }
-
-        void WaypointReached(uint32 waypointId) override
-        {
-            Player* player = GetPlayerForEscort();
-            if (!player)
-                return;
-
-            switch (waypointId)
-            {
-                case 8:
-                    player->AreaExploredOrEventHappens(10898);
-                    break;
-            }
-        }
-
-        void EnterCombat(Unit* /*who*/) override { }
-
-        void MoveInLineOfSight(Unit* who) override
-
-        {
-            if (HasEscortState(STATE_ESCORT_ESCORTING))
-                return;
-
-            Player* player = who->ToPlayer();
-            if (player && player->GetQuestStatus(10898) == QUEST_STATUS_INCOMPLETE)
-                if (me->IsWithinDistInMap(who, 10.0f))
-                    Start(false, false, who->GetGUID());
-        }
-
-        void Reset() override { }
-
-        void UpdateAI(uint32 diff) override
-        {
-            npc_escortAI::UpdateAI(diff);
-        }
-    };
-};
-
-/*######
-## npc_rotting_forest_rager
-######*/
-
-class npc_rotting_forest_rager : public CreatureScript
-{
-public:
-    npc_rotting_forest_rager() : CreatureScript("npc_rotting_forest_rager") { }
-
-    CreatureAI* GetAI(Creature* creature) const override
-    {
-        return new npc_rotting_forest_ragerAI(creature);
-    }
-
-    struct npc_rotting_forest_ragerAI : public ScriptedAI
-    {
-        npc_rotting_forest_ragerAI(Creature* creature) : ScriptedAI(creature) { }
-
-        void Reset() override { }
-        void EnterCombat(Unit* /*who*/) override { }
-
-        void DamageTaken(Unit* done_by, uint32 &damage) override
-        {
-            if (done_by->GetTypeId() == TYPEID_PLAYER)
-                if (me->GetHealth() <= damage)
-                    if (rand32() % 100 < 75)
-                        //Summon Lots of Wood Mights
-                        DoCast(me, 39134, true);
-        }
-    };
-};
-
-/*######
-## npc_floon
-######*/
-
-#define GOSSIP_FLOON1           "You owe Sim'salabim money. Hand them over or die!"
-#define GOSSIP_FLOON2           "Hand over the money or die...again!"
-
-enum Floon
-{
-    SAY_FLOON_ATTACK        = 0,
-
-    SPELL_SILENCE           = 6726,
-    SPELL_FROSTBOLT         = 9672,
-    SPELL_FROST_NOVA        = 11831,
-
-    FACTION_HOSTILE_FL      = 1738,
-    QUEST_CRACK_SKULLS      = 10009
-};
-
-class npc_floon : public CreatureScript
-{
-public:
-    npc_floon() : CreatureScript("npc_floon") { }
-
-    bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
-    {
-        player->PlayerTalkClass->ClearMenus();
-        if (action == GOSSIP_ACTION_INFO_DEF)
-        {
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_FLOON2, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+1);
-            player->SEND_GOSSIP_MENU(9443, creature->GetGUID());
-        }
-        if (action == GOSSIP_ACTION_INFO_DEF+1)
-        {
-            player->CLOSE_GOSSIP_MENU();
-            creature->setFaction(FACTION_HOSTILE_FL);
-            creature->AI()->Talk(SAY_FLOON_ATTACK, player);
-            creature->AI()->AttackStart(player);
-        }
-        return true;
-    }
-
-    bool OnGossipHello(Player* player, Creature* creature) override
-    {
-        if (player->GetQuestStatus(QUEST_CRACK_SKULLS) == QUEST_STATUS_INCOMPLETE)
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_FLOON1, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
-
-        player->SEND_GOSSIP_MENU(9442, creature->GetGUID());
-        return true;
-    }
-
-    CreatureAI* GetAI(Creature* creature) const override
-    {
-        return new npc_floonAI(creature);
-    }
-
-    struct npc_floonAI : public ScriptedAI
-    {
-        npc_floonAI(Creature* creature) : ScriptedAI(creature)
-        {
-            Initialize();
-            m_uiNormFaction = creature->getFaction();
-        }
-
-        void Initialize()
-        {
-            Silence_Timer = 2000;
-            Frostbolt_Timer = 4000;
-            FrostNova_Timer = 9000;
-        }
-
-        uint32 m_uiNormFaction;
-        uint32 Silence_Timer;
-        uint32 Frostbolt_Timer;
-        uint32 FrostNova_Timer;
-
-        void Reset() override
-        {
-            Initialize();
-            if (me->getFaction() != m_uiNormFaction)
-                me->setFaction(m_uiNormFaction);
-        }
-
-        void EnterCombat(Unit* /*who*/) override { }
-
-        void UpdateAI(uint32 diff) override
-        {
-            if (!UpdateVictim())
-                return;
-
-            if (Silence_Timer <= diff)
-            {
-                DoCastVictim(SPELL_SILENCE);
-                Silence_Timer = 30000;
-            } else Silence_Timer -= diff;
-
-            if (FrostNova_Timer <= diff)
-            {
-                DoCast(me, SPELL_FROST_NOVA);
-                FrostNova_Timer = 20000;
-            } else FrostNova_Timer -= diff;
-
-            if (Frostbolt_Timer <= diff)
-            {
-                DoCastVictim(SPELL_FROSTBOLT);
-                Frostbolt_Timer = 5000;
-            } else Frostbolt_Timer -= diff;
-
-            DoMeleeAttackIfReady();
-        }
-    };
-};
-
-/*######
-## npc_isla_starmane
-######*/
-enum IslaStarmaneData
-{
-    SAY_PROGRESS_1  = 0,
-    SAY_PROGRESS_2  = 1,
-    SAY_PROGRESS_3  = 2,
-    SAY_PROGRESS_4  = 3,
-
-    QUEST_EFTW_H    = 10052,
-    QUEST_EFTW_A    = 10051,
-    GO_CAGE         = 182794,
-    SPELL_CAT       = 32447,
-};
-
-class npc_isla_starmane : public CreatureScript
-{
-public:
-    npc_isla_starmane() : CreatureScript("npc_isla_starmane") { }
-
-    struct npc_isla_starmaneAI : public npc_escortAI
-    {
-        npc_isla_starmaneAI(Creature* creature) : npc_escortAI(creature) { }
-
-        void WaypointReached(uint32 waypointId) override
-        {
-            Player* player = GetPlayerForEscort();
-            if (!player)
-                return;
-
-            switch (waypointId)
-            {
-                case 0:
-                    if (GameObject* Cage = me->FindNearestGameObject(GO_CAGE, 10))
-                        Cage->SetGoState(GO_STATE_ACTIVE);
-                    break;
-                case 2:
-                    Talk(SAY_PROGRESS_1, player);
-                    break;
-                case 5:
-                    Talk(SAY_PROGRESS_2, player);
-                    break;
-                case 6:
-                    Talk(SAY_PROGRESS_3, player);
-                    break;
-                case 29:
-                    Talk(SAY_PROGRESS_4, player);
-                    if (player->GetTeam() == ALLIANCE)
-                        player->GroupEventHappens(QUEST_EFTW_A, me);
-                    else if (player->GetTeam() == HORDE)
-                        player->GroupEventHappens(QUEST_EFTW_H, me);
-                    me->SetInFront(player);
-                    break;
-                case 30:
-                    me->HandleEmoteCommand(EMOTE_ONESHOT_WAVE);
-                    break;
-                case 31:
-                    DoCast(me, SPELL_CAT);
-                    me->SetWalk(false);
-                    break;
-            }
-        }
-
-        void Reset() override
-        {
-            me->RestoreFaction();
-        }
-
-        void JustDied(Unit* /*killer*/) override
-        {
-            if (Player* player = GetPlayerForEscort())
-            {
-                if (player->GetTeam() == ALLIANCE)
-                    player->FailQuest(QUEST_EFTW_A);
-                else if (player->GetTeam() == HORDE)
-                    player->FailQuest(QUEST_EFTW_H);
-            }
-        }
-    };
-
-    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest) override
-    {
-        if (quest->GetQuestId() == QUEST_EFTW_H || quest->GetQuestId() == QUEST_EFTW_A)
-        {
-            ENSURE_AI(npc_escortAI, (creature->AI()))->Start(true, false, player->GetGUID());
-            creature->setFaction(113);
-        }
-        return true;
-    }
-
-    CreatureAI* GetAI(Creature* creature) const override
-    {
-        return new npc_isla_starmaneAI(creature);
+        OnDestinationTargetSelect += SpellDestinationTargetSelectFn(spell_skyguard_flare::ModDestHeight, EFFECT_0, TARGET_DEST_TARGET_RANDOM);
     }
 };
 
 /*######
-## go_skull_pile
+## Quest 10873: Taken in the Night
 ######*/
-#define GOSSIP_S_DARKSCREECHER_AKKARAI         "Summon Darkscreecher Akkarai"
-#define GOSSIP_S_KARROG         "Summon Karrog"
-#define GOSSIP_S_GEZZARAK_THE_HUNTRESS         "Summon Gezzarak the Huntress"
-#define GOSSIP_S_VAKKIZ_THE_WINDRAGER         "Summon Vakkiz the Windrager"
 
-class go_skull_pile : public GameObjectScript
+enum TakenInTheNight
 {
-public:
-    go_skull_pile() : GameObjectScript("go_skull_pile") { }
+    SPELL_FREE_WEBBED_1      = 38953,
+    SPELL_FREE_WEBBED_2      = 38955,
+    SPELL_FREE_WEBBED_3      = 38956,
+    SPELL_FREE_WEBBED_4      = 38957,
+    SPELL_FREE_WEBBED_5      = 38958,
+    SPELL_FREE_WEBBED_6      = 38978
+};
 
-    bool OnGossipSelect(Player* player, GameObject* go, uint32 sender, uint32 action) override
+std::array<uint32, 5> const CocoonSummonSpells =
+{
+    SPELL_FREE_WEBBED_1, SPELL_FREE_WEBBED_2, SPELL_FREE_WEBBED_3, SPELL_FREE_WEBBED_4, SPELL_FREE_WEBBED_5
+};
+
+// 38949 - Terrokar Free Webbed Creature
+class spell_terokkar_free_webbed : public SpellScript
+{
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        player->PlayerTalkClass->ClearMenus();
-        switch (sender)
-        {
-            case GOSSIP_SENDER_MAIN:    SendActionMenu(player, go, action); break;
-        }
-        return true;
+        return ValidateSpellInfo(CocoonSummonSpells);
     }
 
-    bool OnGossipHello(Player* player, GameObject* go) override
+    void HandleDummy(SpellEffIndex /*effIndex*/)
     {
-        if ((player->GetQuestStatus(11885) == QUEST_STATUS_INCOMPLETE) || player->GetQuestRewardStatus(11885))
-        {
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_S_DARKSCREECHER_AKKARAI, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_S_KARROG, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_S_GEZZARAK_THE_HUNTRESS, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 3);
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_S_VAKKIZ_THE_WINDRAGER, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 4);
-        }
-
-        player->SEND_GOSSIP_MENU(go->GetGOInfo()->questgiver.gossipID, go->GetGUID());
-        return true;
+        GetCaster()->CastSpell(GetCaster(), Trinity::Containers::SelectRandomContainerElement(CocoonSummonSpells), true);
     }
 
-    void SendActionMenu(Player* player, GameObject* /*go*/, uint32 action)
+    void Register() override
     {
-        switch (action)
-        {
-            case GOSSIP_ACTION_INFO_DEF + 1:
-                  player->CastSpell(player, 40642, false);
-                break;
-            case GOSSIP_ACTION_INFO_DEF + 2:
-                  player->CastSpell(player, 40640, false);
-                break;
-            case GOSSIP_ACTION_INFO_DEF + 3:
-                  player->CastSpell(player, 40632, false);
-                break;
-            case GOSSIP_ACTION_INFO_DEF + 4:
-                  player->CastSpell(player, 40644, false);
-                break;
-        }
+        OnEffectHit += SpellEffectFn(spell_terokkar_free_webbed::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
     }
 };
 
-/*######
-## npc_slim
-######*/
-
-enum Slim
+// 38950 - Terokkar Free Webbed Creature ON QUEST
+class spell_terokkar_free_webbed_on_quest : public SpellScript
 {
-    FACTION_CONSORTIUM  = 933
-};
-
-class npc_slim : public CreatureScript
-{
-public:
-    npc_slim() : CreatureScript("npc_slim") { }
-
-    bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        player->PlayerTalkClass->ClearMenus();
-        if (action == GOSSIP_ACTION_TRADE)
-            player->GetSession()->SendListInventory(creature->GetGUID());
-
-        return true;
+        return ValidateSpellInfo(CocoonSummonSpells) && ValidateSpellInfo({ SPELL_FREE_WEBBED_6 });
     }
 
-    bool OnGossipHello(Player* player, Creature* creature) override
+    void HandleDummy(SpellEffIndex /*effIndex*/)
     {
-        if (creature->IsVendor() && player->GetReputationRank(FACTION_CONSORTIUM) >= REP_FRIENDLY)
-        {
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_VENDOR, GOSSIP_TEXT_BROWSE_GOODS, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_TRADE);
-            player->SEND_GOSSIP_MENU(9896, creature->GetGUID());
-        }
+        Unit* caster = GetCaster();
+        Unit* target = GetHitUnit();
+
+        if (roll_chance_i(66))
+            caster->CastSpell(caster, Trinity::Containers::SelectRandomContainerElement(CocoonSummonSpells), true);
         else
-            player->SEND_GOSSIP_MENU(9895, creature->GetGUID());
+            target->CastSpell(caster, SPELL_FREE_WEBBED_6, true);
+    }
 
-        return true;
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_terokkar_free_webbed_on_quest::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
     }
 };
 
-/*########
-####npc_akuno
-#####*/
+/*######
+## Quest 10040 & 10041: Who Are They?
+######*/
 
-enum Akuno
+enum WhoAreThey
 {
-    QUEST_ESCAPING_THE_TOMB = 10887,
-    NPC_CABAL_SKRIMISHER    = 21661
+    SPELL_SHADOWY_DISGUISE          = 32756,
+    SPELL_MALE_SHADOWY_DISGUISE     = 38080,
+    SPELL_FEMALE_SHADOWY_DISGUISE   = 38081
 };
 
-class npc_akuno : public CreatureScript
+// 48917 - Who Are They: Cast from Questgiver
+class spell_terokkar_shadowy_disguise_cast_from_questgiver : public SpellScript
 {
-public:
-    npc_akuno() : CreatureScript("npc_akuno") { }
-
-    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest) override
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        if (quest->GetQuestId() == QUEST_ESCAPING_THE_TOMB)
-        {
-            if (npc_akunoAI* pEscortAI = CAST_AI(npc_akuno::npc_akunoAI, creature->AI()))
-                pEscortAI->Start(false, false, player->GetGUID());
-
-            if (player->GetTeamId() == TEAM_ALLIANCE)
-                creature->setFaction(FACTION_ESCORT_A_NEUTRAL_PASSIVE);
-            else
-                creature->setFaction(FACTION_ESCORT_H_NEUTRAL_PASSIVE);
-        }
-        return true;
+        return ValidateSpellInfo({ SPELL_SHADOWY_DISGUISE });
     }
 
-    CreatureAI* GetAI(Creature* creature) const override
+    void HandleScript(SpellEffIndex /*effIndex*/)
     {
-        return new npc_akunoAI(creature);
+        GetHitUnit()->CastSpell(GetHitUnit(), SPELL_SHADOWY_DISGUISE);
     }
 
-    struct npc_akunoAI : public npc_escortAI
+    void Register() override
     {
-        npc_akunoAI(Creature* creature) : npc_escortAI(creature) { }
+        OnEffectHitTarget += SpellEffectFn(spell_terokkar_shadowy_disguise_cast_from_questgiver::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+    }
+};
 
-        void WaypointReached(uint32 waypointId) override
-        {
-            Player* player = GetPlayerForEscort();
-            if (!player)
-                return;
+// 32756 - Shadowy Disguise
+class spell_terokkar_shadowy_disguise : public AuraScript
+{
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_MALE_SHADOWY_DISGUISE, SPELL_FEMALE_SHADOWY_DISGUISE });
+    }
 
-            switch (waypointId)
-            {
-                case 3:
-                    me->SummonCreature(NPC_CABAL_SKRIMISHER, -2795.99f, 5420.33f, -34.53f, 0.0f, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 25000);
-                    me->SummonCreature(NPC_CABAL_SKRIMISHER, -2793.55f, 5412.79f, -34.53f, 0.0f, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 25000);
-                    break;
-                case 11:
-                    if (player->GetTypeId() == TYPEID_PLAYER)
-                        player->GroupEventHappens(QUEST_ESCAPING_THE_TOMB, me);
-                    break;
-            }
-        }
+    void AfterApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (Player* target = GetTarget()->ToPlayer())
+            target->CastSpell(target, target->GetNativeGender() == GENDER_MALE ? SPELL_MALE_SHADOWY_DISGUISE : SPELL_FEMALE_SHADOWY_DISGUISE);
+    }
 
-        void JustSummoned(Creature* summon) override
-        {
-            summon->AI()->AttackStart(me);
-        }
-    };
+    void AfterRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        Unit* target = GetTarget();
+        target->RemoveAurasDueToSpell(SPELL_MALE_SHADOWY_DISGUISE);
+        target->RemoveAurasDueToSpell(SPELL_FEMALE_SHADOWY_DISGUISE);
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_terokkar_shadowy_disguise::AfterApply, EFFECT_0, SPELL_AURA_FORCE_REACTION, AURA_EFFECT_HANDLE_REAL);
+        AfterEffectRemove += AuraEffectApplyFn(spell_terokkar_shadowy_disguise::AfterRemove, EFFECT_0, SPELL_AURA_FORCE_REACTION, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
+// 32780 - Cancel Shadowy Disguise
+class spell_terokkar_cancel_shadowy_disguise : public SpellScript
+{
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_SHADOWY_DISGUISE });
+    }
+
+    void HandleScript(SpellEffIndex /*effIndex*/)
+    {
+        GetHitUnit()->RemoveAurasDueToSpell(SPELL_SHADOWY_DISGUISE);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_terokkar_cancel_shadowy_disguise::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+    }
 };
 
 void AddSC_terokkar_forest()
 {
     new npc_unkor_the_ruthless();
-    new npc_infested_root_walker();
-    new npc_rotting_forest_rager();
-    new npc_floon();
-    new npc_isla_starmane();
-    new go_skull_pile();
-    new npc_skywing();
-    new npc_slim();
-    new npc_akuno();
+    RegisterSpellScript(spell_skyguard_flare);
+    RegisterSpellScript(spell_terokkar_free_webbed);
+    RegisterSpellScript(spell_terokkar_free_webbed_on_quest);
+    RegisterSpellScript(spell_terokkar_shadowy_disguise_cast_from_questgiver);
+    RegisterSpellScript(spell_terokkar_shadowy_disguise);
+    RegisterSpellScript(spell_terokkar_cancel_shadowy_disguise);
 }

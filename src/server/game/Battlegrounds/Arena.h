@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,7 +18,16 @@
 #ifndef TRINITY_ARENA_H
 #define TRINITY_ARENA_H
 
+#include "ArenaScore.h"
 #include "Battleground.h"
+
+enum ArenaBroadcastTexts
+{
+    ARENA_TEXT_START_ONE_MINUTE             = 15740,
+    ARENA_TEXT_START_THIRTY_SECONDS         = 15741,
+    ARENA_TEXT_START_FIFTEEN_SECONDS        = 15739,
+    ARENA_TEXT_START_BATTLE_HAS_BEGUN       = 15742,
+};
 
 enum ArenaSpellIds
 {
@@ -32,27 +41,38 @@ enum ArenaSpellIds
 
 enum ArenaWorldStates
 {
-    ARENA_WORLD_STATE_ALIVE_PLAYERS_GREEN   = 3600,
-    ARENA_WORLD_STATE_ALIVE_PLAYERS_GOLD    = 3601
+    ARENA_WORLD_STATE_ALIVE_PLAYERS_GREEN       = 3600,
+    ARENA_WORLD_STATE_ALIVE_PLAYERS_GOLD        = 3601,
+    ARENA_WORLD_STATE_SHOW_ALIVE_PLAYERS        = 3610,
+    ARENA_WORLD_STATE_TIME_REMAINING            = 8529,
+    ARENA_WORLD_STATE_SHOW_TIME_REMAINING       = 8524,
+    ARENA_WORLD_STATE_GREEN_TEAM_EXTRA_LIVES    = 15480,
+    ARENA_WORLD_STATE_GOLD_TEAM_EXTRA_LIVES     = 15481,
+    ARENA_WORLD_STATE_SHOW_EXTRA_LIVES          = 13401,
+    ARENA_WORLD_STATE_SOLO_SHUFFLE_ROUND        = 21427,
+    ARENA_WORLD_STATE_SHOW_SOLO_SHUFFLE_ROUND   = 21322,
 };
 
 class TC_GAME_API Arena : public Battleground
 {
+    public:
+        Arena(BattlegroundTemplate const* battlegroundTemplate);
     protected:
-        Arena();
-
-        void AddPlayer(Player* player) override;
+        void AddPlayer(Player* player, BattlegroundQueueTypeId queueId) override;
         void RemovePlayer(Player* /*player*/, ObjectGuid /*guid*/, uint32 /*team*/) override;
 
-        void FillInitialWorldStates(WorldPackets::WorldState::InitWorldStates& packet) override;
         void UpdateArenaWorldState();
 
         void HandleKillPlayer(Player* player, Player* killer) override;
 
+        void BuildPvPLogDataPacket(WorldPackets::Battleground::PVPMatchStatistics& pvpLogData) const override;
+
     private:
         void RemovePlayerAtLeave(ObjectGuid guid, bool transport, bool sendPacket) override;
         void CheckWinConditions() override;
-        void EndBattleground(uint32 winner) override;
+        void EndBattleground(Team winner) override;
+
+        ArenaTeamScore _arenaTeamScores[PVP_TEAMS_COUNT];
 };
 
 #endif // TRINITY_ARENA_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,12 +15,15 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LootPackets_h__
-#define LootPackets_h__
+#ifndef TRINITYCORE_LOOT_PACKETS_H
+#define TRINITYCORE_LOOT_PACKETS_H
 
-#include "Packet.h"
+#include "ItemPacketsCommon.h"
+#include "LootItemType.h"
 #include "ObjectGuid.h"
-#include "ItemPackets.h"
+#include "Packet.h"
+
+enum class LootRollIneligibilityReason : uint32;
 
 namespace WorldPackets
 {
@@ -29,7 +32,7 @@ namespace WorldPackets
         class LootUnit final : public ClientPacket
         {
         public:
-            LootUnit(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_UNIT, std::move(packet)) { }
+            explicit LootUnit(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_UNIT, std::move(packet)) { }
 
             void Read() override;
 
@@ -38,7 +41,7 @@ namespace WorldPackets
 
         struct LootItemData
         {
-            uint8 Type              = 0;
+            ::LootItemType Type     = LootItemType::Item;
             uint8 UIType            = 0;
             uint32 Quantity         = 0;
             uint8 LootItemType      = 0;
@@ -58,22 +61,22 @@ namespace WorldPackets
         class LootResponse final : public ServerPacket
         {
         public:
-            LootResponse() : ServerPacket(SMSG_LOOT_RESPONSE, 100) { }
+            explicit LootResponse() : ServerPacket(SMSG_LOOT_RESPONSE, 100) { }
 
             WorldPacket const* Write() override;
 
             ObjectGuid LootObj;
             ObjectGuid Owner;
             uint8 Threshold      = 2; // Most common value, 2 = Uncommon
-            uint8 LootMethod     = 0;
+            uint8 _LootMethod    = 0; ///< @see enum LootMethod
             uint8 AcquireReason  = 0;
             uint8 FailureReason  = 17; // Most common value
             uint32 Coins         = 0;
             std::vector<LootItemData> Items;
             std::vector<LootCurrency> Currencies;
-            bool PersonalLooting = false;
             bool Acquired        = false;
             bool AELooting       = false;
+            bool SuppressError   = false; // Hides error from UI
         };
 
         struct LootRequest
@@ -82,21 +85,32 @@ namespace WorldPackets
             uint8 LootListID = 0;
         };
 
-        // PlayerCliLootItem
         class LootItem final : public ClientPacket
         {
         public:
-            LootItem(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_ITEM, std::move(packet)) { }
+            explicit LootItem(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_ITEM, std::move(packet)) { }
 
             void Read() override;
 
-            std::vector<LootRequest> Loot;
+            Array<LootRequest, 100> Loot;
+            bool IsSoftInteract = false;
+        };
+
+        class MasterLootItem final : public ClientPacket
+        {
+        public:
+            explicit MasterLootItem(WorldPacket&& packet) : ClientPacket(CMSG_MASTER_LOOT_ITEM, std::move(packet)) { }
+
+            void Read() override;
+
+            Array<LootRequest, 100> Loot;
+            ObjectGuid Target;
         };
 
         class LootRemoved final : public ServerPacket
         {
         public:
-            LootRemoved() : ServerPacket(SMSG_LOOT_REMOVED, 30) { }
+            explicit LootRemoved() : ServerPacket(SMSG_LOOT_REMOVED, 30) { }
 
             WorldPacket const* Write() override;
 
@@ -108,7 +122,7 @@ namespace WorldPackets
         class LootRelease final : public ClientPacket
         {
         public:
-            LootRelease(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_RELEASE, std::move(packet)) { }
+            explicit LootRelease(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_RELEASE, std::move(packet)) { }
 
             void Read() override;
 
@@ -118,26 +132,29 @@ namespace WorldPackets
         class LootMoney final : public ClientPacket
         {
         public:
-            LootMoney(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_MONEY, std::move(packet)) { }
+            explicit LootMoney(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_MONEY, std::move(packet)) { }
 
-            void Read() override { }
+            void Read() override;
+
+            bool IsSoftInteract = false;
         };
 
         class LootMoneyNotify final : public ServerPacket
         {
         public:
-            LootMoneyNotify() : ServerPacket(SMSG_LOOT_MONEY_NOTIFY, 5) { }
+            explicit LootMoneyNotify() : ServerPacket(SMSG_LOOT_MONEY_NOTIFY, 5) { }
 
             WorldPacket const* Write() override;
 
-            uint32 Money = 0;
+            uint64 Money = 0;
+            uint64 MoneyMod = 0;
             bool SoleLooter = false;
         };
 
         class CoinRemoved final : public ServerPacket
         {
         public:
-            CoinRemoved() : ServerPacket(SMSG_COIN_REMOVED, 9) { }
+            explicit CoinRemoved() : ServerPacket(SMSG_COIN_REMOVED, 9) { }
 
             WorldPacket const* Write() override;
 
@@ -147,7 +164,7 @@ namespace WorldPackets
         class LootRoll final : public ClientPacket
         {
         public:
-            LootRoll(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_ROLL, std::move(packet)) { }
+            explicit LootRoll(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_ROLL, std::move(packet)) { }
 
             void Read() override;
 
@@ -159,7 +176,7 @@ namespace WorldPackets
         class LootReleaseResponse final : public ServerPacket
         {
         public:
-            LootReleaseResponse() : ServerPacket(SMSG_LOOT_RELEASE, 32) { }
+            explicit LootReleaseResponse() : ServerPacket(SMSG_LOOT_RELEASE, 32) { }
 
             WorldPacket const* Write() override;
 
@@ -167,14 +184,23 @@ namespace WorldPackets
             ObjectGuid Owner;
         };
 
+        class LootReleaseAll final : public ServerPacket
+        {
+        public:
+            explicit LootReleaseAll() : ServerPacket(SMSG_LOOT_RELEASE_ALL, 0) { }
+
+            WorldPacket const* Write() override { return &_worldPacket; }
+        };
+
         class LootList final : public ServerPacket
         {
         public:
-            LootList() : ServerPacket(SMSG_LOOT_LIST, 3 * 16) { }
+            explicit LootList() : ServerPacket(SMSG_LOOT_LIST, 3 * 16) { }
 
             WorldPacket const* Write() override;
 
             ObjectGuid Owner;
+            ObjectGuid LootObj;
             Optional<ObjectGuid> Master;
             Optional<ObjectGuid> RoundRobinWinner;
         };
@@ -182,13 +208,116 @@ namespace WorldPackets
         class SetLootSpecialization final : public ClientPacket
         {
         public:
-            SetLootSpecialization(WorldPacket&& packet) : ClientPacket(CMSG_SET_LOOT_SPECIALIZATION, std::move(packet)) { }
+            explicit SetLootSpecialization(WorldPacket&& packet) : ClientPacket(CMSG_SET_LOOT_SPECIALIZATION, std::move(packet)) { }
 
             void Read() override;
 
             uint32 SpecID = 0;
         };
+
+        class StartLootRoll final : public ServerPacket
+        {
+        public:
+            explicit StartLootRoll() : ServerPacket(SMSG_START_LOOT_ROLL) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid LootObj;
+            int32 MapID = 0;
+            Duration<Milliseconds, uint32> RollTime;
+            uint8 Method = 0;
+            uint8 ValidRolls = 0;
+            std::array<LootRollIneligibilityReason, 5> LootRollIneligibleReason = { };
+            LootItemData Item;
+            int32 DungeonEncounterID = 0;
+        };
+
+        class LootRollBroadcast final : public ServerPacket
+        {
+        public:
+            explicit LootRollBroadcast() : ServerPacket(SMSG_LOOT_ROLL) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid LootObj;
+            ObjectGuid Player;
+            int32 Roll = 0;             ///< Roll value can be negative, it means that it is an "offspec" roll but only during roll selection broadcast (not when sending the result)
+            uint8 RollType = 0;
+            LootItemData Item;
+            bool Autopassed = false;    ///< Triggers message |HlootHistory:%d|h[Loot]|h: You automatically passed on: %s because you cannot loot that item.
+            bool OffSpec = false;
+            int32 DungeonEncounterID = 0;
+        };
+
+        class LootRollWon final : public ServerPacket
+        {
+        public:
+            explicit LootRollWon() : ServerPacket(SMSG_LOOT_ROLL_WON) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid LootObj;
+            ObjectGuid Winner;
+            int32 Roll = 0;
+            uint8 RollType = 0;
+            LootItemData Item;
+            bool MainSpec = false;
+            int32 DungeonEncounterID = 0;
+        };
+
+        class LootAllPassed final : public ServerPacket
+        {
+        public:
+            explicit LootAllPassed() : ServerPacket(SMSG_LOOT_ALL_PASSED) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid LootObj;
+            LootItemData Item;
+            int32 DungeonEncounterID = 0;
+        };
+
+        class LootRollsComplete final : public ServerPacket
+        {
+        public:
+            explicit LootRollsComplete() : ServerPacket(SMSG_LOOT_ROLLS_COMPLETE, 16 + 1) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid LootObj;
+            uint8 LootListID = 0;
+            int32 DungeonEncounterID = 0;
+        };
+
+        class MasterLootCandidateList final : public ServerPacket
+        {
+        public:
+            explicit MasterLootCandidateList() : ServerPacket(SMSG_MASTER_LOOT_CANDIDATE_LIST, 18 + 40 * 18) { }
+
+            WorldPacket const* Write() override;
+
+            GuidUnorderedSet Players;
+            ObjectGuid LootObj;
+        };
+
+        class AELootTargets final : public ServerPacket
+        {
+        public:
+            explicit AELootTargets(uint32 count) : ServerPacket(SMSG_AE_LOOT_TARGETS, 4), Count(count) { }
+
+            WorldPacket const* Write() override;
+
+            uint32 Count = 0;
+        };
+
+        class AELootTargetsAck final : public ServerPacket
+        {
+        public:
+            explicit AELootTargetsAck() : ServerPacket(SMSG_AE_LOOT_TARGET_ACK, 0) { }
+
+            WorldPacket const* Write() override { return &_worldPacket; }
+        };
     }
 }
 
-#endif // LootPackets_h__
+#endif // TRINITYCORE_LOOT_PACKETS_H

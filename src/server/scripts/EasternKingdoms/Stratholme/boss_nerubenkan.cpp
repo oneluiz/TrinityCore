@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -42,15 +41,14 @@ public:
 
     CreatureAI* GetAI(Creature* creature) const override
     {
-        return GetInstanceAI<boss_nerubenkanAI>(creature);
+        return GetStratholmeAI<boss_nerubenkanAI>(creature);
     }
 
-    struct boss_nerubenkanAI : public ScriptedAI
+    struct boss_nerubenkanAI : public BossAI
     {
-        boss_nerubenkanAI(Creature* creature) : ScriptedAI(creature)
+        boss_nerubenkanAI(Creature* creature) : BossAI(creature, BOSS_NERUB_ENKAN)
         {
             Initialize();
-            instance = me->GetInstanceScript();
         }
 
         void Initialize()
@@ -61,8 +59,6 @@ public:
             RaiseUndeadScarab_Timer = 3000;
         }
 
-        InstanceScript* instance;
-
         uint32 EncasingWebs_Timer;
         uint32 PierceArmor_Timer;
         uint32 CryptScarabs_Timer;
@@ -70,21 +66,13 @@ public:
 
         void Reset() override
         {
+            _Reset();
             Initialize();
-        }
-
-        void EnterCombat(Unit* /*who*/) override
-        {
-        }
-
-        void JustDied(Unit* /*killer*/) override
-        {
-            instance->SetData(TYPE_NERUB, IN_PROGRESS);
         }
 
         void RaiseUndeadScarab(Unit* victim)
         {
-            if (Creature* pUndeadScarab = DoSpawnCreature(10876, float(irand(-9, 9)), float(irand(-9, 9)), 0, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 180000))
+            if (Creature* pUndeadScarab = DoSpawnCreature(10876, float(irand(-9, 9)), float(irand(-9, 9)), 0, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 180s))
                 if (pUndeadScarab->AI())
                     pUndeadScarab->AI()->AttackStart(victim);
         }
@@ -122,8 +110,6 @@ public:
                 RaiseUndeadScarab(me->GetVictim());
                 RaiseUndeadScarab_Timer = 16000;
             } else RaiseUndeadScarab_Timer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 

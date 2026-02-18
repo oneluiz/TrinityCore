@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,19 +16,31 @@
  */
 
 #include "ScriptMgr.h"
+#include "Creature.h"
 #include "InstanceScript.h"
 #include "the_botanica.h"
+
+DungeonEncounterData const encounters[] =
+{
+    { DATA_COMMANDER_SARANNIS, {{ 1925 }} },
+    { DATA_HIGH_BOTANIST_FREYWINN, {{ 1926 }} },
+    { DATA_THORNGRIN_THE_TENDER, {{ 1928 }} },
+    { DATA_LAJ, {{ 1927 }} },
+    { DATA_WARP_SPLINTER, {{ 1929 }} }
+};
 
 class instance_the_botanica : public InstanceMapScript
 {
     public:
-        instance_the_botanica() : InstanceMapScript("instance_the_botanica", 553) { }
+        instance_the_botanica() : InstanceMapScript(BotanicaScriptName, 553) { }
 
         struct instance_the_botanica_InstanceMapScript : public InstanceScript
         {
-            instance_the_botanica_InstanceMapScript(Map* map) : InstanceScript(map)
+            instance_the_botanica_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
             {
                 SetHeaders(DataHeader);
+                SetBossNumber(EncounterCount);
+                LoadDungeonEncounterData(encounters);
             }
 
             void OnCreatureCreate(Creature* creature) override

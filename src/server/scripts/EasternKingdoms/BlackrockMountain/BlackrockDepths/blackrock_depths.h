@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,16 +18,37 @@
 #ifndef DEF_BRD_H
 #define DEF_BRD_H
 
+#include "CreatureAIImpl.h"
+
+#define BRDScriptName "instance_blackrock_depths"
 #define DataHeader "BRD"
 
-enum FactionIds
+enum BRDBossIds
 {
-    FACTION_NEUTRAL            = 734,
-    FACTION_HOSTILE            = 754,
-    FACTION_FRIEND             = 35
+    BOSS_HIGH_INTERROGATOR_GERSTAHN = 0,
+    BOSS_LORD_ROCCOR                = 1,
+    BOSS_HOUNDMASTER_GREBMAR        = 2,
+    BOSS_RING_OF_LAW                = 3,
+    BOSS_PYROMANCER_LOREGRAIN       = 4,
+    BOSS_LORD_INCENDIUS             = 5,
+    BOSS_WARDER_STILGISS            = 6,
+    BOSS_FINEOUS_DARKVIRE           = 7,
+    BOSS_BAELGAR                    = 8,
+    BOSS_GENERAL_ANGERFORGE         = 9,
+    BOSS_GOLEM_LORD_ARGELMACH       = 10,
+    BOSS_HURLEY_BLACKBREATH         = 11,
+    BOSS_PHALANX                    = 12,
+    BOSS_RIBBLY_SCREWSPIGOT         = 13,
+    BOSS_PLUGGER_SPAZZRING          = 14,
+    BOSS_AMBASSADOR_FLAMELASH       = 15,
+    BOSS_THE_SEVEN                  = 16,
+    BOSS_MAGMUS                     = 17,
+    BOSS_EMPEROR_DAGRAN_THAURISSAN  = 18,
+
+    MAX_ENCOUNTER
 };
 
-enum DataTypes
+enum BRDDataTypes
 {
     TYPE_RING_OF_LAW        = 1,
     TYPE_VAULT              = 2,
@@ -61,6 +81,15 @@ enum DataTypes
     DATA_SF_BRAZIER_N       = 25,
     DATA_SF_BRAZIER_S       = 26,
     DATA_MOIRA              = 27,
+    DATA_COREN              = 28
 };
+
+template <class AI, class T>
+inline AI* GetBlackrockDepthsAI(T* obj)
+{
+    return GetInstanceAI<AI>(obj, BRDScriptName);
+}
+
+#define RegisterBlackrockDepthsCreatureAI(ai_name) RegisterCreatureAIWithFactory(ai_name, GetBlackrockDepthsAI)
 
 #endif

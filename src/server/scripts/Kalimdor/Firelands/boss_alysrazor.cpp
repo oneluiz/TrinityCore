@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,17 +15,20 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ObjectMgr.h"
 #include "ScriptMgr.h"
-#include "ScriptedCreature.h"
-#include "PassiveAI.h"
-#include "SpellScript.h"
-#include "MoveSplineInit.h"
-#include "Cell.h"
 #include "CellImpl.h"
-#include "GridNotifiers.h"
-#include "GridNotifiersImpl.h"
+#include "Containers.h"
+#include "DB2Stores.h"
 #include "firelands.h"
+#include "GridNotifiersImpl.h"
+#include "MotionMaster.h"
+#include "MoveSplineInit.h"
+#include "ObjectAccessor.h"
+#include "PassiveAI.h"
+#include "ScriptedCreature.h"
+#include "SpellInfo.h"
+#include "SpellScript.h"
+#include "TemporarySummon.h"
 
 enum Texts
 {
@@ -163,7 +166,7 @@ static void AlysrazorTrashEvaded(Creature* creature)
 {
     TrashRespawnWorker check;
     Trinity::CreatureWorker<TrashRespawnWorker> worker(creature, check);
-    creature->VisitNearbyGridObject(SIZE_OF_GRIDS, worker);
+    Cell::VisitGridObjects(creature, worker, SIZE_OF_GRIDS);
 }
 
 class npc_harbinger_of_flame : public CreatureScript
@@ -177,15 +180,16 @@ class npc_harbinger_of_flame : public CreatureScript
             {
             }
 
-            void EnterCombat(Unit* /*target*/) override
+            void JustEngagedWith(Unit* /*target*/) override
             {
-                if (Creature* bird = ObjectAccessor::GetCreature(*me, me->GetChannelObjectGuid()))
-                    DoZoneInCombat(bird, 200.0f);
+                for (ObjectGuid const& birdGuid : me->m_unitData->ChannelObjects)
+                    if (Creature* bird = ObjectAccessor::GetCreature(*me, birdGuid))
+                        DoZoneInCombat(bird);
 
                 me->InterruptSpell(CURRENT_CHANNELED_SPELL);
                 _events.Reset();
-                _events.ScheduleEvent(EVENT_FIEROBLAST, 1);
-                _events.ScheduleEvent(EVENT_FIEROCLAST_BARRAGE, 6000);
+                _events.ScheduleEvent(EVENT_FIEROBLAST, 1ms);
+                _events.ScheduleEvent(EVENT_FIEROCLAST_BARRAGE, 6s);
             }
 
             void JustReachedHome() override
@@ -224,18 +228,16 @@ class npc_harbinger_of_flame : public CreatureScript
                     switch (eventId)
                     {
                         case EVENT_FIEROBLAST:
-                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 0.0f, false, -SPELL_RIDE_MONSTROSITY))
+                            if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 0.0f, false, true, -SPELL_RIDE_MONSTROSITY))
                                 DoCast(target, SPELL_FIEROBLAST_TRASH);
-                            _events.RescheduleEvent(EVENT_FIEROBLAST, 500);  // cast time is longer, but thanks to UNIT_STATE_CASTING check it won't trigger more often (need this because this creature gets a stacking haste aura)
+                            _events.RescheduleEvent(EVENT_FIEROBLAST, 500ms);  // cast time is longer, but thanks to UNIT_STATE_CASTING check it won't trigger more often (need this because this creature gets a stacking haste aura)
                             break;
                         case EVENT_FIEROCLAST_BARRAGE:
                             DoCastAOE(SPELL_FIEROCLAST_BARRAGE);
-                            _events.ScheduleEvent(EVENT_FIEROCLAST_BARRAGE, urand(9000, 12000));
+                            _events.ScheduleEvent(EVENT_FIEROCLAST_BARRAGE, 9s, 12s);
                             break;
                     }
                 }
-
-                DoMeleeAttackIfReady();
             }
 
         private:
@@ -244,7 +246,7 @@ class npc_harbinger_of_flame : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new npc_harbinger_of_flameAI(creature);
+            return GetFirelandsAI<npc_harbinger_of_flameAI>(creature);
         }
 };
 
@@ -277,14 +279,14 @@ class npc_blazing_monstrosity : public CreatureScript
                 AlysrazorTrashEvaded(me);
             }
 
-            void EnterCombat(Unit* /*target*/) override
+            void JustEngagedWith(Unit* /*target*/) override
             {
                 DoZoneInCombat();
                 me->RemoveAurasDueToSpell(SPELL_SLEEP_ULTRA_HIGH_PRIORITY);
                 me->PlayOneShotAnimKitId(ANIM_KIT_BIRD_WAKE);
                 _events.Reset();
-                _events.ScheduleEvent(EVENT_START_SPITTING, 6000);
-                _events.ScheduleEvent(EVENT_CONTINUE_SPITTING, 9000);
+                _events.ScheduleEvent(EVENT_START_SPITTING, 6s);
+                _events.ScheduleEvent(EVENT_CONTINUE_SPITTING, 9s);
             }
 
             void PassengerBoarded(Unit* passenger, int8 /*seat*/, bool apply) override
@@ -294,8 +296,8 @@ class npc_blazing_monstrosity : public CreatureScript
 
                 // Our passenger is another vehicle (boardable by players)
                 DoCast(passenger, SPELL_SHARE_HEALTH, true);
-                passenger->setFaction(35);
-                passenger->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                passenger->SetFaction(35);
+                passenger->SetUninteractible(false);
 
                 // Hack to relocate vehicle on vehicle so exiting players are not moved under map
                 Movement::MoveSplineInit init(passenger);
@@ -327,7 +329,7 @@ class npc_blazing_monstrosity : public CreatureScript
                     switch (eventId)
                     {
                         case EVENT_START_SPITTING:
-                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 0.0f, false, -SPELL_RIDE_MONSTROSITY))
+                            if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 0.0f, false, true, -SPELL_RIDE_MONSTROSITY))
                                 DoCast(target, SPELL_MOLTEN_BARRAGE);
                             break;
                         case EVENT_CONTINUE_SPITTING:
@@ -346,7 +348,7 @@ class npc_blazing_monstrosity : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new npc_blazing_monstrosityAI(creature);
+            return GetFirelandsAI<npc_blazing_monstrosityAI>(creature);
         }
 };
 
@@ -364,10 +366,10 @@ class npc_molten_barrage : public CreatureScript
             void AttackStart(Unit* target) override
             {
                 if (target)
-                    me->GetMotionMaster()->MoveFollow(target, 0.0f, 0.0f, MOTION_SLOT_IDLE);
+                    me->GetMotionMaster()->MoveFollow(target, 0.0f, 0.0f, {}, MOTION_SLOT_DEFAULT);
             }
 
-            void IsSummonedBy(Unit* /*summoner*/) override
+            void IsSummonedBy(WorldObject* /*summoner*/) override
             {
                 DoCastAOE(SPELL_AGGRO_CLOSEST, true);
                 DoCast(me, SPELL_MOLTEN_BARRAGE_VISUAL);
@@ -386,7 +388,7 @@ class npc_molten_barrage : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new npc_molten_barrageAI(creature);
+            return GetFirelandsAI<npc_molten_barrageAI>(creature);
         }
 };
 
@@ -438,7 +440,7 @@ class npc_egg_pile : public CreatureScript
                 _callHatchlingSpell = (action == NPC_BLAZING_MONSTROSITY_LEFT) ? SPELL_MOLTEN_EGG_TRASH_CALL_L : SPELL_MOLTEN_EGG_TRASH_CALL_R;
                 DoZoneInCombat();
                 _events.Reset();
-                _events.ScheduleEvent(EVENT_SUMMON_SMOULDERING_HATCHLING, 1);
+                _events.ScheduleEvent(EVENT_SUMMON_SMOULDERING_HATCHLING, 1ms);
             }
 
             void UpdateAI(uint32 diff) override
@@ -460,26 +462,24 @@ class npc_egg_pile : public CreatureScript
                             std::list<Creature*> eggs;
                             MoltenEggCheck check(me);
                             Trinity::CreatureListSearcher<MoltenEggCheck> searcher(me, eggs, check);
-                            me->VisitNearbyGridObject(20.0f, searcher);
+                            Cell::VisitGridObjects(me, searcher, 20.0f);
                             if (!eggs.empty())
                             {
                                 Creature* egg = Trinity::Containers::SelectRandomContainerElement(eggs);
                                 egg->CastSpell(egg, SPELL_SUMMON_SMOULDERING_HATCHLING, TRIGGERED_FULL_MASK);
                                 egg->SetDisplayId(MODEL_INVISIBLE_STALKER);
-                                egg->m_Events.AddEvent(new RespawnEggEvent(egg), egg->m_Events.CalculateTime(5000));
+                                egg->m_Events.AddEventAtOffset(new RespawnEggEvent(egg), 5s);
                             }
 
                             if (_callHatchlingSpell)
                                 DoCastAOE(_callHatchlingSpell, true);
-                            _events.ScheduleEvent(EVENT_SUMMON_SMOULDERING_HATCHLING, urand(6000, 10000));
+                            _events.ScheduleEvent(EVENT_SUMMON_SMOULDERING_HATCHLING, 6s, 10s);
                             break;
                         }
                         default:
                             break;
                     }
                 }
-
-                DoMeleeAttackIfReady();
             }
 
         private:
@@ -489,7 +489,7 @@ class npc_egg_pile : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new npc_egg_pileAI(creature);
+            return GetFirelandsAI<npc_egg_pileAI>(creature);
         }
 };
 
@@ -500,8 +500,6 @@ class spell_alysrazor_cosmetic_egg_xplosion : public SpellScriptLoader
 
         class spell_alysrazor_cosmetic_egg_xplosion_SpellScript : public SpellScript
         {
-            PrepareSpellScript(spell_alysrazor_cosmetic_egg_xplosion_SpellScript);
-
             bool Validate(SpellInfo const* /*spellInfo*/) override
             {
                 if (!sCreatureDisplayInfoStore.LookupEntry(MODEL_INVISIBLE_STALKER))
@@ -514,7 +512,7 @@ class spell_alysrazor_cosmetic_egg_xplosion : public SpellScriptLoader
                 PreventHitDefaultEffect(effIndex);
                 GetHitUnit()->SetDisplayId(MODEL_INVISIBLE_STALKER);
                 if (Creature* creature = GetHitCreature())
-                    creature->DespawnOrUnsummon(4000);
+                    creature->DespawnOrUnsummon(4s);
             }
 
             void Register() override
@@ -536,21 +534,16 @@ class spell_alysrazor_turn_monstrosity : public SpellScriptLoader
 
         class spell_alysrazor_turn_monstrosity_SpellScript : public SpellScript
         {
-            PrepareSpellScript(spell_alysrazor_turn_monstrosity_SpellScript);
-
             bool Validate(SpellInfo const* /*spellInfo*/) override
             {
-                if (!sSpellMgr->GetSpellInfo(SPELL_GENERIC_DUMMY_CAST))
-                    return false;
-                if (!sSpellMgr->GetSpellInfo(SPELL_KNOCKBACK_RIGHT))
-                    return false;
-                if (!sSpellMgr->GetSpellInfo(SPELL_KNOCKBACK_LEFT))
-                    return false;
-                if (!sSpellMgr->GetSpellInfo(SPELL_KNOCKBACK_FORWARD))
-                    return false;
-                if (!sSpellMgr->GetSpellInfo(SPELL_KNOCKBACK_BACK))
-                    return false;
-                return true;
+                return ValidateSpellInfo(
+                {
+                    SPELL_GENERIC_DUMMY_CAST,
+                    SPELL_KNOCKBACK_RIGHT,
+                    SPELL_KNOCKBACK_LEFT,
+                    SPELL_KNOCKBACK_FORWARD,
+                    SPELL_KNOCKBACK_BACK
+                });
             }
 
             void KnockBarrage(SpellEffIndex effIndex)
@@ -558,7 +551,7 @@ class spell_alysrazor_turn_monstrosity : public SpellScriptLoader
                 PreventHitDefaultEffect(effIndex);
                 GetHitUnit()->GetMotionMaster()->MoveIdle();
                 if (TempSummon* summ = GetHitUnit()->ToTempSummon())
-                    if (Unit* summoner = summ->GetSummoner())
+                    if (WorldObject* summoner = summ->GetSummoner())
                         GetHitUnit()->CastSpell(summoner, SPELL_GENERIC_DUMMY_CAST, TRIGGERED_FULL_MASK);
 
                 float angle = 0.0f;
@@ -625,8 +618,6 @@ class spell_alysrazor_aggro_closest : public SpellScriptLoader
 
         class spell_alysrazor_aggro_closest_SpellScript : public SpellScript
         {
-            PrepareSpellScript(spell_alysrazor_aggro_closest_SpellScript);
-
             bool Load() override
             {
                 return GetCaster()->GetTypeId() == TYPEID_UNIT;
@@ -635,8 +626,8 @@ class spell_alysrazor_aggro_closest : public SpellScriptLoader
             void HandleEffect(SpellEffIndex effIndex)
             {
                 PreventHitDefaultEffect(effIndex);
-                float curThreat = GetCaster()->getThreatManager().getThreat(GetHitUnit(), true);
-                GetCaster()->getThreatManager().addThreat(GetHitUnit(), -curThreat + 50000.0f / std::min(1.0f, GetCaster()->GetDistance(GetHitUnit())));
+                float curThreat = GetCaster()->GetThreatManager().GetThreat(GetHitUnit(), true);
+                GetCaster()->GetThreatManager().AddThreat(GetHitUnit(), -curThreat + 50000.0f / std::min(1.0f, GetCaster()->GetDistance(GetHitUnit())));
             }
 
             void UpdateThreat()
@@ -665,13 +656,9 @@ class spell_alysrazor_fieroblast : public SpellScriptLoader
 
         class spell_alysrazor_fieroblast_SpellScript : public SpellScript
         {
-            PrepareSpellScript(spell_alysrazor_fieroblast_SpellScript);
-
             bool Validate(SpellInfo const* /*spellInfo*/) override
             {
-                if (!sSpellMgr->GetSpellInfo(SPELL_FIRE_IT_UP))
-                    return false;
-                return true;
+                return ValidateSpellInfo({ SPELL_FIRE_IT_UP });
             }
 
             void FireItUp()

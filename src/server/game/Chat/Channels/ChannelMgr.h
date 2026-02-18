@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,36 +14,57 @@
  * You should have received a copy of the GNU General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef __TRINITY_CHANNELMGR_H
-#define __TRINITY_CHANNELMGR_H
+#ifndef TRINITYCORE_CHANNEL_MGR_H
+#define TRINITYCORE_CHANNEL_MGR_H
 
-#include "Common.h"
-#include "Channel.h"
+#include "Define.h"
+#include "ObjectGuid.h"
+#include "ObjectGuidSequenceGenerator.h"
+#include "SharedDefines.h"
+#include <string>
+#include <unordered_map>
 
-#define MAX_CHANNEL_NAME_STR 0x31
-#define MAX_CHANNEL_PASS_STR 31
+class Channel;
+class Player;
+struct AreaTableEntry;
 
 class TC_GAME_API ChannelMgr
 {
-    typedef std::map<std::wstring, Channel*> ChannelMap;
+    typedef std::unordered_map<std::wstring, Channel*> CustomChannelContainer; // custom channels only differ in name
+    typedef std::unordered_map<ObjectGuid, Channel*> BuiltinChannelContainer;
 
     protected:
-        ChannelMgr() : _team(0) { }
+        explicit ChannelMgr(Team team);
         ~ChannelMgr();
 
     public:
-        static ChannelMgr* ForTeam(uint32 team);
-        void SetTeam(uint32 newTeam) { _team = newTeam; }
+        ChannelMgr(ChannelMgr const& right) = delete;
+        ChannelMgr(ChannelMgr&& right) = delete;
+        ChannelMgr& operator=(ChannelMgr const& right) = delete;
+        ChannelMgr& operator=(ChannelMgr&& right) = delete;
 
-        Channel* GetJoinChannel(std::string const& name, uint32 channelId);
-        Channel* GetChannel(std::string const& name, Player* player, bool notify = true);
-        void LeftChannel(std::string const& name);
+        static void LoadFromDB();
+        static ChannelMgr* ForTeam(Team team);
+        static Channel* GetChannelForPlayerByNamePart(std::string const& namePart, Player* playerSearcher);
+        static Channel* GetChannelForPlayerByGuid(ObjectGuid channelGuid, Player* playerSearcher);
+        static AreaTableEntry const* SpecialLinkedArea;
+
+        void SaveToDB();
+        Channel* GetSystemChannel(uint32 channelId, AreaTableEntry const* zoneEntry = nullptr);
+        Channel* CreateCustomChannel(std::string const& name);
+        Channel* GetCustomChannel(std::string const& name) const;
+        Channel* GetChannel(uint32 channelId, std::string const& name, Player* player, bool notify = true, AreaTableEntry const* zoneEntry = nullptr) const;
+        void LeftChannel(uint32 channelId, AreaTableEntry const* zoneEntry);
 
     private:
-        ChannelMap _channels;
-        uint32 _team;
+        CustomChannelContainer _customChannels;
+        BuiltinChannelContainer _channels;
+        Team const _team;
+        ObjectGuidGenerator _guidGenerator;
 
         static void SendNotOnChannelNotify(Player const* player, std::string const& name);
+        ObjectGuid CreateCustomChannelGuid();
+        ObjectGuid CreateBuiltinChannelGuid(uint32 channelId, AreaTableEntry const* zoneEntry = nullptr) const;
 };
 
 #endif

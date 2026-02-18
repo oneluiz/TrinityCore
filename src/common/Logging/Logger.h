@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,16 +18,20 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include "Appender.h"
+#include "Define.h"
+#include "LogCommon.h"
+#include <string>
+#include <vector>
+
+class Appender;
+struct LogMessage;
 
 class TC_COMMON_API Logger
 {
     public:
-        Logger();
+        Logger(std::string const& name, LogLevel level);
 
-        void Create(std::string const& name, LogLevel level);
-        void addAppender(uint8 type, Appender *);
-        void delAppender(uint8 type);
+        void addAppender(Appender* appender);
 
         std::string const& getName() const;
         LogLevel getLogLevel() const;
@@ -37,7 +41,7 @@ class TC_COMMON_API Logger
     private:
         std::string name;
         LogLevel level;
-        AppenderMap appenders;
+        std::vector<Appender*> appenders;
 };
 
 #endif

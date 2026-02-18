@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,12 +18,14 @@
 #ifndef DEF_ZULGURUB_H
 #define DEF_ZULGURUB_H
 
-#define DataHeader "ZG"
+#include "CreatureAIImpl.h"
+
 #define ZGScriptName "instance_zulgurub"
+#define DataHeader "ZG"
 
-uint32 const EncounterCount = 5;
+uint32 const EncounterCount = 9;
 
-enum DataTypes
+enum ZGDataTypes
 {
     DATA_VENOXIS                    = 0,
     DATA_MANDOKIR                   = 1,
@@ -42,7 +43,7 @@ enum DataTypes
     DATA_JINDOR_TRIGGER,
 };
 
-enum CreatureIds
+enum ZGCreatureIds
 {
     NPC_VENOXIS                     = 52155,
     NPC_MANDOKIR                    = 52151,
@@ -66,7 +67,7 @@ enum CreatureIds
     NPC_SHADOW_OF_HAKKAR            = 52650
 };
 
-enum GameObjectIds
+enum ZGGameObjectIds
 {
     // High Priest Venoxis
     GO_VENOXIS_COIL                 = 208844,
@@ -88,10 +89,13 @@ enum GameObjectIds
     GO_THE_CACHE_OF_MADNESS_DOOR    = 208843
 };
 
-template<class AI>
-AI* GetZulGurubAI(Creature* creature)
+template <class AI, class T>
+inline AI* GetZulGurubAI(T* obj)
 {
-    return GetInstanceAI<AI>(creature, ZGScriptName);
+    return GetInstanceAI<AI>(obj, ZGScriptName);
 }
+
+#define RegisterZulGurubCreatureAI(ai_name) RegisterCreatureAIWithFactory(ai_name, GetZulGurubAI)
+#define RegisterZulGurubGameObjectAI(ai_name) RegisterGameObjectAIWithFactory(ai_name, GetZulGurubAI)
 
 #endif

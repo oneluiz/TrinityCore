@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -24,6 +23,7 @@ SDCategory: Maraudon
 EndScriptData */
 
 #include "ScriptMgr.h"
+#include "maraudon.h"
 #include "ScriptedCreature.h"
 
 enum Spells
@@ -40,12 +40,12 @@ public:
 
     CreatureAI* GetAI(Creature* creature) const override
     {
-        return new boss_landslideAI(creature);
+        return GetMaraudonAI<boss_landslideAI>(creature);
     }
 
-    struct boss_landslideAI : public ScriptedAI
+    struct boss_landslideAI : public BossAI
     {
-        boss_landslideAI(Creature* creature) : ScriptedAI(creature)
+        boss_landslideAI(Creature* creature) : BossAI(creature, BOSS_LANDSLIDE)
         {
             Initialize();
         }
@@ -63,11 +63,9 @@ public:
 
         void Reset() override
         {
-            Initialize();
-        }
+            BossAI::Reset();
 
-        void EnterCombat(Unit* /*who*/) override
-        {
+            Initialize();
         }
 
         void UpdateAI(uint32 diff) override
@@ -102,8 +100,6 @@ public:
                 }
                 else LandslideTimer -= diff;
             }
-
-            DoMeleeAttackIfReady();
         }
     };
 };

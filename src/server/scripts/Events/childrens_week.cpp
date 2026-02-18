@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,9 +16,12 @@
  */
 
 #include "ScriptMgr.h"
+#include "Containers.h"
+#include "MotionMaster.h"
+#include "ObjectAccessor.h"
+#include "Player.h"
 #include "ScriptedCreature.h"
 #include "SpellAuras.h"
-#include "Player.h"
 
 enum Orphans
 {
@@ -639,6 +642,12 @@ class npc_elder_kekek : public CreatureScript
         }
 };
 
+enum TheEtymidian
+{
+    SAY_ACTIVATION            = 0,
+    QUEST_THE_ACTIVATION_RUNE = 12547
+};
+
 /*######
 ## npc_the_etymidian
 ## @todo A red crystal as a gift for the great one should be spawned during the event.
@@ -668,10 +677,22 @@ class npc_the_etymidian : public CreatureScript
                 Initialize();
             }
 
+            void OnQuestReward(Player* /*player*/, Quest const* quest, LootItemType /*type*/, uint32 /*opt*/) override
+            {
+                if (quest->GetQuestId() != QUEST_THE_ACTIVATION_RUNE)
+                    return;
+
+                Talk(SAY_ACTIVATION);
+            }
+
+            // doesn't trigger if creature is stunned. Restore aura 25900 when it will be possible or
+            // find another way to start event(from orphan script)
             void MoveInLineOfSight(Unit* who) override
             {
                 if (!phase && who && who->GetDistance2d(me) < 10.0f)
+                {
                     if (Player* player = who->ToPlayer())
+                    {
                         if (player->GetQuestStatus(QUEST_MEETING_A_GREAT_ONE) == QUEST_STATUS_INCOMPLETE)
                         {
                             playerGUID = player->GetGUID();
@@ -679,6 +700,8 @@ class npc_the_etymidian : public CreatureScript
                             if (!orphanGUID.IsEmpty())
                                 phase = 1;
                         }
+                    }
+                }
             }
 
             void UpdateAI(uint32 diff) override
@@ -734,7 +757,6 @@ class npc_the_etymidian : public CreatureScript
             int8 phase;
             ObjectGuid playerGUID;
             ObjectGuid orphanGUID;
-
         };
 
         CreatureAI* GetAI(Creature* creature) const override
@@ -920,7 +942,7 @@ class at_bring_your_orphan_to : public AreaTriggerScript
     public:
         at_bring_your_orphan_to() : AreaTriggerScript("at_bring_your_orphan_to") { }
 
-        bool OnTrigger(Player* player, AreaTriggerEntry const* areaTrigger, bool /*entered*/) override
+        bool OnTrigger(Player* player, AreaTriggerEntry const* trigger) override
         {
             if (player->isDead() || !player->HasAura(SPELL_ORPHAN_OUT))
                 return false;
@@ -928,7 +950,7 @@ class at_bring_your_orphan_to : public AreaTriggerScript
             uint32 questId = 0;
             uint32 orphanId = 0;
 
-            switch (areaTrigger->ID)
+            switch (trigger->ID)
             {
                 case AT_DOWN_AT_THE_DOCKS:
                     questId = QUEST_DOWN_AT_THE_DOCKS;
@@ -1027,26 +1049,15 @@ class npc_cw_area_trigger : public CreatureScript
                                         if (player->GetQuestStatus(QUEST_NOW_WHEN_I_GROW_UP) == QUEST_STATUS_COMPLETE)
                                             if (Creature* samuro = me->FindNearestCreature(25151, 20.0f))
                                             {
-                                                uint32 emote = 0;
-                                                switch (urand(1, 5))
-                                                {
-                                                    case 1:
-                                                        emote = EMOTE_ONESHOT_WAVE;
-                                                        break;
-                                                    case 2:
-                                                        emote = EMOTE_ONESHOT_ROAR;
-                                                        break;
-                                                    case 3:
-                                                        emote = EMOTE_ONESHOT_FLEX;
-                                                        break;
-                                                    case 4:
-                                                        emote = EMOTE_ONESHOT_SALUTE;
-                                                        break;
-                                                    case 5:
-                                                        emote = EMOTE_ONESHOT_DANCE;
-                                                        break;
-                                                }
-                                                samuro->HandleEmoteCommand(emote);
+                                                Emote const emotes[] =
+                                                    {
+                                                        EMOTE_ONESHOT_WAVE,
+                                                        EMOTE_ONESHOT_ROAR,
+                                                        EMOTE_ONESHOT_FLEX,
+                                                        EMOTE_ONESHOT_SALUTE,
+                                                        EMOTE_ONESHOT_DANCE
+                                                    };
+                                                samuro->HandleEmoteCommand(Trinity::Containers::SelectRandomContainerElement(emotes));
                                             }
                                     }
                                     break;

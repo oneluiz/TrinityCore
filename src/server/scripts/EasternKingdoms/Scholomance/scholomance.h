@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,11 +18,12 @@
 #ifndef DEF_SCHOLOMANCE_H
 #define DEF_SCHOLOMANCE_H
 
-#define DataHeader "SC"
+#include "CreatureAIImpl.h"
 
-uint32 const EncounterCount             = 8;
+#define ScholomanceScriptName "instance_scholomance"
+#define DataHeader "SC_old"
 
-enum DataTypes
+enum SCDataTypes
 {
     DATA_DOCTORTHEOLENKRASTINOV         = 0,
     DATA_INSTRUCTORMALICIA              = 1,
@@ -31,16 +32,25 @@ enum DataTypes
     DATA_LOREKEEPERPOLKELT              = 4,
     DATA_THERAVENIAN                    = 5,
     DATA_DARKMASTERGANDLING             = 6,
-    DATA_KIRTONOS                       = 7
+    DATA_KIRTONOS                       = 7,
+    DATA_JANDICE_BAROV                  = 8,
+    DATA_RATTLEGORE                     = 9,
+    DATA_MARDUK_BLACKPOOL               = 10,
+    DATA_VECTUS                         = 11,
+    DATA_RAS_FROSTWHISPER               = 12,
+
+    MAX_ENCOUNTER
 };
 
-enum CreatureIds
+enum SCCreatureIds
 {
     NPC_DARKMASTER_GANDLING             = 1853,
+    NPC_MARDUK_BLACKPOOL                = 10433,
+    NPC_RATTLEGORE                      = 11622,
     NPC_BONE_MINION                     = 16119
 };
 
-enum GameobjectIds
+enum SCGameobjectIds
 {
     GO_GATE_KIRTONOS                    = 175570,
     GO_GATE_GANDLING                    = 177374,
@@ -52,5 +62,11 @@ enum GameobjectIds
     GO_GATE_POLKELT                     = 177376,
     GO_BRAZIER_OF_THE_HERALD            = 175564
 };
+
+template <class AI, class T>
+inline AI* GetScholomanceAI(T* obj)
+{
+    return GetInstanceAI<AI>(obj, ScholomanceScriptName);
+}
 
 #endif

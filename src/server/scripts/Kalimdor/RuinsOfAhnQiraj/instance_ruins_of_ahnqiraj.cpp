@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,20 +16,32 @@
  */
 
 #include "ScriptMgr.h"
+#include "Creature.h"
 #include "InstanceScript.h"
 #include "ruins_of_ahnqiraj.h"
+
+DungeonEncounterData const encounters[] =
+{
+    { DATA_KURINNAXX, {{ 718 }} },
+    { DATA_RAJAXX, {{ 719 }} },
+    { DATA_MOAM, {{ 720 }} },
+    { DATA_BURU, {{ 721 }} },
+    { DATA_AYAMISS, {{ 722 }} },
+    { DATA_OSSIRIAN, {{ 723 }} }
+};
 
 class instance_ruins_of_ahnqiraj : public InstanceMapScript
 {
     public:
-        instance_ruins_of_ahnqiraj() : InstanceMapScript("instance_ruins_of_ahnqiraj", 509) { }
+        instance_ruins_of_ahnqiraj() : InstanceMapScript(AQ20ScriptName, 509) { }
 
         struct instance_ruins_of_ahnqiraj_InstanceMapScript : public InstanceScript
         {
-            instance_ruins_of_ahnqiraj_InstanceMapScript(Map* map) : InstanceScript(map)
+            instance_ruins_of_ahnqiraj_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
             {
                 SetHeaders(DataHeader);
                 SetBossNumber(NUM_ENCOUNTER);
+                LoadDungeonEncounterData(encounters);
             }
 
             void OnCreatureCreate(Creature* creature) override

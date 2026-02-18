@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -30,6 +29,8 @@ npc_lesser_shadow_fissure
 EndContentData */
 
 #include "ScriptMgr.h"
+#include "InstanceScript.h"
+#include "ObjectAccessor.h"
 #include "ScriptedCreature.h"
 #include "shattered_halls.h"
 
@@ -109,7 +110,8 @@ class boss_grand_warlock_nethekurse : public CreatureScript
             void Reset() override
             {
                 _Reset();
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+                me->SetCanMelee(true);
 
                 Initialize();
             }
@@ -145,7 +147,7 @@ class boss_grand_warlock_nethekurse : public CreatureScript
                         {
                             IsIntroEvent = false;
                             IsMainEvent = true;
-                            me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                            me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
                         }
                         break;
                     default:
@@ -162,7 +164,7 @@ class boss_grand_warlock_nethekurse : public CreatureScript
                 PeonEngagedCount = 4;
                 PeonKilledCount = 4;
                 IsMainEvent = true;
-                me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
             }
 
             void AttackStart(Unit* who) override
@@ -180,40 +182,35 @@ class boss_grand_warlock_nethekurse : public CreatureScript
             }
 
             void MoveInLineOfSight(Unit* who) override
-
             {
                 if (!IntroOnce && me->IsWithinDistInMap(who, 30.0f))
-                    {
+                {
                     if (who->GetTypeId() != TYPEID_PLAYER)
                         return;
 
-                        Talk(SAY_INTRO);
-                        IntroOnce = true;
-                        IsIntroEvent = true;
+                    Talk(SAY_INTRO);
+                    IntroOnce = true;
+                    IsIntroEvent = true;
 
-                        instance->SetBossState(DATA_NETHEKURSE, IN_PROGRESS);
-                    }
+                    instance->SetBossState(DATA_NETHEKURSE, IN_PROGRESS);
+                }
 
-                    if (IsIntroEvent || !IsMainEvent)
-                        return;
+                if (IsIntroEvent || !IsMainEvent)
+                    return;
 
-                    ScriptedAI::MoveInLineOfSight(who);
+                ScriptedAI::MoveInLineOfSight(who);
             }
 
-            void EnterCombat(Unit* /*who*/) override
+            void JustEngagedWith(Unit* /*who*/) override
             {
                 Talk(SAY_AGGRO);
             }
 
             void JustSummoned(Creature* summoned) override
             {
-                summoned->setFaction(16);
-                summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
-                summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-
                 //triggered spell of consumption does not properly show it's SpellVisual, wrong spellid?
                 summoned->CastSpell(summoned, SPELL_TEMPORARY_VISUAL, true);
-                summoned->CastSpell(summoned, SPELL_CONSUMPTION, false, 0, 0, me->GetGUID());
+                summoned->CastSpell(summoned, SPELL_CONSUMPTION, CastSpellExtraArgs().SetOriginalCaster(me->GetGUID()));
             }
 
             void KilledUnit(Unit* /*victim*/) override
@@ -260,7 +257,7 @@ class boss_grand_warlock_nethekurse : public CreatureScript
                 {
                     if (ShadowFissure_Timer <= diff)
                     {
-                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                        if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                             DoCast(target, SPELL_SHADOW_FISSURE);
                         ShadowFissure_Timer = urand(7500, 15000);
                     }
@@ -269,7 +266,7 @@ class boss_grand_warlock_nethekurse : public CreatureScript
 
                     if (DeathCoil_Timer <= diff)
                     {
-                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                        if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                             DoCast(target, SPELL_DEATH_COIL);
                         DeathCoil_Timer = urand(15000, 20000);
                     }
@@ -277,9 +274,10 @@ class boss_grand_warlock_nethekurse : public CreatureScript
                         DeathCoil_Timer -= diff;
 
                     if (!HealthAbovePct(20))
+                    {
                         Phase = true;
-
-                    DoMeleeAttackIfReady();
+                        me->SetCanMelee(false);
+                    }
                 }
             }
 
@@ -300,7 +298,7 @@ class boss_grand_warlock_nethekurse : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return GetInstanceAI<boss_grand_warlock_nethekurseAI>(creature);
+            return GetShatteredHallsAI<boss_grand_warlock_nethekurseAI>(creature);
         }
 };
 
@@ -327,9 +325,9 @@ class npc_fel_orc_convert : public CreatureScript
 
             void MoveInLineOfSight(Unit* /*who*/) override { }
 
-            void EnterCombat(Unit* /*who*/) override
+            void JustEngagedWith(Unit* /*who*/) override
             {
-                events.ScheduleEvent(EVENT_HEMORRHAGE, 3000);
+                events.ScheduleEvent(EVENT_HEMORRHAGE, 3s);
 
                 if (Creature* Kurse = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_GRAND_WARLOCK_NETHEKURSE)))
                     if (me->IsWithinDist(Kurse, 45.0f))
@@ -355,10 +353,8 @@ class npc_fel_orc_convert : public CreatureScript
                 if (events.ExecuteEvent() == EVENT_HEMORRHAGE)
                 {
                     DoCastVictim(SPELL_HEMORRHAGE);
-                    events.ScheduleEvent(EVENT_HEMORRHAGE, 15000);
+                    events.ScheduleEvent(EVENT_HEMORRHAGE, 15s);
                 }
-
-                DoMeleeAttackIfReady();
             }
 
             private:
@@ -368,7 +364,7 @@ class npc_fel_orc_convert : public CreatureScript
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return GetInstanceAI<npc_fel_orc_convertAI>(creature);
+            return GetShatteredHallsAI<npc_fel_orc_convertAI>(creature);
         }
 };
 
@@ -388,12 +384,12 @@ class npc_lesser_shadow_fissure : public CreatureScript
             void Reset() override { }
             void MoveInLineOfSight(Unit* /*who*/) override { }
             void AttackStart(Unit* /*who*/) override { }
-            void EnterCombat(Unit* /*who*/) override { }
+            void JustEngagedWith(Unit* /*who*/) override { }
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new npc_lesser_shadow_fissureAI(creature);
+            return GetShatteredHallsAI<npc_lesser_shadow_fissureAI>(creature);
         }
 };
 

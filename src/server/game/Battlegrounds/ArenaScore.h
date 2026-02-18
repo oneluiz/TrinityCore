@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,58 +18,19 @@
 #ifndef TRINITY_ARENA_SCORE_H
 #define TRINITY_ARENA_SCORE_H
 
-#include "BattlegroundScore.h"
-#include "SharedDefines.h"
-#include "Player.h"
-#include "ObjectAccessor.h"
-
-struct TC_GAME_API ArenaScore : public BattlegroundScore
-{
-    friend class Arena;
-
-    protected:
-        ArenaScore(ObjectGuid playerGuid, uint32 team) : BattlegroundScore(playerGuid, team), TeamId(team == ALLIANCE ? BG_TEAM_ALLIANCE : BG_TEAM_HORDE) { }
-
-        void BuildObjectivesBlock(std::vector<int32>& /*stats*/) override { }
-
-        // For Logging purpose
-        std::string ToString() const override
-        {
-            std::ostringstream stream;
-            stream << "Damage done: " << DamageDone << ", Healing done: " << HealingDone << ", Killing blows: " << KillingBlows;
-            return stream.str();
-        }
-
-        uint8 TeamId; // BattlegroundTeamId
-};
+#include "Define.h"
 
 struct TC_GAME_API ArenaTeamScore
 {
-    friend class Arena;
-    friend class Battleground;
+    ArenaTeamScore();
+    virtual ~ArenaTeamScore();
 
-    protected:
-        ArenaTeamScore() : OldRating(0), NewRating(0), MatchmakerRating(0) { }
+    void Assign(uint32 preMatchRating, uint32 postMatchRating, uint32 preMatchMMR, uint32 postMatchMMR);
 
-        virtual ~ArenaTeamScore() { }
-
-        void Reset()
-        {
-            OldRating = 0;
-            NewRating = 0;
-            MatchmakerRating = 0;
-        }
-
-        void Assign(int32 oldRating, int32 newRating, uint32 matchMakerRating)
-        {
-            OldRating = oldRating;
-            NewRating = newRating;
-            MatchmakerRating = matchMakerRating;
-        }
-
-        int32 OldRating;
-        int32 NewRating;
-        uint32 MatchmakerRating;
+    uint32 PreMatchRating = 0;
+    uint32 PostMatchRating = 0;
+    uint32 PreMatchMMR = 0;
+    uint32 PostMatchMMR = 0;
 };
 
 #endif // TRINITY_ARENA_SCORE_H

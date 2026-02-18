@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,11 +15,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ToyPackets_h__
-#define ToyPackets_h__
+#ifndef TRINITYCORE_TOY_PACKETS_H
+#define TRINITYCORE_TOY_PACKETS_H
 
-#include "Packet.h"
-#include "ObjectGuid.h"
 #include "SpellPackets.h"
 #include "CollectionMgr.h"
 
@@ -30,7 +28,7 @@ namespace WorldPackets
         class AddToy final : public ClientPacket
         {
         public:
-            AddToy(WorldPacket&& packet) : ClientPacket(CMSG_ADD_TOY, std::move(packet)) { }
+            explicit AddToy(WorldPacket&& packet) : ClientPacket(CMSG_ADD_TOY, std::move(packet)) { }
 
             void Read() override;
 
@@ -40,18 +38,17 @@ namespace WorldPackets
         class UseToy final : public ClientPacket
         {
         public:
-            UseToy(WorldPacket&& packet) : ClientPacket(CMSG_USE_TOY, std::move(packet)) { }
+            explicit UseToy(WorldPacket&& packet) : ClientPacket(CMSG_USE_TOY, std::move(packet)) { }
 
             void Read() override;
 
             WorldPackets::Spells::SpellCastRequest Cast;
-            uint32 ItemID = 0;
         };
 
-        class AccountToysUpdate final : public ServerPacket
+        class AccountToyUpdate final : public ServerPacket
         {
         public:
-            AccountToysUpdate() : ServerPacket(SMSG_ACCOUNT_TOYS_UPDATE, 1 + 4 + 1) { }
+            explicit AccountToyUpdate() : ServerPacket(SMSG_ACCOUNT_TOY_UPDATE, 1 + 4 + 1) { }
 
             WorldPacket const* Write() override;
 
@@ -59,17 +56,16 @@ namespace WorldPackets
             ToyBoxContainer const* Toys = nullptr;
         };
 
-        class ToySetFavorite final : public ClientPacket
+        class ToyClearFanfare final : public ClientPacket
         {
         public:
-            ToySetFavorite(WorldPacket&& packet) : ClientPacket(CMSG_TOY_SET_FAVORITE, std::move(packet)) { }
+            explicit ToyClearFanfare(WorldPacket&& packet) : ClientPacket(CMSG_TOY_CLEAR_FANFARE, std::move(packet)) { }
 
             void Read() override;
 
             uint32 ItemID = 0;
-            bool Favorite = false;
         };
     }
 }
 
-#endif // ToyPackets_h__
+#endif // TRINITYCORE_TOY_PACKETS_H

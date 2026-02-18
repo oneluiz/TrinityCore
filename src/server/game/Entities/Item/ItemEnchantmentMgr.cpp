@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,41 +16,36 @@
  */
 
 #include "ItemEnchantmentMgr.h"
+#include "Containers.h"
 #include "DatabaseEnv.h"
+#include "DB2Stores.h"
+#include "ItemBonusMgr.h"
+#include "ItemTemplate.h"
 #include "Log.h"
 #include "ObjectMgr.h"
-#include "Util.h"
-#include "DBCStores.h"
-
+#include "Timer.h"
 #include <list>
 #include <vector>
-#include <stdlib.h>
 
-struct EnchStoreItem
+namespace
 {
-    uint32  ench;
-    float   chance;
+    struct RandomBonusListIds
+    {
+        std::vector<int32> BonusListIDs;
+        std::vector<double> Chances;
+    };
 
-    EnchStoreItem()
-        : ench(0), chance(0) { }
+    std::unordered_map<uint32, RandomBonusListIds> _storage;
+}
 
-    EnchStoreItem(uint32 _ench, float _chance)
-        : ench(_ench), chance(_chance) { }
-};
-
-typedef std::vector<EnchStoreItem> EnchStoreList;
-typedef std::unordered_map<uint32, EnchStoreList> EnchantmentStore;
-
-static EnchantmentStore RandomItemEnch;
-
-TC_GAME_API void LoadRandomEnchantmentsTable()
+void LoadItemRandomBonusListTemplates()
 {
     uint32 oldMSTime = getMSTime();
 
-    RandomItemEnch.clear();                                 // for reload case
+    _storage.clear();
 
-    //                                                 0      1      2
-    QueryResult result = WorldDatabase.Query("SELECT entry, ench, chance FROM item_enchantment_template");
+    //                                               0   1            2
+    QueryResult result = WorldDatabase.Query("SELECT Id, BonusListID, Chance FROM item_random_bonus_list_template");
 
     if (result)
     {
@@ -61,76 +55,56 @@ TC_GAME_API void LoadRandomEnchantmentsTable()
         {
             Field* fields = result->Fetch();
 
-            uint32 entry = fields[0].GetUInt32();
-            uint32 ench = fields[1].GetUInt32();
+            uint32 id = fields[0].GetUInt32();
+            uint32 bonusListId = fields[1].GetUInt32();
             float chance = fields[2].GetFloat();
 
-            if (chance > 0.000001f && chance <= 100.0f)
-                RandomItemEnch[entry].push_back(EnchStoreItem(ench, chance));
+            if (ItemBonusMgr::GetItemBonuses(bonusListId).empty())
+            {
+                TC_LOG_ERROR("sql.sql", "Bonus list {} used in `item_random_bonus_list_template` by id {} doesn't have exist in ItemBonus.db2", bonusListId, id);
+                continue;
+            }
+
+            if (chance < 0.000001f || chance > 100.0f)
+            {
+                TC_LOG_ERROR("sql.sql", "Bonus list {} used in `item_random_bonus_list_template` by id {} has invalid chance {}", bonusListId, id, chance);
+                continue;
+            }
+
+            RandomBonusListIds& ids = _storage[id];
+            ids.BonusListIDs.push_back(bonusListId);
+            ids.Chances.push_back(chance);
 
             ++count;
         } while (result->NextRow());
 
-        TC_LOG_INFO("server.loading", ">> Loaded %u Item Enchantment definitions in %u ms", count, GetMSTimeDiffToNow(oldMSTime));
+        TC_LOG_INFO("server.loading", ">> Loaded {} Random item bonus list definitions in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     }
     else
-        TC_LOG_ERROR("server.loading", ">> Loaded 0 Item Enchantment definitions. DB table `item_enchantment_template` is empty.");
+        TC_LOG_INFO("server.loading", ">> Loaded 0 Random item bonus list definitions. DB table `item_random_bonus_list_template` is empty.");
 }
 
-TC_GAME_API uint32 GetItemEnchantMod(int32 entry)
-{
-    if (!entry)
-        return 0;
-
-    if (entry == -1)
-        return 0;
-
-    EnchantmentStore::const_iterator tab = RandomItemEnch.find(entry);
-    if (tab == RandomItemEnch.end())
-    {
-        TC_LOG_ERROR("sql.sql", "Item RandomProperty / RandomSuffix id #%u used in `item_template` but it does not have records in `item_enchantment_template` table.", entry);
-        return 0;
-    }
-
-    double dRoll = rand_chance();
-    float fCount = 0;
-
-    for (EnchStoreList::const_iterator ench_iter = tab->second.begin(); ench_iter != tab->second.end(); ++ench_iter)
-    {
-        fCount += ench_iter->chance;
-
-        if (fCount > dRoll)
-            return ench_iter->ench;
-    }
-
-    //we could get here only if sum of all enchantment chances is lower than 100%
-    dRoll = (irand(0, (int)floor(fCount * 100) + 1)) / 100;
-    fCount = 0;
-
-    for (EnchStoreList::const_iterator ench_iter = tab->second.begin(); ench_iter != tab->second.end(); ++ench_iter)
-    {
-        fCount += ench_iter->chance;
-
-        if (fCount > dRoll)
-            return ench_iter->ench;
-    }
-
-    return 0;
-}
-
-TC_GAME_API uint32 GenerateEnchSuffixFactor(uint32 item_id)
+ItemRandomBonusListId GenerateItemRandomBonusListId(uint32 item_id)
 {
     ItemTemplate const* itemProto = sObjectMgr->GetItemTemplate(item_id);
-
     if (!itemProto)
         return 0;
-    if (!itemProto->GetRandomSuffix())
+
+    // item must have one from this field values not null if it can have random enchantments
+    if (!itemProto->RandomBonusListTemplateId)
         return 0;
 
-    return GetRandomPropertyPoints(itemProto->GetBaseItemLevel(), itemProto->GetQuality(), itemProto->GetInventoryType(), itemProto->GetSubClass());
+    auto tab = _storage.find(itemProto->RandomBonusListTemplateId);
+    if (tab == _storage.end())
+    {
+        TC_LOG_ERROR("sql.sql", "Item RandomBonusListTemplateId id #{} used in `item_template_addon` but it does not have records in `item_random_bonus_list_template` table.", itemProto->RandomBonusListTemplateId);
+        return 0;
+    }
+
+    return *Trinity::Containers::SelectRandomWeightedContainerElement(tab->second.BonusListIDs, std::span(tab->second.Chances));
 }
 
-TC_GAME_API uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventoryType, uint32 subClass)
+TC_GAME_API float GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventoryType, uint32 subClass)
 {
     uint32 propIndex;
 
@@ -174,24 +148,26 @@ TC_GAME_API uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uin
             break;
         case INVTYPE_RELIC:
             propIndex = 4;
+            break;
         default:
             return 0;
     }
 
-    RandomPropertiesPointsEntry const* randPropPointsEntry = sRandomPropertiesPointsStore.LookupEntry(itemLevel);
+    RandPropPointsEntry const* randPropPointsEntry = sRandPropPointsStore.LookupEntry(itemLevel);
     if (!randPropPointsEntry)
         return 0;
 
     switch (quality)
     {
         case ITEM_QUALITY_UNCOMMON:
-            return randPropPointsEntry->UncommonPropertiesPoints[propIndex];
+            return randPropPointsEntry->GoodF[propIndex];
         case ITEM_QUALITY_RARE:
         case ITEM_QUALITY_HEIRLOOM:
-            return randPropPointsEntry->RarePropertiesPoints[propIndex];
+            return randPropPointsEntry->SuperiorF[propIndex];
         case ITEM_QUALITY_EPIC:
         case ITEM_QUALITY_LEGENDARY:
-            return randPropPointsEntry->EpicPropertiesPoints[propIndex];
+        case ITEM_QUALITY_ARTIFACT:
+            return randPropPointsEntry->EpicF[propIndex];
     }
 
     return 0;

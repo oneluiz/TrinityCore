@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,16 +18,22 @@
 #include "WorldSession.h"
 #include "Garrison.h"
 #include "GarrisonPackets.h"
+#include "Player.h"
 
 void WorldSession::HandleGetGarrisonInfo(WorldPackets::Garrison::GetGarrisonInfo& /*getGarrisonInfo*/)
 {
+    WorldPackets::Garrison::GetGarrisonInfoResult garrisonInfo;
+    garrisonInfo.FactionIndex = Garrison::GetFaction(_player->GetTeam());
+
     if (Garrison* garrison = _player->GetGarrison())
-        garrison->SendInfo();
+        garrison->BuildInfoPacket(garrisonInfo.Garrisons.emplace_back());
+
+    SendPacket(garrisonInfo.Write());
 }
 
 void WorldSession::HandleGarrisonPurchaseBuilding(WorldPackets::Garrison::GarrisonPurchaseBuilding& garrisonPurchaseBuilding)
 {
-    if (!_player->GetNPCIfCanInteractWith(garrisonPurchaseBuilding.NpcGUID, UNIT_NPC_FLAG_GARRISON_ARCHITECT))
+    if (!_player->GetNPCIfCanInteractWith(garrisonPurchaseBuilding.NpcGUID, UNIT_NPC_FLAG_NONE, UNIT_NPC_FLAG_2_GARRISON_ARCHITECT))
         return;
 
     if (Garrison* garrison = _player->GetGarrison())
@@ -36,7 +42,7 @@ void WorldSession::HandleGarrisonPurchaseBuilding(WorldPackets::Garrison::Garris
 
 void WorldSession::HandleGarrisonCancelConstruction(WorldPackets::Garrison::GarrisonCancelConstruction& garrisonCancelConstruction)
 {
-    if (!_player->GetNPCIfCanInteractWith(garrisonCancelConstruction.NpcGUID, UNIT_NPC_FLAG_GARRISON_ARCHITECT))
+    if (!_player->GetNPCIfCanInteractWith(garrisonCancelConstruction.NpcGUID, UNIT_NPC_FLAG_NONE, UNIT_NPC_FLAG_2_GARRISON_ARCHITECT))
         return;
 
     if (Garrison* garrison = _player->GetGarrison())
@@ -49,8 +55,8 @@ void WorldSession::HandleGarrisonRequestBlueprintAndSpecializationData(WorldPack
         garrison->SendBlueprintAndSpecializationData();
 }
 
-void WorldSession::HandleGarrisonGetBuildingLandmarks(WorldPackets::Garrison::GarrisonGetBuildingLandmarks& /*garrisonGetBuildingLandmarks*/)
+void WorldSession::HandleGarrisonGetMapData(WorldPackets::Garrison::GarrisonGetMapData& /*garrisonGetMapData*/)
 {
     if (Garrison* garrison = _player->GetGarrison())
-        garrison->SendBuildingLandmarks(_player);
+        garrison->SendMapData(_player);
 }

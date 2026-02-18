@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,71 +15,58 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef Session_h__
-#define Session_h__
+#ifndef TRINITYCORE_SESSION_H
+#define TRINITYCORE_SESSION_H
 
+#include "AsyncCallbackProcessor.h"
+#include "ClientBuildInfo.h"
+#include "DatabaseEnvFwd.h"
+#include "Duration.h"
 #include "Realm.h"
-#include "SslContext.h"
-#include "SslSocket.h"
 #include "Socket.h"
-#include "BigNumber.h"
-#include "Callback.h"
+#include "SslStream.h"
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl.hpp>
 #include <google/protobuf/message.h>
 #include <memory>
 
-using boost::asio::ip::tcp;
-
 namespace pb = google::protobuf;
 
-namespace bgs
+class ServiceBase;
+
+namespace bgs::protocol
 {
-    namespace protocol
-    {
-        class Variant;
+class Variant;
 
-        namespace account
-        {
-            namespace v1
-            {
-                class GetAccountStateRequest;
-                class GetAccountStateResponse;
-                class GetGameAccountStateRequest;
-                class GetGameAccountStateResponse;
-            }
-        }
+namespace account::v1
+{
+    class GetAccountStateRequest;
+    class GetAccountStateResponse;
+    class GetGameAccountStateRequest;
+    class GetGameAccountStateResponse;
+}
 
-        namespace authentication
-        {
-            namespace v1
-            {
-                class LogonRequest;
-                class VerifyWebCredentialsRequest;
-            }
-        }
+namespace authentication::v1
+{
+    class GenerateWebCredentialsRequest;
+    class LogonRequest;
+    class VerifyWebCredentialsRequest;
+}
 
-        namespace game_utilities
-        {
-            namespace v1
-            {
-                class ClientRequest;
-                class ClientResponse;
-                class GetAllValuesForAttributeRequest;
-                class GetAllValuesForAttributeResponse;
-            }
-        }
-    }
+namespace game_utilities::v1
+{
+    class ClientRequest;
+    class ClientResponse;
+    class GetAllValuesForAttributeRequest;
+    class GetAllValuesForAttributeResponse;
+}
 }
 
 using namespace bgs::protocol;
 
 namespace Battlenet
 {
-    class Session : public Socket<Session, SslSocket<SslContext>>
+    class Session final : public std::enable_shared_from_this<Session>
     {
-        typedef Socket<Session, SslSocket<SslContext>> BattlenetSocket;
-
     public:
         struct LastPlayedCharacterInfo
         {
@@ -91,11 +78,12 @@ namespace Battlenet
 
         struct GameAccountInfo
         {
-            void LoadResult(Field* fields);
+            void LoadResult(Field const* fields);
 
             uint32 Id;
             std::string Name;
             std::string DisplayName;
+            uint32 UnbanDate;
             bool IsBanned;
             bool IsPermanenetlyBanned;
             AccountTypes SecurityLevel;
@@ -113,18 +101,22 @@ namespace Battlenet
             bool IsLockedToIP;
             std::string LockCountry;
             std::string LastIP;
-            uint32 FailedLogins;
+            uint32 LoginTicketExpiry;
             bool IsBanned;
             bool IsPermanenetlyBanned;
 
             std::unordered_map<uint32, GameAccountInfo> GameAccounts;
         };
 
-        explicit Session(tcp::socket&& socket);
+        explicit Session(Trinity::Net::IoContextTcpSocket&& socket);
         ~Session();
 
-        void Start() override;
-        bool Update() override;
+        void Start();
+        bool Update();
+        boost::asio::ip::address const& GetRemoteIpAddress() const { return _socket->GetRemoteIpAddress(); }
+        bool IsOpen() const { return _socket->IsOpen(); }
+        void CloseSocket() { return _socket->CloseSocket(); }
+        void DelayedCloseSocket() { return _socket->DelayedCloseSocket(); }
 
         uint32 GetAccountId() const { return _accountInfo->Id; }
         uint32 GetGameAccountId() const { return _gameAccountInfo->Id; }
@@ -140,8 +132,11 @@ namespace Battlenet
 
         void SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request);
 
-        uint32 HandleLogon(authentication::v1::LogonRequest const* logonRequest);
-        uint32 HandleVerifyWebCredentials(authentication::v1::VerifyWebCredentialsRequest const* verifyWebCredentialsRequest);
+        void QueueQuery(QueryCallback&& queryCallback);
+
+        uint32 HandleLogon(authentication::v1::LogonRequest const* logonRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+        uint32 HandleVerifyWebCredentials(authentication::v1::VerifyWebCredentialsRequest const* verifyWebCredentialsRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+        uint32 HandleGenerateWebCredentials(authentication::v1::GenerateWebCredentialsRequest const* request, std::function<void(ServiceBase*, uint32, google::protobuf::Message const*)>& continuation);
         uint32 HandleGetAccountState(account::v1::GetAccountStateRequest const* request, account::v1::GetAccountStateResponse* response);
         uint32 HandleGetGameAccountState(account::v1::GetGameAccountStateRequest const* request, account::v1::GetGameAccountStateResponse* response);
         uint32 HandleProcessClientRequest(game_utilities::v1::ClientRequest const* request, game_utilities::v1::ClientResponse* response);
@@ -149,9 +144,9 @@ namespace Battlenet
 
         std::string GetClientInfo() const;
 
+        Trinity::Net::SocketReadCallbackResult ReadHandler();
+
     protected:
-        void HandshakeHandler(boost::system::error_code const& error);
-        void ReadHandler() override;
         bool ReadHeaderLengthHandler();
         bool ReadHeaderHandler();
         bool ReadDataHandler();
@@ -159,9 +154,7 @@ namespace Battlenet
     private:
         void AsyncWrite(MessageBuffer* packet);
 
-        void AsyncHandshake();
-
-        void CheckIpCallback(PreparedQueryResult result);
+        uint32 VerifyWebCredentials(std::string const& webCredentials, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
 
         typedef uint32(Session::*ClientRequestHandler)(std::unordered_map<std::string, Variant const*> const&, game_utilities::v1::ClientResponse*);
         static std::unordered_map<std::string, ClientRequestHandler> const ClientRequestHandlers;
@@ -171,16 +164,22 @@ namespace Battlenet
         uint32 GetRealmList(std::unordered_map<std::string, Variant const*> const& params, game_utilities::v1::ClientResponse* response);
         uint32 JoinRealm(std::unordered_map<std::string, Variant const*> const& params, game_utilities::v1::ClientResponse* response);
 
+        using Socket = Trinity::Net::Socket<Trinity::Net::SslStream<>>;
+
+        static std::shared_ptr<Socket> CreateSocket(Trinity::Net::IoContextTcpSocket&& socket);
+        std::shared_ptr<Socket> _socket;
         MessageBuffer _headerLengthBuffer;
         MessageBuffer _headerBuffer;
         MessageBuffer _packetBuffer;
 
-        std::unique_ptr<AccountInfo> _accountInfo;
+        std::shared_ptr<AccountInfo> _accountInfo;
         GameAccountInfo* _gameAccountInfo;          // Points at selected game account (inside _gameAccounts)
 
         std::string _locale;
         std::string _os;
         uint32 _build;
+        ClientBuild::VariantId _clientInfo;
+        Minutes _timezoneOffset;
 
         std::string _ipCountry;
 
@@ -188,12 +187,11 @@ namespace Battlenet
 
         bool _authed;
 
-        PreparedQueryResultFuture _queryFuture;
-        std::function<void(PreparedQueryResult)> _queryCallback;
+        QueryCallbackProcessor _queryProcessor;
 
         std::unordered_map<uint32, std::function<void(MessageBuffer)>> _responseCallbacks;
         uint32 _requestToken;
     };
 }
 
-#endif // Session_h__
+#endif // TRINITYCORE_SESSION_H

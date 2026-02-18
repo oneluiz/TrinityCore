@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,11 +15,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ChannelPackets_h__
-#define ChannelPackets_h__
+#ifndef TRINITYCORE_CHANNEL_PACKETS_H
+#define TRINITYCORE_CHANNEL_PACKETS_H
 
 #include "Packet.h"
-#include "Channel.h"
 #include "ObjectGuid.h"
 
 namespace WorldPackets
@@ -39,7 +38,7 @@ namespace WorldPackets
                 uint8 Flags;     ///< @see enum ChannelMemberFlags
             };
 
-            ChannelListResponse() : ServerPacket(SMSG_CHANNEL_LIST) { }
+            explicit ChannelListResponse() : ServerPacket(SMSG_CHANNEL_LIST) { }
 
             WorldPacket const* Write() override;
 
@@ -49,10 +48,10 @@ namespace WorldPackets
             bool _Display = false;
         };
 
-        class ChannelNotify final : public ServerPacket
+        class TC_GAME_API ChannelNotify final : public ServerPacket
         {
         public:
-            ChannelNotify() : ServerPacket(SMSG_CHANNEL_NOTIFY, 80) { }
+            explicit ChannelNotify() : ServerPacket(SMSG_CHANNEL_NOTIFY, 80) { }
 
             WorldPacket const* Write() override;
 
@@ -72,21 +71,23 @@ namespace WorldPackets
         class ChannelNotifyJoined final : public ServerPacket
         {
         public:
-            ChannelNotifyJoined() : ServerPacket(SMSG_CHANNEL_NOTIFY_JOINED, 50) { }
+            explicit ChannelNotifyJoined() : ServerPacket(SMSG_CHANNEL_NOTIFY_JOINED, 50) { }
 
             WorldPacket const* Write() override;
 
             std::string ChannelWelcomeMsg;
             int32 ChatChannelID = 0;
-            int32 InstanceID    = 0;
+            uint64 InstanceID    = 0;
             uint32 _ChannelFlags = 0; ///< @see enum ChannelFlags
             std::string _Channel;     ///< Channel Name
+            ObjectGuid ChannelGUID;
+            uint8 Unknown1107 = 0;
         };
 
         class ChannelNotifyLeft final : public ServerPacket
         {
-            public:
-            ChannelNotifyLeft() : ServerPacket(SMSG_CHANNEL_NOTIFY_LEFT, 30) { }
+        public:
+                explicit ChannelNotifyLeft() : ServerPacket(SMSG_CHANNEL_NOTIFY_LEFT, 30) { }
 
             WorldPacket const* Write() override;
 
@@ -98,13 +99,13 @@ namespace WorldPackets
         class UserlistAdd final : public ServerPacket
         {
         public:
-            UserlistAdd() : ServerPacket(SMSG_USERLIST_ADD, 30) { }
+            explicit UserlistAdd() : ServerPacket(SMSG_USERLIST_ADD, 30) { }
 
             WorldPacket const* Write() override;
 
             ObjectGuid AddedUserGUID;
-            uint32 _ChannelFlags = CHANNEL_FLAG_NONE; ///< @see enum ChannelFlags
-            uint8 UserFlags = MEMBER_FLAG_NONE;
+            uint32 _ChannelFlags = 0; ///< @see enum ChannelFlags
+            uint8 UserFlags = 0; ///< @see enum ChannelMemberFlags
             int32 ChannelID = 0;
             std::string ChannelName;
         };
@@ -112,12 +113,12 @@ namespace WorldPackets
         class UserlistRemove final : public ServerPacket
         {
         public:
-            UserlistRemove() : ServerPacket(SMSG_USERLIST_REMOVE, 30) { }
+            explicit UserlistRemove() : ServerPacket(SMSG_USERLIST_REMOVE, 30) { }
 
             WorldPacket const* Write() override;
 
             ObjectGuid RemovedUserGUID;
-            uint32 _ChannelFlags = CHANNEL_FLAG_NONE; ///< @see enum ChannelFlags
+            uint32 _ChannelFlags = 0; ///< @see enum ChannelFlags
             uint32 ChannelID = 0;
             std::string ChannelName;
         };
@@ -125,51 +126,31 @@ namespace WorldPackets
         class UserlistUpdate final : public ServerPacket
         {
         public:
-            UserlistUpdate() : ServerPacket(SMSG_USERLIST_UPDATE, 30) { }
+            explicit UserlistUpdate() : ServerPacket(SMSG_USERLIST_UPDATE, 30) { }
 
             WorldPacket const* Write() override;
 
             ObjectGuid UpdatedUserGUID;
-            uint32 _ChannelFlags = CHANNEL_FLAG_NONE; ///< @see enum ChannelFlags
-            uint8 UserFlags = MEMBER_FLAG_NONE;
+            uint32 _ChannelFlags = 0; ///< @see enum ChannelFlags
+            uint8 UserFlags = 0; ///< @see enum ChannelMemberFlags
             int32 ChannelID = 0;
+            std::string ChannelName;
+        };
+
+        class ChannelCommand final : public ClientPacket
+        {
+        public:
+            explicit ChannelCommand(WorldPacket&& packet);
+
+            void Read() override;
+
             std::string ChannelName;
         };
 
         class ChannelPlayerCommand final : public ClientPacket
         {
         public:
-            ChannelPlayerCommand(WorldPacket&& packet) : ClientPacket(std::move(packet))
-            {
-                switch (GetOpcode())
-                {
-                    default:
-                        ABORT();
-                    case CMSG_CHAT_CHANNEL_ANNOUNCEMENTS:
-                    case CMSG_CHAT_CHANNEL_BAN:
-                    case CMSG_CHAT_CHANNEL_DECLINE_INVITE:
-                    case CMSG_CHAT_CHANNEL_DISPLAY_LIST:
-                    case CMSG_CHAT_CHANNEL_INVITE:
-                    case CMSG_CHAT_CHANNEL_KICK:
-                    case CMSG_CHAT_CHANNEL_LIST:
-                    case CMSG_CHAT_CHANNEL_MODERATE:
-                    case CMSG_CHAT_CHANNEL_MODERATOR:
-                    case CMSG_CHAT_CHANNEL_MUTE:
-                    case CMSG_CHAT_CHANNEL_OWNER:
-                    case CMSG_CHAT_CHANNEL_PASSWORD:
-                    case CMSG_CHAT_CHANNEL_SET_OWNER:
-                    case CMSG_CHAT_CHANNEL_SILENCE_ALL:
-                    case CMSG_CHAT_CHANNEL_SILENCE_VOICE:
-                    case CMSG_CHAT_CHANNEL_UNBAN:
-                    case CMSG_CHAT_CHANNEL_UNMODERATOR:
-                    case CMSG_CHAT_CHANNEL_UNMUTE:
-                    case CMSG_CHAT_CHANNEL_UNSILENCE_ALL:
-                    case CMSG_CHAT_CHANNEL_UNSILENCE_VOICE:
-                    case CMSG_CHAT_CHANNEL_VOICE_OFF:
-                    case CMSG_CHAT_CHANNEL_VOICE_ON:
-                        break;
-                }
-            }
+            explicit ChannelPlayerCommand(WorldPacket&& packet);
 
             void Read() override;
 
@@ -177,10 +158,21 @@ namespace WorldPackets
             std::string Name;
         };
 
+        class ChannelPassword final : public ClientPacket
+        {
+        public:
+            explicit ChannelPassword(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_CHANNEL_PASSWORD, std::move(packet)) { }
+
+            void Read() override;
+
+            std::string ChannelName;
+            std::string Password;
+        };
+
         class JoinChannel final : public ClientPacket
         {
         public:
-            JoinChannel(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_JOIN_CHANNEL, std::move(packet)) { }
+            explicit JoinChannel(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_JOIN_CHANNEL, std::move(packet)) { }
 
             void Read() override;
 
@@ -194,7 +186,7 @@ namespace WorldPackets
         class LeaveChannel final : public ClientPacket
         {
         public:
-            LeaveChannel(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_LEAVE_CHANNEL, std::move(packet)) { }
+            explicit LeaveChannel(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_LEAVE_CHANNEL, std::move(packet)) { }
 
             void Read() override;
 
@@ -204,4 +196,4 @@ namespace WorldPackets
     }
 }
 
-#endif // ChannelPackets_h__
+#endif // TRINITYCORE_CHANNEL_PACKETS_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,9 +15,15 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "Item.h"
-#include "ToyPackets.h"
 #include "WorldSession.h"
+#include "DB2Stores.h"
+#include "Item.h"
+#include "Log.h"
+#include "ObjectMgr.h"
+#include "Player.h"
+#include "Spell.h"
+#include "SpellMgr.h"
+#include "ToyPackets.h"
 
 void WorldSession::HandleAddToy(WorldPackets::Toy::AddToy& packet)
 {
@@ -41,20 +47,32 @@ void WorldSession::HandleAddToy(WorldPackets::Toy::AddToy& packet)
         return;
     }
 
-    if (_collectionMgr->AddToy(item->GetEntry(), false))
+    if (_collectionMgr->AddToy(item->GetEntry(), false, false))
         _player->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
 }
 
 void WorldSession::HandleUseToy(WorldPackets::Toy::UseToy& packet)
 {
-    ItemTemplate const* item = sObjectMgr->GetItemTemplate(packet.ItemID);
+    uint32 itemId = packet.Cast.Misc[0];
+    ItemTemplate const* item = sObjectMgr->GetItemTemplate(itemId);
     if (!item)
         return;
 
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(packet.Cast.SpellID);
+    if (!_collectionMgr->HasToy(itemId))
+        return;
+
+    auto effect = std::find_if(item->Effects.begin(), item->Effects.end(), [&packet](ItemEffectEntry const* effect)
+    {
+        return packet.Cast.SpellID == effect->SpellID;
+    });
+
+    if (effect == item->Effects.end())
+        return;
+
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(packet.Cast.SpellID, DIFFICULTY_NONE);
     if (!spellInfo)
     {
-        TC_LOG_ERROR("network", "HandleUseToy: unknown spell id: %u used by Toy Item entry %u", packet.Cast.SpellID, packet.ItemID);
+        TC_LOG_ERROR("network", "HandleUseToy: unknown spell id: {} used by Toy Item entry {}", packet.Cast.SpellID, itemId);
         return;
     }
 
@@ -63,16 +81,21 @@ void WorldSession::HandleUseToy(WorldPackets::Toy::UseToy& packet)
 
     SpellCastTargets targets(_player, packet.Cast);
 
-    Spell* spell = new Spell(_player, spellInfo, TRIGGERED_NONE, ObjectGuid::Empty, false);
-    spell->m_castItemEntry = packet.ItemID;
-    spell->m_cast_count = packet.Cast.CastID;
-    spell->m_misc.Raw.Data[0] = packet.Cast.Misc[0];
-    spell->m_misc.Raw.Data[1] = packet.Cast.Misc[1];
+    Spell* spell = new Spell(_player, spellInfo, TRIGGERED_NONE);
+
+    WorldPackets::Spells::SpellPrepare spellPrepare;
+    spellPrepare.ClientCastID = packet.Cast.CastID;
+    spellPrepare.ServerCastID = spell->m_castId;
+    SendPacket(spellPrepare.Write());
+
+    spell->m_fromClient = true;
+    spell->m_castItemEntry = itemId;
+    std::ranges::copy(packet.Cast.Misc, std::ranges::begin(spell->m_misc.Raw.Data));
     spell->m_castFlagsEx |= CAST_FLAG_EX_USE_TOY_SPELL;
-    spell->prepare(&targets);
+    spell->prepare(targets);
 }
 
-void WorldSession::HandleToySetFavorite(WorldPackets::Toy::ToySetFavorite& packet)
+void WorldSession::HandleToyClearFanfare(WorldPackets::Toy::ToyClearFanfare& toyClearFanfare)
 {
-    _collectionMgr->ToySetFavorite(packet.ItemID, packet.Favorite);
+    _collectionMgr->ToyClearFanfare(toyClearFanfare.ItemID);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,10 +16,14 @@
  */
 
 #include "GarrisonMap.h"
+#include "DBCEnums.h"
+#include "GameObject.h"
 #include "Garrison.h"
+#include "Log.h"
 #include "ObjectAccessor.h"
 #include "ObjectGridLoader.h"
-#include "GameObject.h"
+#include "Player.h"
+#include "World.h"
 
 class GarrisonGridLoader
 {
@@ -64,7 +68,7 @@ void GarrisonGridLoader::LoadN()
         }
     }
 
-    TC_LOG_DEBUG("maps", "%u GameObjects and %u Creatures loaded for grid %u on map %u", i_gameObjects, i_creatures, i_grid->GetGridId(), i_map->GetId());
+    TC_LOG_DEBUG("maps", "{} GameObjects and {} Creatures loaded for grid {} on map {}", i_gameObjects, i_creatures, i_grid->GetGridId(), i_map->GetId());
 }
 
 void GarrisonGridLoader::Visit(GameObjectMapType& m)
@@ -75,7 +79,7 @@ void GarrisonGridLoader::Visit(GameObjectMapType& m)
         CellCoord cellCoord = i_cell.GetCellCoord();
         for (Garrison::Plot* plot : plots)
         {
-            Position const& spawn = plot->PacketInfo.PlotPos;
+            Position const& spawn = plot->PacketInfo.PlotPos.Pos;
             if (cellCoord != Trinity::ComputeCellCoord(spawn.GetPositionX(), spawn.GetPositionY()))
                 continue;
 
@@ -96,8 +100,8 @@ void GarrisonGridLoader::Visit(CreatureMapType& /*m*/)
 
 }
 
-GarrisonMap::GarrisonMap(uint32 id, time_t expiry, uint32 instanceId, Map* parent, ObjectGuid const& owner)
-    : Map(id, expiry, instanceId, DIFFICULTY_NORMAL, parent), _owner(owner), _loadingPlayer(nullptr)
+GarrisonMap::GarrisonMap(uint32 id, time_t expiry, uint32 instanceId, ObjectGuid const& owner)
+    : Map(id, expiry, instanceId, DIFFICULTY_NORMAL), _owner(owner), _loadingPlayer(nullptr)
 {
     GarrisonMap::InitVisibilityDistance();
 }
@@ -124,8 +128,8 @@ Garrison* GarrisonMap::GetGarrison()
 void GarrisonMap::InitVisibilityDistance()
 {
     //init visibility distance for instances
-    m_VisibleDistance = World::GetMaxVisibleDistanceInBGArenas();
-    m_VisibilityNotifyPeriod = World::GetVisibilityNotifyPeriodInBGArenas();
+    m_VisibleDistance = sWorld->getFloatConfig(CONFIG_MAX_VISIBILITY_DISTANCE_INSTANCE);
+    m_VisibilityNotifyPeriod = sWorld->getIntConfig(CONFIG_VISIBILITY_NOTIFY_PERIOD_INSTANCE);
 }
 
 bool GarrisonMap::AddPlayerToMap(Player* player, bool initPlayer /*= true*/)

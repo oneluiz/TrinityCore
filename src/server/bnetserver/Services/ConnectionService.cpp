@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * This file is part of the TrinityCore Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,17 +16,15 @@
  */
 
 #include "ConnectionService.h"
-#include "Duration.h"
-#include "Log.h"
+#include "BattlenetRpcErrorCodes.h"
 #include "Session.h"
 #include "Util.h"
-#include "BattlenetRpcErrorCodes.h"
 
 Battlenet::Services::Connection::Connection(Session* session) : ConnectionService(session)
 {
 }
 
-uint32 Battlenet::Services::Connection::HandleConnect(connection::v1::ConnectRequest const* request, connection::v1::ConnectResponse* response)
+uint32 Battlenet::Services::Connection::HandleConnect(connection::v1::ConnectRequest const* request, connection::v1::ConnectResponse* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& /*continuation*/)
 {
     if (request->has_client_id())
         response->mutable_client_id()->CopyFrom(request->client_id());
